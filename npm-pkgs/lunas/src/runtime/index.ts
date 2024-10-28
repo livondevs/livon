@@ -348,3 +348,11 @@ export const $$lunasCreateNonReactive = function <T>(
 ) {
   return new valueObj<T>(v);
 };
+
+export function $$lunasShouldRender(blockRendering: boolean, bitValue: number, bitPosition: number): boolean {
+  // Get the bit at the specified position (1-based index, so subtract 1)
+  const isBitSet = (bitValue >> (bitPosition - 1)) & 1;
+
+  // Compare the block rendering status with the bit status
+  return blockRendering !== Boolean(isBitSet);
+}

@@ -241,7 +241,7 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
+        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
 
 export default function(args = {{}}) {{
     const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock }} = new $$lunasInitComponent(args{});
@@ -411,10 +411,17 @@ fn gen_on_update_func(
 
         let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
+        let render_check = format!(
+            "$$lunasShouldRender({}, this.blkRenderedMap, {})",
+            if_block_info.condition,
+            index + 1,
+        );
+
         replace_statements.push(format!(
-            "{}this.valUpdateMap & {} && ( {} ? {} : ({}, {}, {}) );",
+            "{}this.valUpdateMap & {} && {} && ( {} ? {} : ({}, {}, {}) );",
             if_blk_rendering_cond,
             combined_number,
+            render_check,
             if_block_info.condition,
             format!("$$lunasRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
             format!("$$lunas{}Ref.remove()", &if_block_info.if_blk_id),

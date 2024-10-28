@@ -23,7 +23,5 @@ pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
         Err(e) => return Err(format!("{:?}", e)),
     };
 
-    println!("{:?}", detailed_block.detailed_meta_data);
-
     Ok(detailed_block)
 }
