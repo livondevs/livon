@@ -1,19 +1,22 @@
 {
   "name": "lunas-formatter",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest"
+  },
+  "bin": {
+    "lunas-formatter": "dist/cli.js"
   },
   "keywords": [],
-  "author": "tomu_1576 <s19514tt@sfc.keio.ac.jp> (https://github.com/s19514tt)",
+  "author": "s19514tt (https://github.com/s19514tt)",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "js-beautify": "^1.15.1"
+    "prettier": "^3.4.2",
+    "vitest": "^3.0.4"
   },
   "devDependencies": {
-    "@types/js-beautify": "^1.14.3",
     "@types/node": "^22.13.0",
     "typescript": "^5.7.3"
   }
