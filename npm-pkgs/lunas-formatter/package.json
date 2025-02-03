@@ -1,9 +1,11 @@
 {
   "name": "lunas-formatter",
-  "version": "1.0.0",
+  "version": "0.0.1-beta.1",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest",
+    "build": "tsc"
   },
   "bin": {
     "lunas-formatter": "dist/cli.js"
@@ -12,6 +14,7 @@
   "author": "s19514tt (https://github.com/s19514tt)",
   "license": "ISC",
   "description": "",
+  "private": false,
   "dependencies": {
     "prettier": "^3.4.2",
     "vitest": "^3.0.4"
