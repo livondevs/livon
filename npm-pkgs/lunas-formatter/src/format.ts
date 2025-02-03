@@ -172,18 +172,24 @@ export async function formatParsedContent(
     output += parsed.preamble + "\n";
   }
 
-  // Define the output order for sections.
-  const sectionOrder: SectionName[] = ["html", "script", "style"];
-  for (const key of sectionOrder) {
+  console.log(formattedSections);
+
+  for (const [sectionIndex, key] of (
+    Object.keys(formattedSections) as Array<keyof Sections>
+  ).entries()) {
     if (formattedSections[key] !== undefined) {
       output += `${key}:\n`;
       let lines: string[] = formattedSections[key]!.split("\n");
       // Add 2 spaces to the beginning of each line (empty lines are preserved).
-      for (const line of lines) {
-        if (line.trim() === "") {
+      for (const [lineIndex, line] of lines.entries()) {
+        if (line.trim() !== "") {
+          output += "  " + line;
+        }
+        if (
+          lineIndex !== lines.length - 1 ||
+          sectionIndex !== Object.keys(formattedSections).length - 1
+        ) {
           output += "\n";
-        } else {
-          output += "  " + line + "\n";
         }
       }
     }
