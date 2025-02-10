@@ -175,8 +175,6 @@ export async function formatParsedContent(
     output += parsed.preamble + "\n";
   }
 
-  console.log(formattedSections);
-
   for (const [sectionIndex, key] of (
     Object.keys(formattedSections) as Array<keyof Sections>
   ).entries()) {
