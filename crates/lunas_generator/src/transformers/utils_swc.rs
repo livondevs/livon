@@ -1,4 +1,3 @@
-extern crate swc_ecma_parser;
 use swc_common::sync::Lrc;
 use swc_common::{
     errors::{ColorConfig, Handler},
