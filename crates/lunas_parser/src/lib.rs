@@ -3,6 +3,7 @@ mod parser1;
 mod parsers;
 pub mod structs;
 mod swc_parser;
+mod ts_to_js;
 
 use parse2::parse2;
 use parser1::parse1;

@@ -113,6 +113,7 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 }
 
 pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
+    println!("input: {:?}", input);
     let parsed = parse_with_swc(&input.to_string());
     let parsed_json = serde_json::to_value(&parsed).unwrap();
     let positions = find_non_reactives(&parsed_json, &variables);

@@ -1,4 +1,3 @@
-extern crate swc_ecma_parser;
 use swc_common::sync::Lrc;
 use swc_common::{
     errors::{ColorConfig, Handler},
@@ -15,7 +14,7 @@ pub fn parse_with_swc(code: &String) -> Module {
     // let fm = cm
     //     .load_file(Path::new("test.js"))
     //     .expect("failed to load test.js");
-    let fm = cm.new_source_file(FileName::Anon, code.into());
+    let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
     let lexer = Lexer::new(
         // We want to parse ecmascript
         Syntax::Es(Default::default()),
