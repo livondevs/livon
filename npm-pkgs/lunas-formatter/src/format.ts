@@ -129,6 +129,7 @@ export async function formatParsedContent(
     printWidth: Infinity,
     // Avoid Prettier appending a newline at the end.
     endOfLine: "lf",
+    plugins: [await import("prettier/plugins/html")],
   };
 
   const jsOptions: prettier.Options = {
@@ -136,6 +137,7 @@ export async function formatParsedContent(
     tabWidth: 2,
     printWidth: Infinity,
     endOfLine: "lf",
+    plugins: [await import("prettier/plugins/babel")],
   };
 
   const cssOptions: prettier.Options = {
@@ -143,6 +145,7 @@ export async function formatParsedContent(
     tabWidth: 2,
     printWidth: Infinity,
     endOfLine: "lf",
+    plugins: [await import("prettier/plugins/postcss")],
   };
 
   const formattedSections: Sections = {};
