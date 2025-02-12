@@ -65,7 +65,7 @@ pub fn gen_render_if_blk_func(
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
                 child_block_rendering_exec.push(format!(
-                    "\n{} && $$lunasRenderIfBlock(\"{}\");",
+                    "\n({}) && $$lunasRenderIfBlock(\"{}\");",
                     child_if.condition, &child_if.if_blk_id
                 ));
             }
@@ -112,14 +112,14 @@ pub fn gen_render_if_blk_func(
         let create_if_func = format!(
             r#"$$lunasCreateIfBlock(
 {}
-) "#,
+);"#,
             create_indent(create_if_func_inside.as_str())
         );
 
         render_if.push(create_if_func);
         if if_block.ctx_over_if.len() == 0 {
             render_if.push(format!(
-                "{} && $$lunasRenderIfBlock(\"{}\")",
+                "({}) && $$lunasRenderIfBlock(\"{}\")",
                 if_block.condition, &if_block.if_blk_id
             ));
         }

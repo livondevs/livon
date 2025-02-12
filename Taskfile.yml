@@ -5,11 +5,14 @@ dotenv:
 
 tasks:
   pg:
-    deps: [pg-front, dev-server]
+    deps: [pg-front, dev-server,watch-runtime]
   # DOUBLE CHECK $PLAYGROUND_PATH BEFORE RUNNING
   pg-front:
     cmds:
       - cd $PLAYGROUND_PATH&&pwd&&npm run dev
+  watch-runtime:
+    cmds:
+      - chokidar ./npm-pkgs/lunas/src/runtime/index.ts -c "cp ./npm-pkgs/lunas/src/runtime/index.ts $PLAYGROUND_PATH/src/runtime/index.ts"
   dev-server:
     cmds:
       - cargo watch -x run --features playground
