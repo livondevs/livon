@@ -166,8 +166,10 @@ pub fn generate_js_from_blocks(
         gen_ref_getter_from_needed_ids(&needed_id, &None, &None, &mut ref_node_ids);
     after_mount_code_array.push(ref_getter_expression);
     let create_anchor_statements =
-        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &ref_node_ids);
-    after_mount_code_array.push(create_anchor_statements);
+        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &mut ref_node_ids);
+    if let Some(create_anchor_statements) = create_anchor_statements {
+        after_mount_code_array.push(create_anchor_statements);
+    }
     let event_listener_code = create_event_listener(&action_and_target, &vec![], &ref_node_ids);
     if let Some(code) = event_listener_code {
         after_mount_code_array.push(code);
@@ -242,10 +244,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
+        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -258,6 +260,7 @@ pub fn gen_ref_getter_from_needed_ids(
     ctx: &Option<&Vec<String>>,
     ref_node_ids: &mut Vec<String>,
 ) -> String {
+    let ref_node_ids_count = ref_node_ids.len();
     let needed_ids_to_get_here = needed_ids
         .iter()
         .filter(|needed_elm: &&NeededIdName| match *if_blk == None {
@@ -291,7 +294,17 @@ pub fn gen_ref_getter_from_needed_ids(
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-    ref_getter_str.push_str(format!("], {map});", map = delete_id_map).as_str());
+    // ref_node_ids_count
+    let offset = if ref_node_ids_count == 0 {
+        "".to_string()
+    } else {
+        format!(", {}", ref_node_ids_count)
+    };
+    ref_getter_str.push_str(&format!(
+        "], {map}{offset});",
+        map = delete_id_map,
+        offset = offset.as_str()
+    ));
     ref_getter_str
 }
 
@@ -540,16 +553,19 @@ fn gen_on_update_func(
 pub fn gen_create_anchor_statements(
     text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
-    ref_node_ids: &Vec<String>,
-) -> String {
+    ref_node_ids: &mut Vec<String>,
+) -> Option<String> {
+    let ref_node_ids_count_before_creating_anchors = ref_node_ids.len();
     let mut create_anchor_statements = vec![];
-    for render in &text_node_renderer.renderers {
+    let mut iter = text_node_renderer.renderers.iter().peekable();
+    let mut amount_of_next_elm = 1;
+    while let Some(render) = iter.next() {
         match render {
             crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
                 if &txt_renderer.ctx != ctx_condition {
                     continue;
                 }
-                let anchor_id = match &txt_renderer.target_anchor_id {
+                let anchor_idx = match &txt_renderer.target_anchor_id {
                     Some(anchor_id) => {
                         let reference_node_idx =
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
@@ -557,23 +573,31 @@ pub fn gen_create_anchor_statements(
                     }
                     None => "null".to_string(),
                 };
+                let parent_node_idx = ref_node_ids
+                    .iter()
+                    .position(|id| id == &txt_renderer.parent_id)
+                    .unwrap()
+                    .to_string();
                 let create_anchor_statement = format!(
-                    "$$lunasInsertContent(`{}`,$$lunas{}Ref,{});",
-                    // &txt_renderer.text_node_id,
+                    "[1, {}, {}, `{}`],",
+                    &parent_node_idx,
+                    &anchor_idx,
                     &txt_renderer.content.trim(),
-                    &txt_renderer.parent_id,
-                    &anchor_id
                 );
+                ref_node_ids.push(txt_renderer.text_node_id.clone());
                 create_anchor_statements.push(create_anchor_statement);
             }
             _ => {
-                // distance_to_next_elm
-                // ctx
-                // target_anchor_id
-                // block_id
-                // parent_id
+                let next_render = iter.peek();
                 let (distance_to_next_elm, ctx, target_anchor_id, block_id, parent_id) =
                     render.get_empty_text_node_info();
+                if let Some(next_renderer) = next_render {
+                    if render.is_next_elm_the_same_anchor(next_renderer) {
+                        ref_node_ids.push(block_id.clone());
+                        amount_of_next_elm += 1;
+                        continue;
+                    }
+                }
 
                 if distance_to_next_elm <= 1 {
                     continue;
@@ -595,32 +619,41 @@ pub fn gen_create_anchor_statements(
                     .unwrap()
                     .to_string();
                 let create_anchor_statement = format!(
-                    "$$lunasInsertEmpty({},{},{});",
-                    parent_node_idx, block_id, anchor_node_idx
+                    "[{}, {}, {}],",
+                    amount_of_next_elm, parent_node_idx, anchor_node_idx
                 );
                 create_anchor_statements.push(create_anchor_statement);
+                ref_node_ids.push(block_id.clone());
+                amount_of_next_elm = 1;
             }
         }
     }
 
-    /* const insertTxtNode = function (
-    this: LunasComponentState,
-    args: [
-        amount: number,
-        parent: HTMLElement,
-        anchor?: HTMLElement,
-        text?: string
-        ][],
-        offset: number = 0
-        ) { */
+    let anchor_offset = if ref_node_ids_count_before_creating_anchors == 0 {
+        "".to_string()
+    } else {
+        format!(
+            ", {}",
+            ref_node_ids_count_before_creating_anchors
+                .to_string()
+                .as_str()
+        )
+    };
 
-    format!(
-        r#"$$lunasInsertTextNodes([
+    if create_anchor_statements.is_empty() {
+        return None;
+    }
+
+    Some(
+        format!(
+            r#"$$lunasInsertTextNodes([
 {}
-]);"#,
-        create_indent(create_anchor_statements.join("\n").as_str())
+]{});"#,
+            create_indent(create_anchor_statements.join("\n").as_str()),
+            anchor_offset
+        )
+        .to_string(),
     )
-    .to_string()
 }
 
 pub fn gen_render_custom_component_statements(

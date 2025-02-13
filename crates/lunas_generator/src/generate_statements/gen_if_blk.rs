@@ -20,6 +20,7 @@ pub fn gen_render_if_blk_func(
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
     variable_names: &Vec<String>,
+    ref_node_ids: &mut Vec<String>,
 ) -> Vec<String> {
     let mut render_if = vec![];
 
@@ -32,30 +33,35 @@ pub fn gen_render_if_blk_func(
             _ => panic!(),
         };
 
-        let mut rendering_statement = vec![];
+        let mut post_render_statement: Vec<String> = Vec::new();
 
         let ref_getter_str = gen_ref_getter_from_needed_ids(
             needed_ids,
             &Some(if_block),
             &Some(&if_block.ctx_under_if),
+            ref_node_ids,
         );
-        rendering_statement.push(ref_getter_str.as_str());
+        post_render_statement.push(ref_getter_str);
 
-        let ev_listener_code = create_event_listener(actions_and_targets, &if_block.ctx_under_if);
-        if ev_listener_code.len() != 0 {
-            rendering_statement.extend(ev_listener_code.iter().map(|x| x.as_str()));
+        let ev_listener_code =
+            create_event_listener(actions_and_targets, &if_block.ctx_under_if, &ref_node_ids);
+        if let Some(ev_listener_code) = ev_listener_code {
+            post_render_statement.push(ev_listener_code.clone()); // `as_str()` を使って `&str` を追加
         }
 
-        let gen_anchor = gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if);
-        rendering_statement.extend(gen_anchor.iter().map(|x| x.as_str()));
+        let gen_anchor =
+            gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if, ref_node_ids);
+        if let Some(gen_anchor) = gen_anchor {
+            post_render_statement.push(gen_anchor);
+        }
 
         let render_child_component = gen_render_custom_component_statements(
             &custom_component_blocks_info,
             &if_block.ctx_under_if,
             &variable_names,
         );
-        if render_child_component.len() != 0 {
-            rendering_statement.extend(render_child_component.iter().map(|x| x.as_str()));
+        if !render_child_component.is_empty() {
+            post_render_statement.extend(render_child_component);
         }
 
         // if there are children if block under the if block, render them
@@ -65,7 +71,7 @@ pub fn gen_render_if_blk_func(
             let mut child_block_rendering_exec = vec![];
             for child_if in children {
                 child_block_rendering_exec.push(format!(
-                    "\n({}) && $$lunasRenderIfBlock(\"{}\");",
+                    "({}) && $$lunasRenderIfBlock(\"{}\");",
                     child_if.condition, &child_if.if_blk_id
                 ));
             }
@@ -73,9 +79,13 @@ pub fn gen_render_if_blk_func(
         } else {
             vec![]
         };
-        rendering_statement.extend(child_block_rendering_exec.iter().map(|x| x.as_str()));
+        post_render_statement.extend(child_block_rendering_exec);
 
-        let name_of_parent_of_if_blk = format!("$$lunas{}Ref", if_block.parent_id);
+        // let name_of_parent_of_if_blk = format!("$$lunas{}Ref", if_block.parent_id);
+        let parent_if_blk_id_idx = ref_node_ids
+            .iter()
+            .position(|x| x == &if_block.parent_id)
+            .unwrap();
         let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
             true => format!("$$lunas{}Anchor", if_block.if_blk_id),
             false => match if_block.target_anchor_id {
@@ -87,26 +97,28 @@ pub fn gen_render_if_blk_func(
             },
         };
 
-        let if_on_create = match rendering_statement.len() == 0 {
+        let if_on_create = match post_render_statement.len() == 0 {
             true => "() => {}".to_string(),
             false => format!(
                 r#"function() {{
 {}
 }}"#,
-                create_indent(rendering_statement.join("\n").as_str()),
+                create_indent(post_render_statement.join("\n").as_str()),
             ),
         };
 
         let create_if_func_inside = format!(
             r#""{}",
 ()=>{},
-()=>[{},{}],
-{},"#,
+{},{},
+{},
+()=>{}"#,
             if_block.target_if_blk_id,
             create_internal_element_statement,
-            name_of_parent_of_if_blk,
+            parent_if_blk_id_idx,
             name_of_anchor_of_if_blk,
             if_on_create,
+            if_block.condition,
         );
 
         let create_if_func = format!(

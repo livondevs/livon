@@ -241,6 +241,61 @@ impl TextNodeRenderer {
             TextNodeRenderer::CustomComponentRenderer(renderer) => &renderer.element_location,
         }
     }
+
+    // DO NOT USE THIS METHOD FOR MANUAL RENDERER
+    pub fn get_empty_text_node_info(&self) -> (u64, Vec<String>, Option<String>, String, String) {
+        match self {
+            TextNodeRenderer::IfBlockRenderer(if_block_info) => {
+                return (
+                    if_block_info.distance_to_next_elm,
+                    if_block_info.ctx_over_if.clone(),
+                    if_block_info.target_anchor_id.clone(),
+                    if_block_info.if_blk_id.clone(),
+                    if_block_info.parent_id.clone(),
+                );
+            }
+            TextNodeRenderer::CustomComponentRenderer(custom_component_block_info) => {
+                return (
+                    custom_component_block_info.distance_to_next_elm,
+                    custom_component_block_info.ctx.clone(),
+                    custom_component_block_info.target_anchor_id.clone(),
+                    custom_component_block_info
+                        .custom_component_block_id
+                        .clone(),
+                    custom_component_block_info.parent_id.clone(),
+                );
+            }
+            TextNodeRenderer::ManualRenderer(_) => {
+                panic!("This method should not be used for ManualRenderer")
+            }
+        }
+    }
+
+    // DO NOT USE THIS METHOD FOR MANUAL RENDERER
+    pub fn is_next_elm_the_same_anchor(&self, next_renderer: &TextNodeRenderer) -> bool {
+        // if next element is a manual, false
+        if let TextNodeRenderer::ManualRenderer(_) = next_renderer {
+            return false;
+        }
+        let (_, _, target_anchor_id_of_current, _, parent_id_of_current) =
+            self.get_empty_text_node_info();
+        let (
+            distance_to_next_elm_of_next_renderer,
+            _,
+            target_anchor_id_of_next,
+            _,
+            parent_id_of_next,
+        ) = next_renderer.get_empty_text_node_info();
+        if target_anchor_id_of_current != target_anchor_id_of_next {
+            return false;
+        } else if parent_id_of_current != parent_id_of_next {
+            return false;
+        } else if distance_to_next_elm_of_next_renderer == 1 {
+            return false;
+        }
+
+        return true;
+    }
 }
 
 pub struct TextNodeRendererGroup {
