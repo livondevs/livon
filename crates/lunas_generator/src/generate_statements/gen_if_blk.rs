@@ -21,7 +21,7 @@ pub fn gen_render_if_blk_func(
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
     variable_names: &Vec<String>,
     ref_node_ids: &mut Vec<String>,
-) -> Vec<String> {
+) -> Option<String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info.iter() {
@@ -64,40 +64,33 @@ pub fn gen_render_if_blk_func(
             post_render_statement.extend(render_child_component);
         }
 
-        // if there are children if block under the if block, render them
-        let children = if_block.find_children(&if_block_info);
-
-        let child_block_rendering_exec = if children.len() != 0 {
-            let mut child_block_rendering_exec = vec![];
-            for child_if in children {
-                child_block_rendering_exec.push(format!(
-                    "({}) && $$lunasRenderIfBlock(\"{}\");",
-                    child_if.condition, &child_if.if_blk_id
-                ));
-            }
-            child_block_rendering_exec
-        } else {
-            vec![]
-        };
-        post_render_statement.extend(child_block_rendering_exec);
-
         // let name_of_parent_of_if_blk = format!("$$lunas{}Ref", if_block.parent_id);
         let parent_if_blk_id_idx = ref_node_ids
             .iter()
             .position(|x| x == &if_block.parent_id)
-            .unwrap();
-        let name_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
-            true => format!("$$lunas{}Anchor", if_block.if_blk_id),
-            false => match if_block.target_anchor_id {
-                Some(_) => format!(
-                    "$$lunas{}Ref",
-                    if_block.target_anchor_id.as_ref().unwrap().clone()
+            .unwrap()
+            .to_string();
+        let idx_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
+            true => Some(
+                ref_node_ids
+                    .iter()
+                    .position(|x| x == &if_block.if_blk_id)
+                    .unwrap()
+                    .to_string(),
+            ),
+            false => match &if_block.target_anchor_id {
+                Some(target_anchor_id) => Some(
+                    ref_node_ids
+                        .iter()
+                        .position(|x| x == target_anchor_id)
+                        .unwrap()
+                        .to_string(),
                 ),
-                None => format!("null"),
+                None => None,
             },
         };
 
-        let if_on_create = match post_render_statement.len() == 0 {
+        let if_on_create = match post_render_statement.is_empty() {
             true => "() => {}".to_string(),
             false => format!(
                 r#"function() {{
@@ -107,34 +100,57 @@ pub fn gen_render_if_blk_func(
             ),
         };
 
+        let anchor_decl = match idx_of_anchor_of_if_blk {
+            Some(idx) => format!(
+                r#",
+{}"#,
+                idx
+            ),
+            None => "".to_string(),
+        };
+
+        // array to js array string
+        let ctxjs_array = format!(
+            r#"[{}]"#,
+            if_block
+                .ctx_over_if
+                .iter()
+                .map(|x| format!("'{}'", x))
+                .collect::<Vec<String>>()
+                .join(",")
+        );
+
         let create_if_func_inside = format!(
             r#""{}",
-()=>{},
-{},{},
+() => ({}),
+() => ({}),
 {},
-()=>{}"#,
+{},
+{}{}"#,
             if_block.target_if_blk_id,
             create_internal_element_statement,
-            parent_if_blk_id_idx,
-            name_of_anchor_of_if_blk,
-            if_on_create,
             if_block.condition,
+            if_on_create,
+            ctxjs_array,
+            parent_if_blk_id_idx,
+            anchor_decl
         );
 
         let create_if_func = format!(
-            r#"$$lunasCreateIfBlock(
+            r#"[
 {}
-);"#,
+]"#,
             create_indent(create_if_func_inside.as_str())
         );
 
         render_if.push(create_if_func);
-        if if_block.ctx_over_if.len() == 0 {
-            render_if.push(format!(
-                "({}) && $$lunasRenderIfBlock(\"{}\")",
-                if_block.condition, &if_block.if_blk_id
-            ));
-        }
     }
-    render_if
+    // render_if
+
+    Some(format!(
+        r#"$$lunasCreateIfBlock([
+{}
+]);"#,
+        create_indent(render_if.join(",\n").as_str())
+    ))
 }

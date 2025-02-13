@@ -125,18 +125,18 @@ impl IfBlockInfo {
         ctx_num as usize
     }
 
-    pub fn find_children(&self, if_blocks_infos: &Vec<IfBlockInfo>) -> Vec<IfBlockInfo> {
-        let mut children: Vec<IfBlockInfo> = vec![];
-        for if_blk in if_blocks_infos {
-            if if_blk.ctx_under_if.starts_with(&self.ctx_under_if)
-                && if_blk.ctx_under_if.len() == self.ctx_under_if.len() + 1
-            {
-                children.push(if_blk.clone());
-            }
-        }
+    // pub fn find_children(&self, if_blocks_infos: &Vec<IfBlockInfo>) -> Vec<IfBlockInfo> {
+    //     let mut children: Vec<IfBlockInfo> = vec![];
+    //     for if_blk in if_blocks_infos {
+    //         if if_blk.ctx_under_if.starts_with(&self.ctx_under_if)
+    //             && if_blk.ctx_under_if.len() == self.ctx_under_if.len() + 1
+    //         {
+    //             children.push(if_blk.clone());
+    //         }
+    //     }
 
-        children
-    }
+    //     children
+    // }
 }
 
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
