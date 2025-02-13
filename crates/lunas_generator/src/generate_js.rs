@@ -1,5 +1,4 @@
 use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
-use std::collections::HashSet;
 
 use crate::{
     consts::ROUTER_VIEW,
@@ -113,6 +112,7 @@ pub fn generate_js_from_blocks(
     let mut custom_component_blocks_info = vec![];
     let mut text_node_renderer = vec![];
 
+    let mut ref_node_ids = vec![];
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
     // Analyze HTML
@@ -123,15 +123,15 @@ pub fn generate_js_from_blocks(
         &mut needed_id,
         &mut elm_and_var_relation,
         &mut action_and_target,
-        None,
+        None, // parent_uuid
         &mut vec![],
         &mut if_blocks_info,
         &mut custom_component_blocks_info,
         &mut text_node_renderer,
-        &vec![],
-        &vec![0],
-        1,
-        false,
+        &vec![],  // ctx
+        &vec![0], // ctx_num
+        1,        // ctx_num_index
+        false,    // is_root
     )?;
 
     sort_if_blocks(&mut if_blocks_info);
@@ -162,15 +162,16 @@ pub fn generate_js_from_blocks(
 
     // Generate AfterMount
     let mut after_mount_code_array = vec![];
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id, &None, &None);
+    let ref_getter_expression =
+        gen_ref_getter_from_needed_ids(&needed_id, &None, &None, &mut ref_node_ids);
     after_mount_code_array.push(ref_getter_expression);
-    let if_block_elm_decl =
-        generate_if_block_ref_var_decl(&if_blocks_info, &needed_id, &text_node_renderer_group);
-    after_mount_code_array.extend(if_block_elm_decl);
-    let create_anchor_statements = gen_create_anchor_statements(&text_node_renderer_group, &vec![]);
-    after_mount_code_array.extend(create_anchor_statements);
-    let event_listener_codes = create_event_listener(&action_and_target, &vec![]);
-    after_mount_code_array.extend(event_listener_codes);
+    let create_anchor_statements =
+        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &ref_node_ids);
+    after_mount_code_array.push(create_anchor_statements);
+    let event_listener_code = create_event_listener(&action_and_target, &vec![], &ref_node_ids);
+    if let Some(code) = event_listener_code {
+        after_mount_code_array.push(code);
+    }
     let render_if = gen_render_if_blk_func(
         &if_blocks_info,
         &needed_id,
@@ -178,6 +179,7 @@ pub fn generate_js_from_blocks(
         &text_node_renderer_group,
         &custom_component_blocks_info,
         &variable_names,
+        &mut ref_node_ids,
     );
     after_mount_code_array.extend(render_if);
     let render_component = gen_render_custom_component_statements(
@@ -191,7 +193,6 @@ pub fn generate_js_from_blocks(
         )?);
     }
     after_mount_code_array.extend(render_component);
-    after_mount_code_array.push("this.blkUpdateMap = 0".to_string());
     let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
     after_mount_code_array.push(update_func_code);
     let after_mount_code = after_mount_code_array
@@ -241,10 +242,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
+        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -255,6 +256,7 @@ pub fn gen_ref_getter_from_needed_ids(
     needed_ids: &Vec<NeededIdName>,
     if_blk: &Option<&IfBlockInfo>,
     ctx: &Option<&Vec<String>>,
+    ref_node_ids: &mut Vec<String>,
 ) -> String {
     let needed_ids_to_get_here = needed_ids
         .iter()
@@ -271,30 +273,18 @@ pub fn gen_ref_getter_from_needed_ids(
         // // })
         .collect::<Vec<&NeededIdName>>();
 
-    // TODO:format!などを使ってもっとみやすいコードを書く
-    let mut ref_getter_str = match if_blk == &None {
-        true => "const ".to_string(),
-        false => "".to_string(),
-    };
+    for needed_id in needed_ids_to_get_here.iter() {
+        ref_node_ids.push(needed_id.node_id.clone());
+    }
 
-    ref_getter_str.push_str("[");
-
+    // TODO: Use format! to improve code readability
+    let mut ref_getter_str = String::from("$$lunasGetElmRefs([");
     ref_getter_str.push_str(
-        needed_ids_to_get_here
-            .iter()
-            .map(|id| format!("$$lunas{}Ref", id.node_id))
-            .collect::<Vec<String>>()
-            .join(", ")
-            .as_str(),
-    );
-    ref_getter_str.push_str("] = $$lunasGetElmRefs([");
-    ref_getter_str.push_str(
-        needed_ids_to_get_here
+        &needed_ids_to_get_here
             .iter()
             .map(|id| format!("\"{}\"", id.id_name))
             .collect::<Vec<String>>()
-            .join(", ")
-            .as_str(),
+            .join(", "),
     );
     let delete_id_bool_map = needed_ids_to_get_here
         .iter()
@@ -308,73 +298,41 @@ pub fn gen_ref_getter_from_needed_ids(
 pub fn create_event_listener(
     actions_and_targets: &Vec<ActionAndTarget>,
     current_ctx: &Vec<String>,
-) -> Vec<String> {
+    ref_node_ids: &Vec<String>,
+) -> Option<String> {
+    let filtered_targets = actions_and_targets
+        .iter()
+        .filter(|action_and_target| action_and_target.ctx == *current_ctx)
+        .collect::<Vec<&ActionAndTarget>>();
+
+    if filtered_targets.is_empty() {
+        return None;
+    }
     let mut result = vec![];
-    for action_and_target in actions_and_targets {
-        if action_and_target.ctx != *current_ctx {
-            continue;
-        }
+    for (index, action_and_target) in filtered_targets.iter().enumerate() {
+        let reference_node_idx = ref_node_ids
+            .iter()
+            .position(|id| id == &action_and_target.target)
+            .unwrap();
         result.push(format!(
-            "$$lunasAddEvListener($$lunas{}Ref, \"{}\", {});",
-            action_and_target.target,
+            "[{}, \"{}\", {}]{}",
+            reference_node_idx,
             action_and_target.action_name,
-            action_and_target.action.to_string()
+            action_and_target.action.to_string(),
+            if index != filtered_targets.len() - 1 {
+                ","
+            } else {
+                ""
+            }
         ));
     }
-    result
-}
-
-fn generate_if_block_ref_var_decl(
-    if_blocks_info: &Vec<IfBlockInfo>,
-    needed_id: &Vec<NeededIdName>,
-    text_node_renderer_group: &TextNodeRendererGroup,
-) -> Vec<String> {
-    let mut codes = vec![];
-    if if_blocks_info.len() > 0 {
-        let mut variables_to_declare = HashSet::new();
-        for if_block_info in if_blocks_info.iter() {
-            variables_to_declare.insert(format!("$$lunas{}Ref", if_block_info.if_blk_id));
-        }
-
-        for needed_id in needed_id.iter() {
-            if needed_id.ctx.len() != 0 {
-                variables_to_declare.insert(format!("$$lunas{}Ref", needed_id.node_id.clone()));
-            }
-        }
-
-        for text_node_renderer in text_node_renderer_group.renderers.iter() {
-            match text_node_renderer {
-                crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
-                    if txt_renderer.ctx.len() != 0 {
-                        variables_to_declare
-                            .insert(format!("$$lunas{}Text", txt_renderer.text_node_id.clone()));
-                    }
-                }
-                crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_renderer) => {
-                    if if_renderer.ctx_over_if.len() != 0 {
-                        variables_to_declare
-                            .insert(format!("$$lunas{}Anchor", if_renderer.if_blk_id.clone()));
-                    }
-                }
-                crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
-                    custom_renderer,
-                ) => {
-                    if custom_renderer.ctx.len() != 0 {
-                        variables_to_declare.insert(format!(
-                            "$$lunas{}Anchor",
-                            custom_renderer.custom_component_block_id.clone()
-                        ));
-                    }
-                }
-            }
-        }
-
-        if variables_to_declare.len() != 0 {
-            let decl = format!("let {};", itertools::join(variables_to_declare, ", "));
-            codes.push(decl);
-        }
-    }
-    return codes;
+    let formatted_result = create_indent(result.join("\n").as_str());
+    Some(format!(
+        r#"$$lunasAddEvListener([
+{}
+]);"#,
+        formatted_result
+    ))
 }
 
 fn gen_on_update_func(
@@ -582,7 +540,8 @@ fn gen_on_update_func(
 pub fn gen_create_anchor_statements(
     text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
-) -> Vec<String> {
+    ref_node_ids: &Vec<String>,
+) -> String {
     let mut create_anchor_statements = vec![];
     for render in &text_node_renderer.renderers {
         match render {
@@ -591,81 +550,77 @@ pub fn gen_create_anchor_statements(
                     continue;
                 }
                 let anchor_id = match &txt_renderer.target_anchor_id {
-                    Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                    Some(anchor_id) => {
+                        let reference_node_idx =
+                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                        reference_node_idx.to_string()
+                    }
                     None => "null".to_string(),
                 };
-                let variable_declaration_word = match ctx_condition.len() != 0 {
-                    // when under if block, we don't need to declare the variable
-                    true => "",
-                    false => "const ",
-                };
                 let create_anchor_statement = format!(
-                    "{}$$lunas{}Text = $$lunasInsertContent(`{}`,$$lunas{}Ref,{});",
-                    &variable_declaration_word,
-                    &txt_renderer.text_node_id,
+                    "$$lunasInsertContent(`{}`,$$lunas{}Ref,{});",
+                    // &txt_renderer.text_node_id,
                     &txt_renderer.content.trim(),
                     &txt_renderer.parent_id,
-                    anchor_id
+                    &anchor_id
                 );
                 create_anchor_statements.push(create_anchor_statement);
             }
-            crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_block) => {
-                match if_block.distance_to_next_elm > 1 {
-                    true => {
-                        if &if_block.ctx_over_if != ctx_condition {
-                            continue;
-                        }
-                        let anchor_id = match &if_block.target_anchor_id {
-                            Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
-                            None => "null".to_string(),
-                        };
-                        let variable_declaration_word = match ctx_condition.len() != 0 {
-                            // when under if block, we don't need to declare the variable
-                            true => "",
-                            false => "const ",
-                        };
-                        let create_anchor_statement = format!(
-                            "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
-                            variable_declaration_word,
-                            if_block.if_blk_id,
-                            if_block.parent_id,
-                            anchor_id
-                        );
-                        create_anchor_statements.push(create_anchor_statement);
-                    }
-                    false => {}
+            _ => {
+                // distance_to_next_elm
+                // ctx
+                // target_anchor_id
+                // block_id
+                // parent_id
+                let (distance_to_next_elm, ctx, target_anchor_id, block_id, parent_id) =
+                    render.get_empty_text_node_info();
+
+                if distance_to_next_elm <= 1 {
+                    continue;
                 }
+                if &ctx != ctx_condition {
+                    continue;
+                }
+                let anchor_node_idx = match &target_anchor_id {
+                    Some(anchor_id) => {
+                        let reference_node_idx =
+                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                        reference_node_idx.to_string()
+                    }
+                    None => "null".to_string(),
+                };
+                let parent_node_idx = ref_node_ids
+                    .iter()
+                    .position(|id| id == &parent_id)
+                    .unwrap()
+                    .to_string();
+                let create_anchor_statement = format!(
+                    "$$lunasInsertEmpty({},{},{});",
+                    parent_node_idx, block_id, anchor_node_idx
+                );
+                create_anchor_statements.push(create_anchor_statement);
             }
-            crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
-                custom_component,
-            ) => match custom_component.distance_to_next_elm > 1 {
-                true => {
-                    if &custom_component.ctx != ctx_condition {
-                        continue;
-                    }
-                    let anchor_id = match &custom_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
-                        None => "null".to_string(),
-                    };
-                    let variable_declaration_word = match ctx_condition.len() != 0 {
-                        // when under if block, we don't need to declare the variable
-                        true => "",
-                        false => "const ",
-                    };
-                    let create_anchor_statement = format!(
-                        "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
-                        variable_declaration_word,
-                        custom_component.custom_component_block_id,
-                        custom_component.parent_id,
-                        anchor_id
-                    );
-                    create_anchor_statements.push(create_anchor_statement);
-                }
-                false => {}
-            },
         }
     }
-    create_anchor_statements
+
+    /* const insertTxtNode = function (
+    this: LunasComponentState,
+    args: [
+        amount: number,
+        parent: HTMLElement,
+        anchor?: HTMLElement,
+        text?: string
+        ][],
+        offset: number = 0
+        ) { */
+
+    format!(
+        r#"$$lunasInsertTextNodes([
+{}
+]);"#,
+        create_indent(create_anchor_statements.join("\n").as_str())
+    )
+    .to_string()
 }
 
 pub fn gen_render_custom_component_statements(
