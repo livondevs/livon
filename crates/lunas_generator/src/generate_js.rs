@@ -181,6 +181,7 @@ pub fn generate_js_from_blocks(
         &text_node_renderer_group,
         &custom_component_blocks_info,
         &variable_names,
+        &variables,
         &mut ref_node_ids,
     );
     after_mount_code_array.extend(render_if);
@@ -348,6 +349,7 @@ pub fn create_event_listener(
     ))
 }
 
+// TODO: DELETE THIS
 fn gen_on_update_func(
     elm_and_variable_relations: Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
@@ -355,51 +357,51 @@ fn gen_on_update_func(
 ) -> String {
     let mut replace_statements = vec![];
 
-    for (index, if_block_info) in if_blocks_infos.iter().enumerate() {
-        let if_blk_rendering_cond = if if_block_info.ctx_over_if.len() != 0 {
-            format!(
-                "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                if_block_info.generate_ctx_num(&if_blocks_infos)
-            )
-        } else {
-            "".to_string()
-        };
+    // for (index, if_block_info) in if_blocks_infos.iter().enumerate() {
+    //     let if_blk_rendering_cond = if if_block_info.ctx_over_if.len() != 0 {
+    //         format!(
+    //             "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
+    //             if_block_info.generate_ctx_num(&if_blocks_infos)
+    //         )
+    //     } else {
+    //         "".to_string()
+    //     };
 
-        let dep_vars = &if_block_info.condition_dep_vars;
+    //     let dep_vars = &if_block_info.condition_dep_vars;
 
-        // TODO: データバインディングと同じコードを使っているので共通化する
-        let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-            .iter()
-            .filter(|v| {
-                dep_vars
-                    .iter()
-                    .map(|d| *d == v.name)
-                    .collect::<Vec<bool>>()
-                    .contains(&true)
-            })
-            .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+    //     // TODO: データバインディングと同じコードを使っているので共通化する
+    //     let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+    //         .iter()
+    //         .filter(|v| {
+    //             dep_vars
+    //                 .iter()
+    //                 .map(|d| *d == v.name)
+    //                 .collect::<Vec<bool>>()
+    //                 .contains(&true)
+    //         })
+    //         .map(|v| v.assignment)
+    //         .collect::<Vec<u32>>();
 
-        let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+    //     let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
-        let render_check = format!(
-            "$$lunasShouldRender({}, this.blkRenderedMap, {})",
-            if_block_info.condition,
-            index + 1,
-        );
+    //     let render_check = format!(
+    //         "$$lunasShouldRender({}, this.blkRenderedMap, {})",
+    //         if_block_info.condition,
+    //         index + 1,
+    //     );
 
-        replace_statements.push(format!(
-            "{}this.valUpdateMap & {} && {} && ( {} ? {} : ({}, {}, {}) );",
-            if_blk_rendering_cond,
-            combined_number,
-            render_check,
-            if_block_info.condition,
-            format!("$$lunasRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
-            format!("$$lunas{}Ref.remove()", &if_block_info.if_blk_id),
-            format!("$$lunas{}Ref = null", &if_block_info.if_blk_id),
-            format!("this.blkRenderedMap ^= {}", index + 1),
-        ));
-    }
+    //     replace_statements.push(format!(
+    //         "{}this.valUpdateMap & {} && {} && ( {} ? {} : ({}, {}, {}) );",
+    //         if_blk_rendering_cond,
+    //         combined_number,
+    //         render_check,
+    //         if_block_info.condition,
+    //         format!("$$lunasRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
+    //         format!("$$lunas{}Ref.remove()", &if_block_info.if_blk_id),
+    //         format!("$$lunas{}Ref = null", &if_block_info.if_blk_id),
+    //         format!("this.blkRenderedMap ^= {}", index + 1),
+    //     ));
+    // }
 
     for elm_and_variable_relation in elm_and_variable_relations {
         match elm_and_variable_relation {
@@ -591,6 +593,12 @@ pub fn gen_create_anchor_statements(
                 let next_render = iter.peek();
                 let (distance_to_next_elm, ctx, target_anchor_id, block_id, parent_id) =
                     render.get_empty_text_node_info();
+                if distance_to_next_elm <= 1 {
+                    continue;
+                }
+                if &ctx != ctx_condition {
+                    continue;
+                }
                 if let Some(next_renderer) = next_render {
                     if render.is_next_elm_the_same_anchor(next_renderer) {
                         ref_node_ids.push(block_id.clone());
@@ -599,12 +607,6 @@ pub fn gen_create_anchor_statements(
                     }
                 }
 
-                if distance_to_next_elm <= 1 {
-                    continue;
-                }
-                if &ctx != ctx_condition {
-                    continue;
-                }
                 let anchor_node_idx = match &target_anchor_id {
                     Some(anchor_id) => {
                         let reference_node_idx =
@@ -710,13 +712,16 @@ pub fn gen_render_custom_component_statements(
     render_custom_statements
 }
 
+
+// TODO: Review usage and make private if possible
+
 /// Returns a binary number that is the result of ORing all the numbers in the argument.
 /// ```
 /// let numbers = vec![0b0001, 0b0010, 0b0100];
 /// let result = get_combined_binary_number(numbers);
 /// assert_eq!(result, 0b0111);
 /// ```
-fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
+pub fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
     let mut result = 0;
     for (_, &value) in numbers.iter().enumerate() {
         result |= value;

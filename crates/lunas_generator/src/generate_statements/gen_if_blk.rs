@@ -1,11 +1,12 @@
 use crate::{
     generate_js::{
         create_event_listener, gen_create_anchor_statements, gen_ref_getter_from_needed_ids,
-        gen_render_custom_component_statements,
+        gen_render_custom_component_statements, get_combined_binary_number,
     },
     orig_html_struct::structs::NodeContent,
     structs::transform_info::{
-        ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName, TextNodeRendererGroup,
+        ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
+        TextNodeRendererGroup, VariableNameAndAssignedNumber,
     },
     transformers::html_utils::create_lunas_internal_component_statement,
 };
@@ -20,12 +21,13 @@ pub fn gen_render_if_blk_func(
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
     variable_names: &Vec<String>,
+    dep_vars_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &mut Vec<String>,
 ) -> Option<String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info.iter() {
-        // create element
+        let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
                 create_lunas_internal_component_statement(elm, "$$createLunasElement")
@@ -64,7 +66,6 @@ pub fn gen_render_if_blk_func(
             post_render_statement.extend(render_child_component);
         }
 
-        // let name_of_parent_of_if_blk = format!("$$lunas{}Ref", if_block.parent_id);
         let parent_if_blk_id_idx = ref_node_ids
             .iter()
             .position(|x| x == &if_block.parent_id)
@@ -100,7 +101,7 @@ pub fn gen_render_if_blk_func(
             ),
         };
 
-        let anchor_decl = match idx_of_anchor_of_if_blk {
+        let anchor_idx = match idx_of_anchor_of_if_blk {
             Some(idx) => format!(
                 r#",
 {}"#,
@@ -120,10 +121,30 @@ pub fn gen_render_if_blk_func(
                 .join(",")
         );
 
+        let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
+
+        println!("ref_node_ids.len(): {}", ref_node_ids.len());
+
+        let dep_vars_assigned_numbers = dep_vars_assigned_numbers
+            .iter()
+            .filter(|v| {
+                if_block
+                    .condition_dep_vars
+                    .iter()
+                    .map(|d| *d == v.name)
+                    .collect::<Vec<bool>>()
+                    .contains(&true)
+            })
+            .map(|v| v.assignment)
+            .collect::<Vec<u32>>();
+
         let create_if_func_inside = format!(
             r#""{}",
 () => ({}),
 () => ({}),
+{},
+{},
+{},
 {},
 {},
 {}{}"#,
@@ -132,8 +153,11 @@ pub fn gen_render_if_blk_func(
             if_block.condition,
             if_on_create,
             ctxjs_array,
+            get_combined_binary_number(dep_vars_assigned_numbers),
+            initial_ref_node_ids_len,
+            ref_node_ids_len_increase,
             parent_if_blk_id_idx,
-            anchor_decl
+            anchor_idx
         );
 
         let create_if_func = format!(
@@ -145,8 +169,6 @@ pub fn gen_render_if_blk_func(
 
         render_if.push(create_if_func);
     }
-    // render_if
-
     Some(format!(
         r#"$$lunasCreateIfBlock([
 {}
