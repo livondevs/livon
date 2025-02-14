@@ -17,6 +17,7 @@ export type LunasComponentState = {
   currentVarBit: number;
   currentIfBlkBit: number;
   ifBlkRenderers: { [key: string]: () => void };
+  updateComponentFuncs: (() => void)[];
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -32,6 +33,8 @@ export type LunasComponentState = {
   // __lunas_update_end: () => void;
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
+
+  refMap: (Node | undefined)[];
 };
 
 type LunasInternalElement = {
@@ -95,6 +98,8 @@ export const $$lunasInitComponent = function (
   this.ifBlkRenderers = {};
   this.compSymbol = Symbol();
   this.resetDependecies = [];
+  this.refMap = [];
+  this.updateComponentFuncs = [];
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -197,6 +202,7 @@ export const $$lunasInitComponent = function (
   ) {
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
+      this.updateComponentFuncs.forEach((f) => f());
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = 0;
@@ -215,24 +221,113 @@ export const $$lunasInitComponent = function (
 
   const createIfBlock = function (
     this: LunasComponentState,
-    name: string,
-    lunasElement: () => LunasInternalElement,
-    getParentAndRefElement: () => [HTMLElement, HTMLElement | null],
-    postRender: () => void
+    ifBlocks: [
+      name: string,
+      lunasElement: () => LunasInternalElement,
+      condition: () => boolean,
+      postRender: () => void,
+      additionalCtx: number[],
+      depBit: number,
+      mapOffset: number,
+      mapLength: number,
+      parentElementIndex: number,
+      refElementIndex?: number
+    ][]
   ) {
-    const ifBlkBit = genBitOfIfBlks().next().value;
-    this.ifBlkRenderers[name] = (() => {
-      const componentElm = createDomElementFromLunasElement(lunasElement());
-      const [parentElement, refElement] = getParentAndRefElement();
-      parentElement.insertBefore(componentElm, refElement);
-      postRender();
-      (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
-    }).bind(this);
+    for (const [
+      name,
+      lunasElement,
+      condition,
+      postRender,
+      additionalCtx,
+      depBit,
+      mapOffset,
+      mapLength,
+      parentElementIndex,
+      refElementIndex,
+    ] of ifBlocks) {
+      const ifBlkBit = genBitOfIfBlks().next().value;
+      this.ifBlkRenderers[name] = ((mapOffset: number, _mapLength: number) => {
+        const componentElm = createDomElementFromLunasElement(lunasElement());
+        const parentElement = this.refMap[parentElementIndex];
+        const refElement = refElementIndex
+          ? this.refMap[refElementIndex]!
+          : null;
+        parentElement!.insertBefore(componentElm, refElement);
+        this.refMap[mapOffset] = componentElm;
+        postRender();
+        (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
+      }).bind(this, mapOffset, mapLength);
+      this.updateComponentFuncs.push(
+        (() => {
+          if (this.valUpdateMap & depBit) {
+            if (
+              $$lunasShouldRender(condition(), this.blkRenderedMap, ifBlkBit)
+            ) {
+              if (condition()) {
+                this.ifBlkRenderers[name]();
+              } else {
+                const ifBlkElm = this.refMap[mapOffset]!;
+                (ifBlkElm as HTMLElement).remove();
+                this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
+                this.blkRenderedMap ^= ifBlkBit;
+              }
+            }
+          }
+        }).bind(this)
+      );
+      if (additionalCtx.length === 0) {
+        condition() && this.ifBlkRenderers[name]();
+      }
+    }
+    this.blkUpdateMap = 0;
   }.bind(this);
 
   const renderIfBlock = function (this: LunasComponentState, name: string) {
     if (!this.ifBlkRenderers[name]) return;
     this.ifBlkRenderers[name]();
+  }.bind(this);
+
+  const getElmRefs = function (
+    this: LunasComponentState,
+    ids: string[],
+    preserveId: number,
+    offset: number = 0
+  ): void {
+    ids.map(
+      function (this: LunasComponentState, id: string, index: number) {
+        const e = document.getElementById(id)!;
+        (2 ** index) & preserveId && e.removeAttribute("id");
+        this.refMap[offset + index] = e;
+      }.bind(this)
+    );
+  }.bind(this);
+
+  const addEvListener = function (
+    this: LunasComponentState,
+    args: [number, string, EventListener][]
+  ) {
+    for (const [elmIdx, evName, evFunc] of args) {
+      this.refMap[elmIdx]!.addEventListener(evName, evFunc);
+    }
+  }.bind(this);
+
+  const insertTextNodes = function (
+    this: LunasComponentState,
+    args: [amount: number, parent: number, anchor?: number, text?: string][],
+    _offset: number = 0
+  ) {
+    let offset = _offset;
+    for (const [amount, parentIdx, anchorIdx, text] of args) {
+      for (let i = 0; i < amount; i++) {
+        const empty = document.createTextNode(text ?? " ");
+        const parent = this.refMap[parentIdx]!;
+        const anchor = anchorIdx ? this.refMap[anchorIdx]! : null;
+        parent.insertBefore(empty, anchor);
+        this.refMap[offset + i] = empty;
+      }
+      offset += amount;
+    }
   }.bind(this);
 
   return {
@@ -242,6 +337,9 @@ export const $$lunasInitComponent = function (
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
     $$lunasRenderIfBlock: renderIfBlock,
+    $$lunasGetElmRefs: getElmRefs,
+    $$lunasInsertTextNodes: insertTextNodes,
+    $$lunasAddEvListener: addEvListener,
     $$lunasComponentReturn: {
       mount,
       insert,
@@ -264,22 +362,6 @@ export function $$lunasEscapeHtml(text: any): string {
   });
 }
 
-export function $$lunasGetElmRefs(ids: string[], preserveId: number) {
-  return ids.map((id, index) => {
-    const e = document.getElementById(id)!;
-    (2 ** index) & preserveId && e.removeAttribute("id");
-    return e;
-  });
-}
-
-export function $$lunasAddEvListener(
-  elm: HTMLElement,
-  evName: string,
-  evFunc: EventListener
-) {
-  elm.addEventListener(evName, evFunc);
-}
-
 export function $$lunasReplaceText(content: any, elm: Node) {
   elm.textContent = $$lunasEscapeHtml(content);
 }
@@ -298,25 +380,6 @@ export function $$lunasReplaceAttr(
     return;
   }
   (elm as any)[key] = String(content);
-}
-
-export function $$lunasInsertEmpty(
-  parent: HTMLElement,
-  anchor: HTMLElement | null
-) {
-  const empty = document.createTextNode(" ");
-  parent.insertBefore(empty, anchor);
-  return empty;
-}
-
-export function $$lunasInsertContent(
-  content: string,
-  parent: HTMLElement,
-  anchor: HTMLElement | null
-) {
-  const contentNode = document.createTextNode(content);
-  parent.insertBefore(contentNode, anchor);
-  return contentNode;
 }
 
 export function $$createLunasElement(
@@ -349,9 +412,13 @@ export const $$lunasCreateNonReactive = function <T>(
   return new valueObj<T>(v);
 };
 
-export function $$lunasShouldRender(blockRendering: boolean, bitValue: number, bitPosition: number): boolean {
+export function $$lunasShouldRender(
+  blockRendering: boolean,
+  bitValue: number,
+  bitPosition: number
+): boolean {
   // Get the bit at the specified position (1-based index, so subtract 1)
-  const isBitSet = (bitValue >> (bitPosition - 1)) & 1;
+  const isBitSet = (bitValue & bitPosition) > 0;
 
   // Compare the block rendering status with the bit status
   return blockRendering !== Boolean(isBitSet);
