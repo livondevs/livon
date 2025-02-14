@@ -182,7 +182,7 @@ export const $$lunasInitComponent = function (
     anchor: HTMLElement | null
   ): LunasComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
-    this.componentElm = createDomElementFromLunasElement(this.internalElement);
+    this.componentElm = _createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
     this.__lunas_after_mount();
     this.isMounted = true;
@@ -248,7 +248,7 @@ export const $$lunasInitComponent = function (
     ] of ifBlocks) {
       const ifBlkBit = genBitOfIfBlks().next().value;
       this.ifBlkRenderers[name] = ((mapOffset: number, _mapLength: number) => {
-        const componentElm = createDomElementFromLunasElement(lunasElement());
+        const componentElm = _createDomElementFromLunasElement(lunasElement());
         const parentElement = this.refMap[parentElementIndex];
         const refElement = refElementIndex
           ? this.refMap[refElementIndex]!
@@ -261,9 +261,7 @@ export const $$lunasInitComponent = function (
       this.updateComponentFuncs.push(
         (() => {
           if (this.valUpdateMap & depBit) {
-            if (
-              $$lunasShouldRender(condition(), this.blkRenderedMap, ifBlkBit)
-            ) {
+            if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
               if (condition()) {
                 this.ifBlkRenderers[name]();
               } else {
@@ -394,7 +392,7 @@ export function $$createLunasElement(
   };
 }
 
-export const createDomElementFromLunasElement = function (
+const _createDomElementFromLunasElement = function (
   lunasElement: LunasInternalElement
 ): HTMLElement {
   const componentElm = document.createElement(lunasElement.topElmTag);
@@ -412,14 +410,14 @@ export const $$lunasCreateNonReactive = function <T>(
   return new valueObj<T>(v);
 };
 
-export function $$lunasShouldRender(
+export const _shouldRender = (
   blockRendering: boolean,
   bitValue: number,
   bitPosition: number
-): boolean {
+): boolean => {
   // Get the bit at the specified position (1-based index, so subtract 1)
   const isBitSet = (bitValue & bitPosition) > 0;
 
   // Compare the block rendering status with the bit status
   return blockRendering !== Boolean(isBitSet);
-}
+};
