@@ -169,6 +169,11 @@ pub fn gen_render_if_blk_func(
 
         render_if.push(create_if_func);
     }
+
+    if render_if.is_empty() {
+        return None;
+    }
+
     Some(format!(
         r#"$$lunasCreateIfBlock([
 {}
