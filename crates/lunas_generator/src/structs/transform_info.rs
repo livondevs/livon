@@ -112,33 +112,6 @@ pub struct IfBlockInfo {
     pub element_location: Vec<usize>,
 }
 
-impl IfBlockInfo {
-    pub fn generate_ctx_num(&self, if_blocks_infos: &Vec<IfBlockInfo>) -> usize {
-        let mut ctx_num: u64 = 0;
-        for (index, if_blk) in if_blocks_infos.iter().enumerate() {
-            if self.ctx_over_if.contains(&if_blk.target_if_blk_id) {
-                let blk_num: u64 = (2 as u64).pow(index as u32);
-                ctx_num = ctx_num | blk_num;
-            }
-        }
-
-        ctx_num as usize
-    }
-
-    // pub fn find_children(&self, if_blocks_infos: &Vec<IfBlockInfo>) -> Vec<IfBlockInfo> {
-    //     let mut children: Vec<IfBlockInfo> = vec![];
-    //     for if_blk in if_blocks_infos {
-    //         if if_blk.ctx_under_if.starts_with(&self.ctx_under_if)
-    //             && if_blk.ctx_under_if.len() == self.ctx_under_if.len() + 1
-    //         {
-    //             children.push(if_blk.clone());
-    //         }
-    //     }
-
-    //     children
-    // }
-}
-
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
     if_blocks.sort_by(|a, b| a.element_location.cmp(&b.element_location));
 }
