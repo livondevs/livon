@@ -364,9 +364,9 @@ export function $$lunasReplaceText(content: any, elm: Node) {
   elm.textContent = $$lunasEscapeHtml(content);
 }
 
-export function $$lunasReplaceInnerHtml(content: any, elm: HTMLElement) {
-  elm.innerHTML = $$lunasEscapeHtml(content);
-}
+// export function $$lunasReplaceInnerHtml(content: any, elm: HTMLElement) {
+//   elm.innerHTML = $$lunasEscapeHtml(content);
+// }
 
 export function $$lunasReplaceAttr(
   key: string,

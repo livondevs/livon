@@ -245,7 +245,7 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
+        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
     const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes }} = new $$lunasInitComponent(args{});
