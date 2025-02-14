@@ -171,9 +171,17 @@ pub fn generate_js_from_blocks(
         after_mount_code_array.push(create_anchor_statements);
     }
     let event_listener_code = create_event_listener(&action_and_target, &vec![], &ref_node_ids);
+
     if let Some(code) = event_listener_code {
         after_mount_code_array.push(code);
     }
+
+    let fragments = create_fragments_func(&elm_and_var_relation, &variables, &ref_node_ids);
+
+    if !fragments.is_empty() {
+        after_mount_code_array.push(fragments);
+    }
+
     let render_if = gen_render_if_blk_func(
         &if_blocks_info,
         &needed_id,
@@ -248,7 +256,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -349,13 +357,123 @@ pub fn create_event_listener(
     ))
 }
 
+pub fn create_fragments_func(
+    elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
+    variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
+    ref_node_ids: &Vec<String>,
+) -> String {
+    let fragments_str = create_fragments(
+        elm_and_variable_relations,
+        variable_name_and_assigned_numbers,
+        &ref_node_ids,
+    );
+
+    format!(
+        r#"$$lunasCreateFragments([
+{}
+]);"#,
+        create_indent(fragments_str.as_str())
+    )
+}
+
+pub fn create_fragments(
+    elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
+    variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
+    ref_node_ids: &Vec<String>,
+) -> String {
+    let mut fragments = vec![];
+
+    for elm_and_variable_relation in elm_and_variable_relations {
+        match elm_and_variable_relation {
+            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
+                let _elm_and_attr_relation = elm_and_attr_relation.clone();
+                for c in _elm_and_attr_relation.reactive_attr {
+                    println!(
+                        "variable_name_and_assigned_numbers: {:?}, c.variable_names: {:?}",
+                        variable_name_and_assigned_numbers, c.variable_names
+                    );
+                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                        .iter()
+                        .filter(|v| {
+                            c.variable_names
+                                .iter()
+                                .map(|d| *d == v.name)
+                                .collect::<Vec<bool>>()
+                                .contains(&true)
+                        })
+                        .map(|v| v.assignment)
+                        .collect::<Vec<u32>>();
+
+                    let target_node_idx = ref_node_ids
+                        .iter()
+                        .position(|id| id == &elm_and_attr_relation.elm_id)
+                        .unwrap();
+
+                    fragments.push(format!(
+                        "[[() => {}, \"{}\"], {}, {}, {}]",
+                        c.content_of_attr,
+                        c.attribute_key,
+                        target_node_idx,
+                        get_combined_binary_number(dep_vars_assined_numbers),
+                        "0" // FragmentType.ATTRIBUTE
+                    ));
+                }
+            }
+            _ => {
+                let (depending_variables, target_id, content) = match elm_and_variable_relation {
+                    NodeAndReactiveInfo::TextAndVariableContentRelation(
+                        text_and_variable_content_relation,
+                    ) => (
+                        text_and_variable_content_relation.dep_vars.clone(),
+                        text_and_variable_content_relation.text_node_id.clone(),
+                        text_and_variable_content_relation
+                            .content_of_element
+                            .clone(),
+                    ),
+                    NodeAndReactiveInfo::ElmAndVariableRelation(
+                        elm_and_variable_content_relation,
+                    ) => (
+                        elm_and_variable_content_relation.dep_vars.clone(),
+                        elm_and_variable_content_relation.elm_id.clone(),
+                        elm_and_variable_content_relation.content_of_element.clone(),
+                    ),
+                    _ => panic!(),
+                };
+
+                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                    .iter()
+                    .filter(|v| {
+                        depending_variables
+                            .iter()
+                            .map(|d| *d == v.name)
+                            .collect::<Vec<bool>>()
+                            .contains(&true)
+                    })
+                    .map(|v| v.assignment)
+                    .collect::<Vec<u32>>();
+
+                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+
+                fragments.push(format!(
+                    "[[() => `{}`], {}, {}, {}]",
+                    content,
+                    ref_node_ids.iter().position(|id| id == &target_id).unwrap(),
+                    combined_number,
+                    "1" // FragmentType.TEXT
+                ));
+            }
+        }
+    }
+    fragments.join(",\n")
+}
+
 // TODO: DELETE THIS
 fn gen_on_update_func(
     elm_and_variable_relations: Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
     if_blocks_infos: Vec<IfBlockInfo>,
 ) -> String {
-    let mut replace_statements = vec![];
+    // let mut replace_statements = vec![];
 
     // for (index, if_block_info) in if_blocks_infos.iter().enumerate() {
     //     let if_blk_rendering_cond = if if_block_info.ctx_over_if.len() != 0 {
@@ -403,150 +521,148 @@ fn gen_on_update_func(
     //     ));
     // }
 
-    for elm_and_variable_relation in elm_and_variable_relations {
-        match elm_and_variable_relation {
-            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
-                let _elm_and_attr_relation = elm_and_attr_relation.clone();
-                for c in elm_and_attr_relation.reactive_attr {
-                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                        .iter()
-                        .filter(|v| {
-                            c.variable_names
-                                .iter()
-                                .map(|d| *d == v.name)
-                                .collect::<Vec<bool>>()
-                                .contains(&true)
-                        })
-                        .map(|v| v.assignment)
-                        .collect::<Vec<u32>>();
+    // for elm_and_variable_relation in elm_and_variable_relations {
+    //     match elm_and_variable_relation {
+    //         NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
+    //             let _elm_and_attr_relation = elm_and_attr_relation.clone();
+    //             for c in elm_and_attr_relation.reactive_attr {
+    //                 let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+    //                     .iter()
+    //                     .filter(|v| {
+    //                         c.variable_names
+    //                             .iter()
+    //                             .map(|d| *d == v.name)
+    //                             .collect::<Vec<bool>>()
+    //                             .contains(&true)
+    //                     })
+    //                     .map(|v| v.assignment)
+    //                     .collect::<Vec<u32>>();
 
-                    let if_blk_rendering_cond = if elm_and_attr_relation.ctx.len() != 0 {
-                        format!(
-                            "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                            _elm_and_attr_relation.generate_ctx_num(&if_blocks_infos)
-                        )
-                    } else {
-                        "".to_string()
-                    };
+    //                 let if_blk_rendering_cond = if elm_and_attr_relation.ctx.len() != 0 {
+    //                     format!(
+    //                         "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
+    //                         _elm_and_attr_relation.generate_ctx_num(&if_blocks_infos)
+    //                     )
+    //                 } else {
+    //                     "".to_string()
+    //                 };
 
-                    replace_statements.push(format!(
-                        "{}this.valUpdateMap & {:?} && $$lunasReplaceAttr(\"{}\", {}, $$lunas{}Ref);",
-                        if_blk_rendering_cond,
-                        get_combined_binary_number(dep_vars_assined_numbers),
-                        c.attribute_key,
-                        c.content_of_attr,
-                        elm_and_attr_relation.elm_id
-                    ));
-                }
-            }
-            NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
-                let depending_variables = elm_and_variable_relation.dep_vars.clone();
-                let target_id = elm_and_variable_relation.elm_id.clone();
+    //                 replace_statements.push(format!(
+    //                     "{}this.valUpdateMap & {:?} && $$lunasReplaceAttr(\"{}\", {}, $$lunas{}Ref);",
+    //                     if_blk_rendering_cond,
+    //                     get_combined_binary_number(dep_vars_assined_numbers),
+    //                     c.attribute_key,
+    //                     c.content_of_attr,
+    //                     elm_and_attr_relation.elm_id
+    //                 ));
+    //             }
+    //         }
+    //         NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
+    //             let depending_variables = elm_and_variable_relation.dep_vars.clone();
+    //             let target_id = elm_and_variable_relation.elm_id.clone();
 
-                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                    .iter()
-                    .filter(|v| {
-                        depending_variables
-                            .iter()
-                            .map(|d| *d == v.name)
-                            .collect::<Vec<bool>>()
-                            .contains(&true)
-                    })
-                    .map(|v| v.assignment)
-                    .collect::<Vec<u32>>();
-                let under_if_blk = elm_and_variable_relation.ctx.len() != 0;
+    //             let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+    //                 .iter()
+    //                 .filter(|v| {
+    //                     depending_variables
+    //                         .iter()
+    //                         .map(|d| *d == v.name)
+    //                         .collect::<Vec<bool>>()
+    //                         .contains(&true)
+    //                 })
+    //                 .map(|v| v.assignment)
+    //                 .collect::<Vec<u32>>();
+    //             let under_if_blk = elm_and_variable_relation.ctx.len() != 0;
 
-                let if_blk_rendering_cond = if under_if_blk {
-                    format!(
-                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    "".to_string()
-                };
+    //             let if_blk_rendering_cond = if under_if_blk {
+    //                 format!(
+    //                     "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
+    //                     elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
+    //                 )
+    //             } else {
+    //                 "".to_string()
+    //             };
 
-                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+    //             let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
-                let to_update_cond = if under_if_blk {
-                    format!(
-                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
-                        combined_number,
-                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    format!("this.valUpdateMap & {:?}", combined_number)
-                };
+    //             let to_update_cond = if under_if_blk {
+    //                 format!(
+    //                     "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
+    //                     combined_number,
+    //                     elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
+    //                 )
+    //             } else {
+    //                 format!("this.valUpdateMap & {:?}", combined_number)
+    //             };
 
-                replace_statements.push(format!(
-                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Ref);",
-                    if_blk_rendering_cond,
-                    to_update_cond,
-                    elm_and_variable_relation.content_of_element.trim(),
-                    target_id
-                ));
-            }
-            NodeAndReactiveInfo::TextAndVariableContentRelation(txt_and_var_content) => {
-                // TODO: Elementとほとんど同じなので、共通化
+    //             replace_statements.push(format!(
+    //                 "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Ref);",
+    //                 if_blk_rendering_cond,
+    //                 to_update_cond,
+    //                 elm_and_variable_relation.content_of_element.trim(),
+    //                 target_id
+    //             ));
+    //         }
+    //         NodeAndReactiveInfo::TextAndVariableContentRelation(txt_and_var_content) => {
+    //             // TODO: Elementとほとんど同じなので、共通化
 
-                let depending_variables = txt_and_var_content.dep_vars.clone();
-                let target_id = txt_and_var_content.text_node_id.clone();
+    //             let depending_variables = txt_and_var_content.dep_vars.clone();
+    //             let target_id = txt_and_var_content.text_node_id.clone();
 
-                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                    .iter()
-                    .filter(|v| {
-                        depending_variables
-                            .iter()
-                            .map(|d| *d == v.name)
-                            .collect::<Vec<bool>>()
-                            .contains(&true)
-                    })
-                    .map(|v| v.assignment)
-                    .collect::<Vec<u32>>();
-                let under_if_blk = txt_and_var_content.ctx.len() != 0;
+    //             let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+    //                 .iter()
+    //                 .filter(|v| {
+    //                     depending_variables
+    //                         .iter()
+    //                         .map(|d| *d == v.name)
+    //                         .collect::<Vec<bool>>()
+    //                         .contains(&true)
+    //                 })
+    //                 .map(|v| v.assignment)
+    //                 .collect::<Vec<u32>>();
+    //             let under_if_blk = txt_and_var_content.ctx.len() != 0;
 
-                let if_blk_rendering_cond = if under_if_blk {
-                    format!(
-                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    "".to_string()
-                };
+    //             let if_blk_rendering_cond = if under_if_blk {
+    //                 format!(
+    //                     "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
+    //                     txt_and_var_content.generate_ctx_num(&if_blocks_infos)
+    //                 )
+    //             } else {
+    //                 "".to_string()
+    //             };
 
-                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+    //             let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
-                let to_update_cond = if under_if_blk {
-                    format!(
-                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
-                        combined_number,
-                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    format!("this.valUpdateMap & {:?}", combined_number)
-                };
+    //             let to_update_cond = if under_if_blk {
+    //                 format!(
+    //                     "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
+    //                     combined_number,
+    //                     txt_and_var_content.generate_ctx_num(&if_blocks_infos)
+    //                 )
+    //             } else {
+    //                 format!("this.valUpdateMap & {:?}", combined_number)
+    //             };
 
-                replace_statements.push(format!(
-                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Text);",
-                    if_blk_rendering_cond,
-                    to_update_cond,
-                    txt_and_var_content.content_of_element.trim(),
-                    target_id
-                ));
-            }
-        }
-    }
+    //             replace_statements.push(format!(
+    //                 "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Text);",
+    //                 if_blk_rendering_cond,
+    //                 to_update_cond,
+    //                 txt_and_var_content.content_of_element.trim(),
+    //                 target_id
+    //             ));
+    //         }
+    //     }
+    // }
 
-    let code = replace_statements
-        .iter()
-        .map(|c| create_indent(c))
-        .collect::<Vec<String>>()
-        .join("\n");
+    // let code = replace_statements
+    //     .iter()
+    //     .map(|c| create_indent(c))
+    //     .collect::<Vec<String>>()
+    //     .join("\n");
 
     let result = format!(
         r#"$$lunasUpdateComponent(function () {{
-{code}
 }});"#,
-        code = code
     );
 
     result
@@ -711,7 +827,6 @@ pub fn gen_render_custom_component_statements(
     }
     render_custom_statements
 }
-
 
 // TODO: Review usage and make private if possible
 

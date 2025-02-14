@@ -328,6 +328,49 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
+  const createFragments = function (
+    this: LunasComponentState,
+    args: [
+      content: [textContent: () => string, attributeName?: string],
+      nodeIdx: number,
+      depBit: number,
+      fragmentType: FragmentType,
+      ctxNum?: number
+    ][]
+  ) {
+    for (const [
+      [textContent, attributeName],
+      nodeIdx,
+      depBit,
+      fragmentType,
+      bitOfIfBlockAndParents,
+    ] of args) {
+      this.updateComponentFuncs.push(
+        (() => {
+          if (
+            bitOfIfBlockAndParents !== undefined &&
+            this.blkRenderedMap & bitOfIfBlockAndParents
+          ) {
+            return;
+          }
+          if (!(this.valUpdateMap & depBit)) {
+            return;
+          }
+          const target = this.refMap[nodeIdx]!;
+          if (fragmentType === FragmentType.ATTRIBUTE) {
+            $$lunasReplaceAttr(
+              attributeName!,
+              textContent(),
+              target as HTMLElement
+            );
+          } else {
+            $$lunasReplaceText(textContent(), target);
+          }
+        }).bind(this)
+      );
+    }
+  }.bind(this);
+
   return {
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasUpdateComponent: updateComponent,
@@ -338,6 +381,7 @@ export const $$lunasInitComponent = function (
     $$lunasGetElmRefs: getElmRefs,
     $$lunasInsertTextNodes: insertTextNodes,
     $$lunasAddEvListener: addEvListener,
+    $$lunasCreateFragments: createFragments,
     $$lunasComponentReturn: {
       mount,
       insert,
@@ -410,7 +454,7 @@ export const $$lunasCreateNonReactive = function <T>(
   return new valueObj<T>(v);
 };
 
-export const _shouldRender = (
+const _shouldRender = (
   blockRendering: boolean,
   bitValue: number,
   bitPosition: number
@@ -421,3 +465,9 @@ export const _shouldRender = (
   // Compare the block rendering status with the bit status
   return blockRendering !== Boolean(isBitSet);
 };
+
+enum FragmentType {
+  ATTRIBUTE = 0,
+  TEXT = 1,
+  ELEMENT = 2,
+}
