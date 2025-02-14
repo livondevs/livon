@@ -114,6 +114,7 @@ pub fn check_html_elms(
                                             content_of_attr: format!("{}.v", value),
                                             variable_names: vec![value.clone()],
                                         }],
+                                        ctx: ctx_array.clone(),
                                         elm_loc: element_location.clone(),
                                     },
                                 ),
@@ -143,6 +144,7 @@ pub fn check_html_elms(
                                 let rel2 = ElmAndReactiveAttributeRelation {
                                     elm_id: node_id.clone(),
                                     reactive_attr: vec![],
+                                    ctx: ctx_array.clone(),
                                     elm_loc: element_location.clone(),
                                 };
                                 elm_and_var_relation.push(
@@ -371,6 +373,7 @@ pub fn check_html_elms(
                                     elm_id: node_id.clone(),
                                     dep_vars: set_id.depenent_vars.clone(),
                                     content_of_element: set_id.text.clone(),
+                                    ctx: set_id.ctx.clone(),
                                     elm_loc: set_id.elm_loc.clone(),
                                 },
                             ));
@@ -418,6 +421,7 @@ pub fn check_html_elms(
                                         text_node_id: remove_text_node.child_uuid.clone(),
                                         dep_vars: remove_text_node.depenent_vars.clone(),
                                         content_of_element: remove_text_node.content.clone(),
+                                        ctx: remove_text_node.ctx.clone(),
                                         elm_loc: remove_text_node.elm_loc.clone(),
                                     },
                                 ),
