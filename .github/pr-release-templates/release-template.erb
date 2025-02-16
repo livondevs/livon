@@ -1,4 +1,43 @@
 Release <%= Time.now %>
+
+## 🛠 バグ修正 (Fix)
 <% pull_requests.each do |pr| -%>
-<%=  pr.to_checklist_item %>
+  <% if pr.labels.include?('fix') -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
+<% end -%>
+
+## ✨ 新機能 (Feature)
+<% pull_requests.each do |pr| -%>
+  <% if pr.labels.include?('feature') -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
+<% end -%>
+
+## 🔨 リファクタリング (Refactor)
+<% pull_requests.each do |pr| -%>
+  <% if pr.labels.include?('refactor') -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
+<% end -%>
+
+## 📌 バージョン変更 (Version)
+<% pull_requests.each do |pr| -%>
+  <% if pr.labels.include?('version') -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
+<% end -%>
+
+## 🔧 その他の変更 (Chore)
+<% pull_requests.each do |pr| -%>
+  <% if pr.labels.include?('chore') -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
+<% end -%>
+
+## その他
+<% pull_requests.each do |pr| -%>
+  <% unless pr.labels.any? { |label| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(label) } -%>
+<%= pr.to_checklist_item %>
+  <% end -%>
 <% end -%>
