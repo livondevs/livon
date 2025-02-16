@@ -16,7 +16,13 @@ export type LunasComponentState = {
   internalElement: LunasInternalElement;
   currentVarBit: number;
   currentIfBlkBit: number;
-  ifBlkRenderers: { [key: string]: () => void };
+  ifBlocks: {
+    [key: string]: {
+      renderer: () => void;
+      context: string[];
+      condition: () => boolean;
+    };
+  };
   updateComponentFuncs: (() => void)[][];
   isMounted: boolean;
   componentElm: HTMLElement;
@@ -95,7 +101,7 @@ export const $$lunasInitComponent = function (
   this.currentVarBit = 0;
   this.currentIfBlkBit = 0;
   this.isMounted = false;
-  this.ifBlkRenderers = {};
+  this.ifBlocks = {};
   this.compSymbol = Symbol();
   this.resetDependecies = [];
   this.refMap = [];
@@ -247,23 +253,35 @@ export const $$lunasInitComponent = function (
       fragments,
     ] of ifBlocks) {
       const ifBlkBit = genBitOfIfBlks().next().value;
-      this.ifBlkRenderers[name] = ((mapOffset: number, _mapLength: number) => {
-        const componentElm = _createDomElementFromLunasElement(lunasElement());
-        const parentElement = this.refMap[parentElementIndex];
-        const refElement = refElementIndex
-          ? this.refMap[refElementIndex]!
-          : null;
-        parentElement!.insertBefore(componentElm, refElement);
-        this.refMap[mapOffset] = componentElm;
-        postRender();
-        (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
-      }).bind(this, mapOffset, mapLength);
+      this.ifBlocks[name] = {
+        renderer: ((mapOffset: number, _mapLength: number) => {
+          const componentElm = _createDomElementFromLunasElement(
+            lunasElement()
+          );
+          const parentElement = this.refMap[parentElementIndex];
+          const refElement = refElementIndex
+            ? this.refMap[refElementIndex]!
+            : null;
+          parentElement!.insertBefore(componentElm, refElement);
+          this.refMap[mapOffset] = componentElm;
+          postRender();
+          (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
+          Object.values(this.ifBlocks).forEach((blk) => {
+            if (blk.context[blk.context.length - 1] === name) {
+              blk.condition() && blk.renderer();
+            }
+          });
+        }).bind(this, mapOffset, mapLength),
+        context: ifCtx,
+        condition,
+      };
+
       this.updateComponentFuncs[0].push(
         (() => {
           if (this.valUpdateMap & depBit) {
             if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
               if (condition()) {
-                this.ifBlkRenderers[name]();
+                this.ifBlocks[name].renderer();
               } else {
                 const ifBlkElm = this.refMap[mapOffset]!;
                 (ifBlkElm as HTMLElement).remove();
@@ -276,7 +294,7 @@ export const $$lunasInitComponent = function (
       );
       if (fragments && fragments.length > 0) {
         const newCtx = ifCtx.length > 0 ? [...ifCtx, name] : [name];
-        const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlkRenderers);
+        const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlocks);
         let bit = 0;
         alreadyReigsteredIfBlockNames.forEach((name, idx) => {
           if (newCtx.includes(name)) {
@@ -286,15 +304,26 @@ export const $$lunasInitComponent = function (
         createFragments(fragments, bit);
       }
       if (ifCtx.length === 0) {
-        condition() && this.ifBlkRenderers[name]();
+        condition() && this.ifBlocks[name].renderer();
+      } else {
+        const parentBlockName = ifCtx[ifCtx.length - 1];
+        const parentBit =
+          2 **
+          Object.keys(this.ifBlocks).findIndex(
+            (key) => key === parentBlockName
+          );
+        const alreadyRendered = (this.blkRenderedMap & parentBit) === parentBit;
+        if (alreadyRendered) {
+          condition() && this.ifBlocks[name].renderer();
+        }
       }
     }
     this.blkUpdateMap = 0;
   }.bind(this);
 
   const renderIfBlock = function (this: LunasComponentState, name: string) {
-    if (!this.ifBlkRenderers[name]) return;
-    this.ifBlkRenderers[name]();
+    if (!this.ifBlocks[name]) return;
+    this.ifBlocks[name].renderer();
   }.bind(this);
 
   const getElmRefs = function (
