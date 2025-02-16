@@ -11,21 +11,21 @@ categories = ["parsing", "web-programming"]
 readme = "README.md"
 
 [dependencies]
-pest = "2.5.7"
-pest_derive = "2.5.7"
-thiserror = "1.0.40"
-serde = { version = "1.0.159", features = ["derive"] }
-serde_derive = "1.0.159"
-serde_json = "1.0.95"
+pest = "2.7.15"
+pest_derive = "2.7.15"
+thiserror = "1.0.69"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_derive = "1.0.217"
+serde_json = "1.0.138"
 doc-comment = "0.3.3"
 
 [dev-dependencies]
-indoc = "2.0.1"
-insta = { version = "1.29.0", features = ["json"] }
-tempfile = "3.5.0"
+indoc = "2.0.5"
+insta = { version = "1.42.1", features = ["json"] }
+tempfile = "3.16.0"
 criterion = "0.4.0"
-reqwest = { version = "0.11.16", features = ["blocking", "rustls-tls"] }
-clap = { version = "4.2.1", features = ["derive"] }
+reqwest = { version = "0.11.27", features = ["blocking", "rustls-tls"] }
+clap = { version = "4.5.28", features = ["derive"] }
 
 [[example]]
 name = "get_all_href"
