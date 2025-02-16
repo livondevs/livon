@@ -1,4 +1,4 @@
-🚀 Release (<%= Time.now.strftime('%Y-%m-%d') %> - <%= ENV['GIT_PR_RELEASE_BRANCH_PRODUCTION'] %>
+🚀 Release (<%= Time.now.strftime('%Y-%m-%d') %> - <%= ENV['GIT_PR_RELEASE_BRANCH_PRODUCTION'] %>)
 ## 🛠 Bug Fixes
 <%- pull_requests.each do |pr| -%>
 <%- if pr.labels.any? { |l| l.name == 'fix' } -%>
