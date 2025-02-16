@@ -156,16 +156,6 @@ pub fn gen_render_if_blk_func(
             "".to_string()
         };
 
-        /* name: string,
-        lunasElement: () => LunasInternalElement,
-        condition: () => boolean,
-        postRender: () => void,
-        additionalCtx: string[],
-        depBit: number,
-        mapInfo: [mapOffset: number, mapLength: number],
-        refIdx: [parentElementIndex: number, refElementIndex?: number],
-        fragment?: Fragment[] */
-
         let create_if_func_inside = format!(
             r#""{}",
 () => ({}),
