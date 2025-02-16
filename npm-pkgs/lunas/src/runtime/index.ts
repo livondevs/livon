@@ -17,7 +17,7 @@ export type LunasComponentState = {
   currentVarBit: number;
   currentIfBlkBit: number;
   ifBlkRenderers: { [key: string]: () => void };
-  updateComponentFuncs: (() => void)[];
+  updateComponentFuncs: (() => void)[][];
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -99,7 +99,7 @@ export const $$lunasInitComponent = function (
   this.compSymbol = Symbol();
   this.resetDependecies = [];
   this.refMap = [];
-  this.updateComponentFuncs = [];
+  this.updateComponentFuncs = [[], []];
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -173,6 +173,7 @@ export const $$lunasInitComponent = function (
     this.componentElm = elm.firstElementChild as HTMLElement;
     this.__lunas_after_mount();
     this.isMounted = true;
+    _updateComponent(() => {});
     return this;
   }.bind(this);
 
@@ -196,13 +197,14 @@ export const $$lunasInitComponent = function (
     this.resetDependecies.forEach((r) => r());
   }.bind(this);
 
-  const updateComponent = function (
+  const _updateComponent = function (
     this: LunasComponentState,
     updateFunc: () => void
   ) {
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
-      this.updateComponentFuncs.forEach((f) => f());
+      this.updateComponentFuncs[0].forEach((f) => f());
+      this.updateComponentFuncs[1].forEach((f) => f());
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = 0;
@@ -226,12 +228,11 @@ export const $$lunasInitComponent = function (
       lunasElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
-      additionalCtx: number[],
+      additionalCtx: string[],
       depBit: number,
-      mapOffset: number,
-      mapLength: number,
-      parentElementIndex: number,
-      refElementIndex?: number
+      mapInfo: [mapOffset: number, mapLength: number],
+      refIdx: [parentElementIndex: number, refElementIndex?: number],
+      fragment?: Fragment[]
     ][]
   ) {
     for (const [
@@ -239,12 +240,11 @@ export const $$lunasInitComponent = function (
       lunasElement,
       condition,
       postRender,
-      additionalCtx,
+      ifCtx,
       depBit,
-      mapOffset,
-      mapLength,
-      parentElementIndex,
-      refElementIndex,
+      [mapOffset, mapLength],
+      [parentElementIndex, refElementIndex],
+      fragments,
     ] of ifBlocks) {
       const ifBlkBit = genBitOfIfBlks().next().value;
       this.ifBlkRenderers[name] = ((mapOffset: number, _mapLength: number) => {
@@ -258,7 +258,7 @@ export const $$lunasInitComponent = function (
         postRender();
         (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
       }).bind(this, mapOffset, mapLength);
-      this.updateComponentFuncs.push(
+      this.updateComponentFuncs[0].push(
         (() => {
           if (this.valUpdateMap & depBit) {
             if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
@@ -274,7 +274,18 @@ export const $$lunasInitComponent = function (
           }
         }).bind(this)
       );
-      if (additionalCtx.length === 0) {
+      if (fragments && fragments.length > 0) {
+        const newCtx = ifCtx.length > 0 ? [...ifCtx, name] : [name];
+        const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlkRenderers);
+        let bit = 0;
+        alreadyReigsteredIfBlockNames.forEach((name, idx) => {
+          if (newCtx.includes(name)) {
+            bit |= 2 ** idx;
+          }
+        });
+        createFragments(fragments, bit);
+      }
+      if (ifCtx.length === 0) {
         condition() && this.ifBlkRenderers[name]();
       }
     }
@@ -292,7 +303,7 @@ export const $$lunasInitComponent = function (
     preserveId: number,
     offset: number = 0
   ): void {
-    ids.map(
+    ids.forEach(
       function (this: LunasComponentState, id: string, index: number) {
         const e = document.getElementById(id)!;
         (2 ** index) & preserveId && e.removeAttribute("id");
@@ -330,30 +341,30 @@ export const $$lunasInitComponent = function (
 
   const createFragments = function (
     this: LunasComponentState,
-    args: [
-      content: [textContent: () => string, attributeName?: string],
-      nodeIdx: number,
-      depBit: number,
-      fragmentType: FragmentType,
-      ctxNum?: number
-    ][]
+    fragments: Fragment[],
+    ifCtx?: number
   ) {
     for (const [
       [textContent, attributeName],
       nodeIdx,
       depBit,
       fragmentType,
-      bitOfIfBlockAndParents,
-    ] of args) {
-      this.updateComponentFuncs.push(
+    ] of fragments) {
+      this.updateComponentFuncs[1].push(
         (() => {
-          if (
-            bitOfIfBlockAndParents !== undefined &&
-            this.blkRenderedMap & bitOfIfBlockAndParents
-          ) {
-            return;
+          if (ifCtx != undefined) {
+            const blockRendered = (this.blkRenderedMap & ifCtx) === ifCtx;
+            const blockAlreadyUpdated = (this.blkUpdateMap & ifCtx) === ifCtx;
+            if (!blockRendered) {
+              return;
+            }
+            if (blockAlreadyUpdated) {
+              return;
+            }
           }
-          if (!(this.valUpdateMap & depBit)) {
+
+          const valueUpdated = (this.valUpdateMap & depBit) !== 0;
+          if (!valueUpdated) {
             return;
           }
           const target = this.refMap[nodeIdx]!;
@@ -373,7 +384,6 @@ export const $$lunasInitComponent = function (
 
   return {
     $$lunasSetComponentElement: componentElementSetter,
-    $$lunasUpdateComponent: updateComponent,
     $$lunasAfterMount: setAfterMount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
@@ -465,6 +475,13 @@ const _shouldRender = (
   // Compare the block rendering status with the bit status
   return blockRendering !== Boolean(isBitSet);
 };
+
+type Fragment = [
+  content: [textContent: () => string, attributeName?: string],
+  nodeIdx: number,
+  depBit: number,
+  fragmentType: FragmentType
+];
 
 enum FragmentType {
   ATTRIBUTE = 0,

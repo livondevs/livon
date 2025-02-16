@@ -1,12 +1,16 @@
 use crate::{
     generate_js::{
-        create_event_listener, gen_create_anchor_statements, gen_ref_getter_from_needed_ids,
-        gen_render_custom_component_statements, get_combined_binary_number,
+        create_event_listener, create_fragments, gen_create_anchor_statements,
+        gen_ref_getter_from_needed_ids, gen_render_custom_component_statements,
+        get_combined_binary_number,
     },
     orig_html_struct::structs::NodeContent,
-    structs::transform_info::{
-        ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
-        TextNodeRendererGroup, VariableNameAndAssignedNumber,
+    structs::{
+        transform_info::{
+            ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
+            TextNodeRendererGroup, VariableNameAndAssignedNumber,
+        },
+        transform_targets::NodeAndReactiveInfo,
     },
     transformers::html_utils::create_lunas_internal_component_statement,
 };
@@ -22,6 +26,7 @@ pub fn gen_render_if_blk_func(
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
     variable_names: &Vec<String>,
     dep_vars_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
+    elm_and_var_relation: &Vec<NodeAndReactiveInfo>,
     ref_node_ids: &mut Vec<String>,
 ) -> Option<String> {
     let mut render_if = vec![];
@@ -75,7 +80,7 @@ pub fn gen_render_if_blk_func(
             true => Some(
                 ref_node_ids
                     .iter()
-                    .position(|x| x == &if_block.if_blk_id)
+                    .position(|x| x == &format!("{}-anchor", if_block.target_if_blk_id))
                     .unwrap()
                     .to_string(),
             ),
@@ -102,11 +107,7 @@ pub fn gen_render_if_blk_func(
         };
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
-            Some(idx) => format!(
-                r#",
-{}"#,
-                idx
-            ),
+            Some(idx) => format!(r#", {}"#, idx),
             None => "".to_string(),
         };
 
@@ -122,10 +123,7 @@ pub fn gen_render_if_blk_func(
         );
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
-
-        println!("ref_node_ids.len(): {}", ref_node_ids.len());
-
-        let dep_vars_assigned_numbers = dep_vars_assigned_numbers
+        let dep_number = dep_vars_assigned_numbers
             .iter()
             .filter(|v| {
                 if_block
@@ -138,6 +136,35 @@ pub fn gen_render_if_blk_func(
             .map(|v| v.assignment)
             .collect::<Vec<u32>>();
 
+        let fragments = create_fragments(
+            &elm_and_var_relation,
+            &dep_vars_assigned_numbers,
+            &ref_node_ids,
+            &if_block.ctx_under_if,
+        );
+
+        let if_fragments = if let Some(fragments) = fragments {
+            format!(
+                r#",
+[
+{}
+]"#,
+                create_indent(fragments.as_str())
+            )
+        } else {
+            "".to_string()
+        };
+
+        /* name: string,
+        lunasElement: () => LunasInternalElement,
+        condition: () => boolean,
+        postRender: () => void,
+        additionalCtx: string[],
+        depBit: number,
+        mapInfo: [mapOffset: number, mapLength: number],
+        refIdx: [parentElementIndex: number, refElementIndex?: number],
+        fragment?: Fragment[] */
+
         let create_if_func_inside = format!(
             r#""{}",
 () => ({}),
@@ -145,19 +172,19 @@ pub fn gen_render_if_blk_func(
 {},
 {},
 {},
-{},
-{},
-{}{}"#,
+[{}, {}],
+[{}{}]{}"#,
             if_block.target_if_blk_id,
             create_internal_element_statement,
             if_block.condition,
             if_on_create,
             ctxjs_array,
-            get_combined_binary_number(dep_vars_assigned_numbers),
+            get_combined_binary_number(dep_number),
             initial_ref_node_ids_len,
             ref_node_ids_len_increase,
             parent_if_blk_id_idx,
-            anchor_idx
+            anchor_idx,
+            if_fragments
         );
 
         let create_if_func = format!(

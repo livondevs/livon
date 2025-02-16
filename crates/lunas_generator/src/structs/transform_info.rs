@@ -52,6 +52,7 @@ pub struct NeededIdName {
     pub to_delete: bool,
     pub node_id: String,
     pub ctx: Vec<String>,
+    pub elm_loc: Vec<usize>,
 }
 
 #[derive(Debug)]

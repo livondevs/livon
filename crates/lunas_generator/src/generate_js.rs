@@ -143,6 +143,8 @@ pub fn generate_js_from_blocks(
         _ => panic!(),
     };
 
+    needed_id.sort_by(|a, b| a.elm_loc.cmp(&b.elm_loc));
+
     // Generate JavaScript
     let html_insert = format!(
         "{};",
@@ -178,7 +180,7 @@ pub fn generate_js_from_blocks(
 
     let fragments = create_fragments_func(&elm_and_var_relation, &variables, &ref_node_ids);
 
-    if !fragments.is_empty() {
+    if let Some(fragments) = fragments {
         after_mount_code_array.push(fragments);
     }
 
@@ -190,6 +192,7 @@ pub fn generate_js_from_blocks(
         &custom_component_blocks_info,
         &variable_names,
         &variables,
+        &elm_and_var_relation,
         &mut ref_node_ids,
     );
     after_mount_code_array.extend(render_if);
@@ -254,7 +257,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -359,37 +362,51 @@ pub fn create_fragments_func(
     elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &Vec<String>,
-) -> String {
+) -> Option<String> {
     let fragments_str = create_fragments(
         elm_and_variable_relations,
         variable_name_and_assigned_numbers,
         &ref_node_ids,
+        &vec![],
     );
 
-    format!(
+    if fragments_str.is_none() {
+        return None;
+    }
+
+    Some(format!(
         r#"$$lunasCreateFragments([
 {}
 ]);"#,
-        create_indent(fragments_str.as_str())
-    )
+        create_indent(fragments_str.unwrap().as_str())
+    ))
 }
 
 pub fn create_fragments(
     elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &Vec<String>,
-) -> String {
+    current_ctx: &Vec<String>,
+) -> Option<String> {
     let mut fragments = vec![];
 
     for elm_and_variable_relation in elm_and_variable_relations {
+        let ctx = match elm_and_variable_relation {
+            NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_var) => elm_and_var.ctx.clone(),
+            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_reactive_attr) => {
+                elm_and_reactive_attr.ctx.clone()
+            }
+            NodeAndReactiveInfo::TextAndVariableContentRelation(text_and_var) => {
+                text_and_var.ctx.clone()
+            }
+        };
+        if ctx != *current_ctx {
+            continue;
+        }
         match elm_and_variable_relation {
             NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
                 let _elm_and_attr_relation = elm_and_attr_relation.clone();
                 for c in _elm_and_attr_relation.reactive_attr {
-                    println!(
-                        "variable_name_and_assigned_numbers: {:?}, c.variable_names: {:?}",
-                        variable_name_and_assigned_numbers, c.variable_names
-                    );
                     let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                         .iter()
                         .filter(|v| {
@@ -462,7 +479,10 @@ pub fn create_fragments(
             }
         }
     }
-    fragments.join(",\n")
+    if fragments.is_empty() {
+        return None;
+    }
+    Some(fragments.join(",\n"))
 }
 
 pub fn gen_create_anchor_statements(
@@ -514,7 +534,7 @@ pub fn gen_create_anchor_statements(
                 }
                 if let Some(next_renderer) = next_render {
                     if render.is_next_elm_the_same_anchor(next_renderer) {
-                        ref_node_ids.push(block_id.clone());
+                        ref_node_ids.push(format!("{}-anchor", block_id));
                         amount_of_next_elm += 1;
                         continue;
                     }
@@ -538,7 +558,7 @@ pub fn gen_create_anchor_statements(
                     amount_of_next_elm, parent_node_idx, anchor_node_idx
                 );
                 create_anchor_statements.push(create_anchor_statement);
-                ref_node_ids.push(block_id.clone());
+                ref_node_ids.push(format!("{}-anchor", block_id));
                 amount_of_next_elm = 1;
             }
         }
