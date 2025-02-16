@@ -1,43 +1,49 @@
-# 🚀 Release Notes <%= Time.now %>
+# 🚀 Release Notes (<%= Time.now.strftime('%Y-%m-%d') %>)
 
+<% fix_prs = pull_requests.select { |pr| pr.labels.include?('fix') } %>
+<% if fix_prs.any? %>
 ## 🛠 Bug Fixes (Fix)
-<% pull_requests.each do |pr| %>
-  <% if pr.labels.include?('fix') %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% fix_prs.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
 
+<% feature_prs = pull_requests.select { |pr| pr.labels.include?('feature') } %>
+<% if feature_prs.any? %>
 ## ✨ New Features (Feature)
-<% pull_requests.each do |pr| %>
-  <% if pr.labels.include?('feature') %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% feature_prs.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
 
+<% refactor_prs = pull_requests.select { |pr| pr.labels.include?('refactor') } %>
+<% if refactor_prs.any? %>
 ## 🔨 Refactoring (Refactor)
-<% pull_requests.each do |pr| %>
-  <% if pr.labels.include?('refactor') %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% refactor_prs.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
 
+<% version_prs = pull_requests.select { |pr| pr.labels.include?('version') } %>
+<% if version_prs.any? %>
 ## 📌 Version Updates (Version)
-<% pull_requests.each do |pr| %>
-  <% if pr.labels.include?('version') %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% version_prs.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
 
+<% chore_prs = pull_requests.select { |pr| pr.labels.include?('chore') } %>
+<% if chore_prs.any? %>
 ## 🔧 Other Changes (Chore)
-<% pull_requests.each do |pr| %>
-  <% if pr.labels.include?('chore') %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% chore_prs.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
 
+<% others = pull_requests.select { |pr| !pr.labels.any? { |label| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(label) } } %>
+<% if others.any? %>
 ## Others
-<% pull_requests.each do |pr| %>
-  <% unless pr.labels.any? { |label| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(label) } %>
-    - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
-  <% end %>
+<% others.each do |pr| %>
+  - [#<%= pr.number %>] <%= pr.title %> (@<%= pr.author %>)
+<% end %>
 <% end %>
