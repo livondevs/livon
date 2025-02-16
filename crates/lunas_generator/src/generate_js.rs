@@ -1,5 +1,4 @@
 use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
-use std::collections::HashSet;
 
 use crate::{
     consts::ROUTER_VIEW,
@@ -113,6 +112,7 @@ pub fn generate_js_from_blocks(
     let mut custom_component_blocks_info = vec![];
     let mut text_node_renderer = vec![];
 
+    let mut ref_node_ids = vec![];
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
     // Analyze HTML
@@ -123,15 +123,15 @@ pub fn generate_js_from_blocks(
         &mut needed_id,
         &mut elm_and_var_relation,
         &mut action_and_target,
-        None,
+        None, // parent_uuid
         &mut vec![],
         &mut if_blocks_info,
         &mut custom_component_blocks_info,
         &mut text_node_renderer,
-        &vec![],
-        &vec![0],
-        1,
-        false,
+        &vec![],  // ctx
+        &vec![0], // ctx_num
+        1,        // ctx_num_index
+        false,    // is_root
     )?;
 
     sort_if_blocks(&mut if_blocks_info);
@@ -142,6 +142,8 @@ pub fn generate_js_from_blocks(
         NodeContent::Element(elm) => elm,
         _ => panic!(),
     };
+
+    needed_id.sort_by(|a, b| a.elm_loc.cmp(&b.elm_loc));
 
     // Generate JavaScript
     let html_insert = format!(
@@ -162,15 +164,26 @@ pub fn generate_js_from_blocks(
 
     // Generate AfterMount
     let mut after_mount_code_array = vec![];
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(&needed_id, &None, &None);
+    let ref_getter_expression =
+        gen_ref_getter_from_needed_ids(&needed_id, &None, &None, &mut ref_node_ids);
     after_mount_code_array.push(ref_getter_expression);
-    let if_block_elm_decl =
-        generate_if_block_ref_var_decl(&if_blocks_info, &needed_id, &text_node_renderer_group);
-    after_mount_code_array.extend(if_block_elm_decl);
-    let create_anchor_statements = gen_create_anchor_statements(&text_node_renderer_group, &vec![]);
-    after_mount_code_array.extend(create_anchor_statements);
-    let event_listener_codes = create_event_listener(&action_and_target, &vec![]);
-    after_mount_code_array.extend(event_listener_codes);
+    let create_anchor_statements =
+        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &mut ref_node_ids);
+    if let Some(create_anchor_statements) = create_anchor_statements {
+        after_mount_code_array.push(create_anchor_statements);
+    }
+    let event_listener_code = create_event_listener(&action_and_target, &vec![], &ref_node_ids);
+
+    if let Some(code) = event_listener_code {
+        after_mount_code_array.push(code);
+    }
+
+    let fragments = create_fragments_func(&elm_and_var_relation, &variables, &ref_node_ids);
+
+    if let Some(fragments) = fragments {
+        after_mount_code_array.push(fragments);
+    }
+
     let render_if = gen_render_if_blk_func(
         &if_blocks_info,
         &needed_id,
@@ -178,22 +191,23 @@ pub fn generate_js_from_blocks(
         &text_node_renderer_group,
         &custom_component_blocks_info,
         &variable_names,
+        &variables,
+        &elm_and_var_relation,
+        &mut ref_node_ids,
     );
     after_mount_code_array.extend(render_if);
     let render_component = gen_render_custom_component_statements(
         &custom_component_blocks_info,
         &vec![],
         &variable_names,
+        &mut ref_node_ids,
     );
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
-            custom_component_blocks_info,
+            &custom_component_blocks_info,
         )?);
     }
     after_mount_code_array.extend(render_component);
-    after_mount_code_array.push("this.blkUpdateMap = 0".to_string());
-    let update_func_code = gen_on_update_func(elm_and_var_relation, variables, if_blocks_info);
-    after_mount_code_array.push(update_func_code);
     let after_mount_code = after_mount_code_array
         .iter()
         .map(|c| create_indent(c))
@@ -241,10 +255,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasAddEvListener, $$lunasEscapeHtml, $$lunasGetElmRefs, $$lunasInitComponent, $$lunasReplaceInnerHtml, $$lunasReplaceText, $$lunasReplaceAttr, $$lunasInsertEmpty, $$lunasInsertContent, $$createLunasElement, $$lunasCreateNonReactive, $$lunasShouldRender }} from "{}";{}
+        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasUpdateComponent, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -255,7 +269,9 @@ pub fn gen_ref_getter_from_needed_ids(
     needed_ids: &Vec<NeededIdName>,
     if_blk: &Option<&IfBlockInfo>,
     ctx: &Option<&Vec<String>>,
+    ref_node_ids: &mut Vec<String>,
 ) -> String {
+    let ref_node_ids_count = ref_node_ids.len();
     let needed_ids_to_get_here = needed_ids
         .iter()
         .filter(|needed_elm: &&NeededIdName| match *if_blk == None {
@@ -271,170 +287,127 @@ pub fn gen_ref_getter_from_needed_ids(
         // // })
         .collect::<Vec<&NeededIdName>>();
 
-    // TODO:format!などを使ってもっとみやすいコードを書く
-    let mut ref_getter_str = match if_blk == &None {
-        true => "const ".to_string(),
-        false => "".to_string(),
-    };
+    for needed_id in needed_ids_to_get_here.iter() {
+        ref_node_ids.push(needed_id.node_id.clone());
+    }
 
-    ref_getter_str.push_str("[");
-
+    // TODO: Use format! to improve code readability
+    let mut ref_getter_str = String::from("$$lunasGetElmRefs([");
     ref_getter_str.push_str(
-        needed_ids_to_get_here
-            .iter()
-            .map(|id| format!("$$lunas{}Ref", id.node_id))
-            .collect::<Vec<String>>()
-            .join(", ")
-            .as_str(),
-    );
-    ref_getter_str.push_str("] = $$lunasGetElmRefs([");
-    ref_getter_str.push_str(
-        needed_ids_to_get_here
+        &needed_ids_to_get_here
             .iter()
             .map(|id| format!("\"{}\"", id.id_name))
             .collect::<Vec<String>>()
-            .join(", ")
-            .as_str(),
+            .join(", "),
     );
     let delete_id_bool_map = needed_ids_to_get_here
         .iter()
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-    ref_getter_str.push_str(format!("], {map});", map = delete_id_map).as_str());
+    // ref_node_ids_count
+    let offset = if ref_node_ids_count == 0 {
+        "".to_string()
+    } else {
+        format!(", {}", ref_node_ids_count)
+    };
+    ref_getter_str.push_str(&format!(
+        "], {map}{offset});",
+        map = delete_id_map,
+        offset = offset.as_str()
+    ));
     ref_getter_str
 }
 
 pub fn create_event_listener(
     actions_and_targets: &Vec<ActionAndTarget>,
     current_ctx: &Vec<String>,
-) -> Vec<String> {
+    ref_node_ids: &Vec<String>,
+) -> Option<String> {
+    let filtered_targets = actions_and_targets
+        .iter()
+        .filter(|action_and_target| action_and_target.ctx == *current_ctx)
+        .collect::<Vec<&ActionAndTarget>>();
+
+    if filtered_targets.is_empty() {
+        return None;
+    }
     let mut result = vec![];
-    for action_and_target in actions_and_targets {
-        if action_and_target.ctx != *current_ctx {
-            continue;
-        }
-        result.push(format!(
-            "$$lunasAddEvListener($$lunas{}Ref, \"{}\", {});",
-            action_and_target.target,
-            action_and_target.action_name,
-            action_and_target.action.to_string()
-        ));
-    }
-    result
-}
-
-fn generate_if_block_ref_var_decl(
-    if_blocks_info: &Vec<IfBlockInfo>,
-    needed_id: &Vec<NeededIdName>,
-    text_node_renderer_group: &TextNodeRendererGroup,
-) -> Vec<String> {
-    let mut codes = vec![];
-    if if_blocks_info.len() > 0 {
-        let mut variables_to_declare = HashSet::new();
-        for if_block_info in if_blocks_info.iter() {
-            variables_to_declare.insert(format!("$$lunas{}Ref", if_block_info.if_blk_id));
-        }
-
-        for needed_id in needed_id.iter() {
-            if needed_id.ctx.len() != 0 {
-                variables_to_declare.insert(format!("$$lunas{}Ref", needed_id.node_id.clone()));
-            }
-        }
-
-        for text_node_renderer in text_node_renderer_group.renderers.iter() {
-            match text_node_renderer {
-                crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
-                    if txt_renderer.ctx.len() != 0 {
-                        variables_to_declare
-                            .insert(format!("$$lunas{}Text", txt_renderer.text_node_id.clone()));
-                    }
-                }
-                crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_renderer) => {
-                    if if_renderer.ctx_over_if.len() != 0 {
-                        variables_to_declare
-                            .insert(format!("$$lunas{}Anchor", if_renderer.if_blk_id.clone()));
-                    }
-                }
-                crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
-                    custom_renderer,
-                ) => {
-                    if custom_renderer.ctx.len() != 0 {
-                        variables_to_declare.insert(format!(
-                            "$$lunas{}Anchor",
-                            custom_renderer.custom_component_block_id.clone()
-                        ));
-                    }
-                }
-            }
-        }
-
-        if variables_to_declare.len() != 0 {
-            let decl = format!("let {};", itertools::join(variables_to_declare, ", "));
-            codes.push(decl);
-        }
-    }
-    return codes;
-}
-
-fn gen_on_update_func(
-    elm_and_variable_relations: Vec<NodeAndReactiveInfo>,
-    variable_name_and_assigned_numbers: Vec<VariableNameAndAssignedNumber>,
-    if_blocks_infos: Vec<IfBlockInfo>,
-) -> String {
-    let mut replace_statements = vec![];
-
-    for (index, if_block_info) in if_blocks_infos.iter().enumerate() {
-        let if_blk_rendering_cond = if if_block_info.ctx_over_if.len() != 0 {
-            format!(
-                "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                if_block_info.generate_ctx_num(&if_blocks_infos)
-            )
-        } else {
-            "".to_string()
-        };
-
-        let dep_vars = &if_block_info.condition_dep_vars;
-
-        // TODO: データバインディングと同じコードを使っているので共通化する
-        let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+    for (index, action_and_target) in filtered_targets.iter().enumerate() {
+        let reference_node_idx = ref_node_ids
             .iter()
-            .filter(|v| {
-                dep_vars
-                    .iter()
-                    .map(|d| *d == v.name)
-                    .collect::<Vec<bool>>()
-                    .contains(&true)
-            })
-            .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
-
-        let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
-
-        let render_check = format!(
-            "$$lunasShouldRender({}, this.blkRenderedMap, {})",
-            if_block_info.condition,
-            index + 1,
-        );
-
-        replace_statements.push(format!(
-            "{}this.valUpdateMap & {} && {} && ( {} ? {} : ({}, {}, {}) );",
-            if_blk_rendering_cond,
-            combined_number,
-            render_check,
-            if_block_info.condition,
-            format!("$$lunasRenderIfBlock(\"{}\")", &if_block_info.if_blk_id),
-            format!("$$lunas{}Ref.remove()", &if_block_info.if_blk_id),
-            format!("$$lunas{}Ref = null", &if_block_info.if_blk_id),
-            format!("this.blkRenderedMap ^= {}", index + 1),
+            .position(|id| id == &action_and_target.target)
+            .unwrap();
+        result.push(format!(
+            "[{}, \"{}\", {}]{}",
+            reference_node_idx,
+            action_and_target.action_name,
+            action_and_target.action.to_string(),
+            if index != filtered_targets.len() - 1 {
+                ","
+            } else {
+                ""
+            }
         ));
     }
+    let formatted_result = create_indent(result.join("\n").as_str());
+    Some(format!(
+        r#"$$lunasAddEvListener([
+{}
+]);"#,
+        formatted_result
+    ))
+}
+
+pub fn create_fragments_func(
+    elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
+    variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
+    ref_node_ids: &Vec<String>,
+) -> Option<String> {
+    let fragments_str = create_fragments(
+        elm_and_variable_relations,
+        variable_name_and_assigned_numbers,
+        &ref_node_ids,
+        &vec![],
+    );
+
+    if fragments_str.is_none() {
+        return None;
+    }
+
+    Some(format!(
+        r#"$$lunasCreateFragments([
+{}
+]);"#,
+        create_indent(fragments_str.unwrap().as_str())
+    ))
+}
+
+pub fn create_fragments(
+    elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
+    variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
+    ref_node_ids: &Vec<String>,
+    current_ctx: &Vec<String>,
+) -> Option<String> {
+    let mut fragments = vec![];
 
     for elm_and_variable_relation in elm_and_variable_relations {
+        let ctx = match elm_and_variable_relation {
+            NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_var) => elm_and_var.ctx.clone(),
+            NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_reactive_attr) => {
+                elm_and_reactive_attr.ctx.clone()
+            }
+            NodeAndReactiveInfo::TextAndVariableContentRelation(text_and_var) => {
+                text_and_var.ctx.clone()
+            }
+        };
+        if ctx != *current_ctx {
+            continue;
+        }
         match elm_and_variable_relation {
             NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
                 let _elm_and_attr_relation = elm_and_attr_relation.clone();
-                for c in elm_and_attr_relation.reactive_attr {
+                for c in _elm_and_attr_relation.reactive_attr {
                     let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                         .iter()
                         .filter(|v| {
@@ -447,28 +420,41 @@ fn gen_on_update_func(
                         .map(|v| v.assignment)
                         .collect::<Vec<u32>>();
 
-                    let if_blk_rendering_cond = if elm_and_attr_relation.ctx.len() != 0 {
-                        format!(
-                            "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                            _elm_and_attr_relation.generate_ctx_num(&if_blocks_infos)
-                        )
-                    } else {
-                        "".to_string()
-                    };
+                    let target_node_idx = ref_node_ids
+                        .iter()
+                        .position(|id| id == &elm_and_attr_relation.elm_id)
+                        .unwrap();
 
-                    replace_statements.push(format!(
-                        "{}this.valUpdateMap & {:?} && $$lunasReplaceAttr(\"{}\", {}, $$lunas{}Ref);",
-                        if_blk_rendering_cond,
-                        get_combined_binary_number(dep_vars_assined_numbers),
-                        c.attribute_key,
+                    fragments.push(format!(
+                        "[[() => {}, \"{}\"], {}, {}, {}]",
                         c.content_of_attr,
-                        elm_and_attr_relation.elm_id
+                        c.attribute_key,
+                        target_node_idx,
+                        get_combined_binary_number(dep_vars_assined_numbers),
+                        "0" // FragmentType.ATTRIBUTE
                     ));
                 }
             }
-            NodeAndReactiveInfo::ElmAndVariableRelation(elm_and_variable_relation) => {
-                let depending_variables = elm_and_variable_relation.dep_vars.clone();
-                let target_id = elm_and_variable_relation.elm_id.clone();
+            _ => {
+                let (depending_variables, target_id, content) = match elm_and_variable_relation {
+                    NodeAndReactiveInfo::TextAndVariableContentRelation(
+                        text_and_variable_content_relation,
+                    ) => (
+                        text_and_variable_content_relation.dep_vars.clone(),
+                        text_and_variable_content_relation.text_node_id.clone(),
+                        text_and_variable_content_relation
+                            .content_of_element
+                            .clone(),
+                    ),
+                    NodeAndReactiveInfo::ElmAndVariableRelation(
+                        elm_and_variable_content_relation,
+                    ) => (
+                        elm_and_variable_content_relation.dep_vars.clone(),
+                        elm_and_variable_content_relation.elm_id.clone(),
+                        elm_and_variable_content_relation.content_of_element.clone(),
+                    ),
+                    _ => panic!(),
+                };
 
                 let dep_vars_assined_numbers = variable_name_and_assigned_numbers
                     .iter()
@@ -481,197 +467,136 @@ fn gen_on_update_func(
                     })
                     .map(|v| v.assignment)
                     .collect::<Vec<u32>>();
-                let under_if_blk = elm_and_variable_relation.ctx.len() != 0;
-
-                let if_blk_rendering_cond = if under_if_blk {
-                    format!(
-                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    "".to_string()
-                };
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
-                let to_update_cond = if under_if_blk {
-                    format!(
-                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
-                        combined_number,
-                        elm_and_variable_relation.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    format!("this.valUpdateMap & {:?}", combined_number)
-                };
-
-                replace_statements.push(format!(
-                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Ref);",
-                    if_blk_rendering_cond,
-                    to_update_cond,
-                    elm_and_variable_relation.content_of_element.trim(),
-                    target_id
-                ));
-            }
-            NodeAndReactiveInfo::TextAndVariableContentRelation(txt_and_var_content) => {
-                // TODO: Elementとほとんど同じなので、共通化
-
-                let depending_variables = txt_and_var_content.dep_vars.clone();
-                let target_id = txt_and_var_content.text_node_id.clone();
-
-                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
-                    .iter()
-                    .filter(|v| {
-                        depending_variables
-                            .iter()
-                            .map(|d| *d == v.name)
-                            .collect::<Vec<bool>>()
-                            .contains(&true)
-                    })
-                    .map(|v| v.assignment)
-                    .collect::<Vec<u32>>();
-                let under_if_blk = txt_and_var_content.ctx.len() != 0;
-
-                let if_blk_rendering_cond = if under_if_blk {
-                    format!(
-                        "(!((this.blkRenderedMap & {0}) ^ {0})) && ",
-                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    "".to_string()
-                };
-
-                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
-
-                let to_update_cond = if under_if_blk {
-                    format!(
-                        "(this.valUpdateMap & {:?} && ((this.blkUpdateMap & {1}) ^ {1}) )",
-                        combined_number,
-                        txt_and_var_content.generate_ctx_num(&if_blocks_infos)
-                    )
-                } else {
-                    format!("this.valUpdateMap & {:?}", combined_number)
-                };
-
-                replace_statements.push(format!(
-                    "{}{} && $$lunasReplaceText(`{}`, $$lunas{}Text);",
-                    if_blk_rendering_cond,
-                    to_update_cond,
-                    txt_and_var_content.content_of_element.trim(),
-                    target_id
+                fragments.push(format!(
+                    "[[() => `{}`], {}, {}, {}]",
+                    content,
+                    ref_node_ids.iter().position(|id| id == &target_id).unwrap(),
+                    combined_number,
+                    "1" // FragmentType.TEXT
                 ));
             }
         }
     }
-
-    let code = replace_statements
-        .iter()
-        .map(|c| create_indent(c))
-        .collect::<Vec<String>>()
-        .join("\n");
-
-    let result = format!(
-        r#"$$lunasUpdateComponent(function () {{
-{code}
-}});"#,
-        code = code
-    );
-
-    result
+    if fragments.is_empty() {
+        return None;
+    }
+    Some(fragments.join(",\n"))
 }
 
 pub fn gen_create_anchor_statements(
     text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
-) -> Vec<String> {
+    ref_node_ids: &mut Vec<String>,
+) -> Option<String> {
+    let ref_node_ids_count_before_creating_anchors = ref_node_ids.len();
     let mut create_anchor_statements = vec![];
-    for render in &text_node_renderer.renderers {
+    let mut iter = text_node_renderer.renderers.iter().peekable();
+    let mut amount_of_next_elm = 1;
+    while let Some(render) = iter.next() {
         match render {
             crate::structs::transform_info::TextNodeRenderer::ManualRenderer(txt_renderer) => {
                 if &txt_renderer.ctx != ctx_condition {
                     continue;
                 }
-                let anchor_id = match &txt_renderer.target_anchor_id {
-                    Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                let anchor_idx = match &txt_renderer.target_anchor_id {
+                    Some(anchor_id) => {
+                        let reference_node_idx =
+                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                        reference_node_idx.to_string()
+                    }
                     None => "null".to_string(),
                 };
-                let variable_declaration_word = match ctx_condition.len() != 0 {
-                    // when under if block, we don't need to declare the variable
-                    true => "",
-                    false => "const ",
-                };
+                let parent_node_idx = ref_node_ids
+                    .iter()
+                    .position(|id| id == &txt_renderer.parent_id)
+                    .unwrap()
+                    .to_string();
                 let create_anchor_statement = format!(
-                    "{}$$lunas{}Text = $$lunasInsertContent(`{}`,$$lunas{}Ref,{});",
-                    &variable_declaration_word,
-                    &txt_renderer.text_node_id,
+                    "[1, {}, {}, `{}`],",
+                    &parent_node_idx,
+                    &anchor_idx,
                     &txt_renderer.content.trim(),
-                    &txt_renderer.parent_id,
-                    anchor_id
                 );
+                ref_node_ids.push(txt_renderer.text_node_id.clone());
                 create_anchor_statements.push(create_anchor_statement);
             }
-            crate::structs::transform_info::TextNodeRenderer::IfBlockRenderer(if_block) => {
-                match if_block.distance_to_next_elm > 1 {
-                    true => {
-                        if &if_block.ctx_over_if != ctx_condition {
-                            continue;
-                        }
-                        let anchor_id = match &if_block.target_anchor_id {
-                            Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
-                            None => "null".to_string(),
-                        };
-                        let variable_declaration_word = match ctx_condition.len() != 0 {
-                            // when under if block, we don't need to declare the variable
-                            true => "",
-                            false => "const ",
-                        };
-                        let create_anchor_statement = format!(
-                            "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
-                            variable_declaration_word,
-                            if_block.if_blk_id,
-                            if_block.parent_id,
-                            anchor_id
-                        );
-                        create_anchor_statements.push(create_anchor_statement);
-                    }
-                    false => {}
+            _ => {
+                let next_render = iter.peek();
+                let (distance_to_next_elm, ctx, target_anchor_id, block_id, parent_id) =
+                    render.get_empty_text_node_info();
+                if distance_to_next_elm <= 1 {
+                    continue;
                 }
-            }
-            crate::structs::transform_info::TextNodeRenderer::CustomComponentRenderer(
-                custom_component,
-            ) => match custom_component.distance_to_next_elm > 1 {
-                true => {
-                    if &custom_component.ctx != ctx_condition {
+                if &ctx != ctx_condition {
+                    continue;
+                }
+                if let Some(next_renderer) = next_render {
+                    if render.is_next_elm_the_same_anchor(next_renderer) {
+                        ref_node_ids.push(format!("{}-anchor", block_id));
+                        amount_of_next_elm += 1;
                         continue;
                     }
-                    let anchor_id = match &custom_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
-                        None => "null".to_string(),
-                    };
-                    let variable_declaration_word = match ctx_condition.len() != 0 {
-                        // when under if block, we don't need to declare the variable
-                        true => "",
-                        false => "const ",
-                    };
-                    let create_anchor_statement = format!(
-                        "{}$$lunas{}Anchor = $$lunasInsertEmpty($$lunas{}Ref,{});",
-                        variable_declaration_word,
-                        custom_component.custom_component_block_id,
-                        custom_component.parent_id,
-                        anchor_id
-                    );
-                    create_anchor_statements.push(create_anchor_statement);
                 }
-                false => {}
-            },
+
+                let anchor_node_idx = match &target_anchor_id {
+                    Some(anchor_id) => {
+                        let reference_node_idx =
+                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                        reference_node_idx.to_string()
+                    }
+                    None => "null".to_string(),
+                };
+                let parent_node_idx = ref_node_ids
+                    .iter()
+                    .position(|id| id == &parent_id)
+                    .unwrap()
+                    .to_string();
+                let create_anchor_statement = format!(
+                    "[{}, {}, {}],",
+                    amount_of_next_elm, parent_node_idx, anchor_node_idx
+                );
+                create_anchor_statements.push(create_anchor_statement);
+                ref_node_ids.push(format!("{}-anchor", block_id));
+                amount_of_next_elm = 1;
+            }
         }
     }
-    create_anchor_statements
+
+    let anchor_offset = if ref_node_ids_count_before_creating_anchors == 0 {
+        "".to_string()
+    } else {
+        format!(
+            ", {}",
+            ref_node_ids_count_before_creating_anchors
+                .to_string()
+                .as_str()
+        )
+    };
+
+    if create_anchor_statements.is_empty() {
+        return None;
+    }
+
+    Some(
+        format!(
+            r#"$$lunasInsertTextNodes([
+{}
+]{});"#,
+            create_indent(create_anchor_statements.join("\n").as_str()),
+            anchor_offset
+        )
+        .to_string(),
+    )
 }
 
 pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
     ctx: &Vec<String>,
     variable_names: &Vec<String>,
+    ref_node_ids: &mut Vec<String>,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
@@ -683,44 +608,73 @@ pub fn gen_render_custom_component_statements(
             continue;
         }
         if custom_component_block.have_sibling_elm {
-            match custom_component_block.distance_to_next_elm > 1 {
+            let anchor = match custom_component_block.distance_to_next_elm > 1 {
                 true => {
-                    render_custom_statements.push(format!(
-                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, $$lunas{}Anchor);",
-                        custom_component_block.custom_component_block_id,
-                        custom_component_block.component_name,
-                        custom_component_block.args.to_object(variable_names),
-                        custom_component_block.parent_id,
-                        custom_component_block.custom_component_block_id
-                    ));
+                    let anchor_idx = ref_node_ids
+                        .iter()
+                        .position(|id| {
+                            id == &format!(
+                                "{}-anchor",
+                                custom_component_block.custom_component_block_id
+                            )
+                        })
+                        .unwrap()
+                        .to_string();
+                    anchor_idx.to_string()
                 }
                 false => {
-                    let anchor_ref_name = match &custom_component_block.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                    match &custom_component_block.target_anchor_id {
+                        Some(anchor_id) => {
+                            let reference_node_idx =
+                                ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                            reference_node_idx.to_string()
+                        }
                         None => "null".to_string(),
-                    };
-                    render_custom_statements.push(format!(
-                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, {});",
-                        custom_component_block.custom_component_block_id,
-                        custom_component_block.component_name,
-                        custom_component_block.args.to_object(variable_names),
-                        custom_component_block.parent_id,
-                        anchor_ref_name
-                    ));
+                    }
                 }
-            }
-        } else {
+            };
+            let parent_idx = ref_node_ids
+                .iter()
+                .position(|id| id == &custom_component_block.parent_id)
+                .unwrap()
+                .to_string();
+            let ref_idx = ref_node_ids.len();
             render_custom_statements.push(format!(
-                "const $$lunas{}Comp = {}({}).mount($$lunas{}Ref);",
-                custom_component_block.custom_component_block_id,
+                "$$lunasInsertComponent({}({}), {}, {}, {});",
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),
-                custom_component_block.parent_id
+                parent_idx,
+                anchor,
+                ref_idx
+            ));
+            ref_node_ids.push(format!(
+                "{}-component",
+                custom_component_block.custom_component_block_id
+            ));
+        } else {
+            let parent_idx = ref_node_ids
+                .iter()
+                .position(|id| id == &custom_component_block.parent_id)
+                .unwrap()
+                .to_string();
+            let ref_idx = ref_node_ids.len();
+            render_custom_statements.push(format!(
+                "$$lunasMountComponent({}({}), {}, {});",
+                custom_component_block.component_name,
+                custom_component_block.args.to_object(variable_names),
+                parent_idx,
+                ref_idx
+            ));
+            ref_node_ids.push(format!(
+                "{}-component",
+                custom_component_block.custom_component_block_id
             ));
         }
     }
     render_custom_statements
 }
+
+// TODO: Review usage and make private if possible
 
 /// Returns a binary number that is the result of ORing all the numbers in the argument.
 /// ```
@@ -728,7 +682,7 @@ pub fn gen_render_custom_component_statements(
 /// let result = get_combined_binary_number(numbers);
 /// assert_eq!(result, 0b0111);
 /// ```
-fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
+pub fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
     let mut result = 0;
     for (_, &value) in numbers.iter().enumerate() {
         result |= value;

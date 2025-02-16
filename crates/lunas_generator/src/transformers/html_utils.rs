@@ -53,7 +53,13 @@ pub fn check_html_elms(
                     // if attrs.name starts with "@"
                     if key.starts_with("@") {
                         let action_name = &key[1..];
-                        set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
+                        set_id_for_needed_elm(
+                            element,
+                            needed_ids,
+                            &node_id,
+                            &ctx_array,
+                            element_location,
+                        );
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
                                 action_name: action_name.to_string(),
@@ -91,7 +97,13 @@ pub fn check_html_elms(
                         ctx_array.push(node.uuid.clone());
                     } else if key.starts_with("::") {
                         let binding_attr = &key[2..];
-                        set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
+                        set_id_for_needed_elm(
+                            element,
+                            needed_ids,
+                            &node_id,
+                            &ctx_array,
+                            element_location,
+                        );
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
                                 action_name: "input".to_string(),
@@ -128,8 +140,13 @@ pub fn check_html_elms(
                         } else if key == ":textContent" {
                             Err(format!(":textContent is not supported"))?;
                         }
-                        let id: String =
-                            set_id_for_needed_elm(element, needed_ids, &node_id, &ctx_array);
+                        let id: String = set_id_for_needed_elm(
+                            element,
+                            needed_ids,
+                            &node_id,
+                            &ctx_array,
+                            element_location,
+                        );
                         let raw_attr_name = &key[1..];
                         let raw_attr_value = action_value.clone();
 
@@ -265,6 +282,7 @@ pub fn check_html_elms(
                                 needed_ids,
                                 &node_id,
                                 &remove_statement.ctx_over_if,
+                                element_location,
                             );
                             let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
@@ -279,6 +297,7 @@ pub fn check_html_elms(
                                 needed_ids,
                                 &remove_statement.child_uuid,
                                 &remove_statement.ctx_under_if,
+                                &remove_statement.elm_loc,
                             );
 
                             // TODO:remove_childにまとめる
@@ -294,6 +313,11 @@ pub fn check_html_elms(
                                     node_id,
                                     // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
                                     &if_blk_ctx,
+                                    {
+                                        let mut new_element_location = element_location.clone();
+                                        new_element_location.push(idx_of_ref as usize);
+                                        &new_element_location.clone()
+                                    },
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -328,6 +352,7 @@ pub fn check_html_elms(
                                 needed_ids,
                                 &node_id,
                                 &remove_statement.ctx,
+                                element_location,
                             );
                             let (_, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
@@ -345,6 +370,11 @@ pub fn check_html_elms(
                                     node_id,
                                     // TODO: 親のctxを指定しているが、その旨が明示的ではないので、明示的にする
                                     &if_blk_ctx,
+                                    {
+                                        let mut new_element_location = element_location.clone();
+                                        new_element_location.push(idx_of_ref as usize);
+                                        &new_element_location.clone()
+                                    },
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -367,7 +397,13 @@ pub fn check_html_elms(
                             });
                         }
                         HtmlManipulation::SetIdForReactiveContent(set_id) => {
-                            set_id_for_needed_elm(element, needed_ids, &node_id, &set_id.ctx);
+                            set_id_for_needed_elm(
+                                element,
+                                needed_ids,
+                                &node_id,
+                                &set_id.ctx,
+                                element_location,
+                            );
                             elm_and_var_relation.push(NodeAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
                                     elm_id: node_id.clone(),
@@ -384,6 +420,7 @@ pub fn check_html_elms(
                                 needed_ids,
                                 &node_id,
                                 &remove_text_node.ctx,
+                                element_location,
                             );
 
                             let (_, _, _, idx_of_ref) =
@@ -401,6 +438,11 @@ pub fn check_html_elms(
                                     node_id,
                                     // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
                                     &if_blk_ctx,
+                                    {
+                                        let mut new_element_location = element_location.clone();
+                                        new_element_location.push(idx_of_ref as usize);
+                                        &new_element_location.clone()
+                                    },
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -470,6 +512,7 @@ fn set_id_for_needed_elm(
     needed_ids: &mut Vec<NeededIdName>,
     node_id: &String,
     ctx: &Vec<String>,
+    elm_loc: &Vec<usize>,
 ) -> String {
     if let Some(Some(id)) = element.attributes.get("id") {
         let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
@@ -480,6 +523,7 @@ fn set_id_for_needed_elm(
                 to_delete: false,
                 node_id: node_id.clone(),
                 ctx: ctx.clone(),
+                elm_loc: elm_loc.clone(),
             });
             id.clone()
         };
@@ -494,6 +538,7 @@ fn set_id_for_needed_elm(
             to_delete: true,
             node_id: node_id.clone(),
             ctx: ctx.clone(),
+            elm_loc: elm_loc.clone(),
         });
         new_id
     }

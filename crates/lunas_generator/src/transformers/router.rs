@@ -1,7 +1,7 @@
 use crate::{consts::ROUTER_VIEW, structs::transform_info::CustomComponentBlockInfo};
 
 pub fn generate_router_initialization_code(
-    custom_component_blocks_info: Vec<CustomComponentBlockInfo>,
+    custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
 ) -> Result<String, String> {
     match custom_component_blocks_info
         .into_iter()
