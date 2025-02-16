@@ -1,45 +1,37 @@
-🚀 Release (<%= Time.now.strftime('%Y-%m-%d') %> - <%= release_pr %>)
-<% pull_requests.each do |pr| -%>
-<% end -%>
-
+🚀 Release (<%= Time.now.strftime('%Y-%m-%d') %> - <%= ENV['GIT_PR_RELEASE_BRANCH_PRODUCTION'] %>
 ## 🛠 Bug Fixes
-<% pull_requests.each do |pr| -%>
-  <% if pr.labels.include?('fix') -%>
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'fix' } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
-
+<%- end -%>
+<%- end -%>
 ## ✨ New Features
-<% pull_requests.each do |pr| -%>
-  <% if pr.labels.include?('feature') -%>
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'feature' } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
-
+<%- end -%>
+<%- end -%>
 ## 🔨 Refactoring
-<% pull_requests.each do |pr| -%>
-  <% if pr.labels.include?('refactor') -%>
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'refactor' } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
-
+<%- end -%>
+<%- end -%>
 ## 📌 Version Updates
-<% pull_requests.each do |pr| -%>
-  <% if pr.labels.include?('version') -%>
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'version' } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
-
+<%- end -%>
+<%- end -%>
 ## 🔧 Chore
-<% pull_requests.each do |pr| -%>
-  <% if pr.labels.include?('chore') -%>
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'chore' } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
-
+<%- end -%>
+<%- end -%>
 ## 👻 Others
-<% pull_requests.each do |pr| -%>
-  <% unless pr.labels.any? { |label| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(label) } -%>
+<%- pull_requests.each do |pr| -%>
+<%- unless pr.labels.any? { |l| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(l.name) } -%>
 - [ ] #<%= pr.number %> @<%= pr.user.login %>
-  <% end -%>
-<% end -%>
+<%- end -%>
+<%- end -%>
