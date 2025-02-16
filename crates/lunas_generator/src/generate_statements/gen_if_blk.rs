@@ -66,6 +66,7 @@ pub fn gen_render_if_blk_func(
             &custom_component_blocks_info,
             &if_block.ctx_under_if,
             &variable_names,
+            ref_node_ids,
         );
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);

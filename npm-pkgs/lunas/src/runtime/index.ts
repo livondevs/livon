@@ -411,6 +411,30 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
+  const lunasInsertComopnent = function (
+    this: LunasComponentState,
+    componentExport: LunasModuleExports,
+    parentIdx: number,
+    anchorIdx: number | null,
+    refIdx: number
+  ) {
+    this.refMap[refIdx] = componentExport.insert(
+      this.refMap[parentIdx] as HTMLElement,
+      anchorIdx !== null ? (this.refMap[anchorIdx] as HTMLElement) : null
+    ).componentElm;
+  }.bind(this);
+
+  const lunasMountComponent = function (
+    this: LunasComponentState,
+    componentExport: LunasModuleExports,
+    parentIdx: number,
+    refIdx: number
+  ) {
+    this.refMap[refIdx] = componentExport.mount(
+      this.refMap[parentIdx] as HTMLElement
+    ).componentElm;
+  }.bind(this);
+
   return {
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasAfterMount: setAfterMount,
@@ -421,6 +445,8 @@ export const $$lunasInitComponent = function (
     $$lunasInsertTextNodes: insertTextNodes,
     $$lunasAddEvListener: addEvListener,
     $$lunasCreateFragments: createFragments,
+    $$lunasInsertComponent: lunasInsertComopnent,
+    $$lunasMountComponent: lunasMountComponent,
     $$lunasComponentReturn: {
       mount,
       insert,

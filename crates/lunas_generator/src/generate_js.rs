@@ -200,10 +200,11 @@ pub fn generate_js_from_blocks(
         &custom_component_blocks_info,
         &vec![],
         &variable_names,
+        &mut ref_node_ids,
     );
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
-            custom_component_blocks_info,
+            &custom_component_blocks_info,
         )?);
     }
     after_mount_code_array.extend(render_component);
@@ -257,7 +258,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasRenderIfBlock, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -595,6 +596,7 @@ pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
     ctx: &Vec<String>,
     variable_names: &Vec<String>,
+    ref_node_ids: &mut Vec<String>,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
@@ -606,39 +608,66 @@ pub fn gen_render_custom_component_statements(
             continue;
         }
         if custom_component_block.have_sibling_elm {
-            match custom_component_block.distance_to_next_elm > 1 {
+            let anchor = match custom_component_block.distance_to_next_elm > 1 {
                 true => {
-                    render_custom_statements.push(format!(
-                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, $$lunas{}Anchor);",
-                        custom_component_block.custom_component_block_id,
-                        custom_component_block.component_name,
-                        custom_component_block.args.to_object(variable_names),
-                        custom_component_block.parent_id,
-                        custom_component_block.custom_component_block_id
-                    ));
+                    let anchor_idx = ref_node_ids
+                        .iter()
+                        .position(|id| {
+                            id == &format!(
+                                "{}-anchor",
+                                custom_component_block.custom_component_block_id
+                            )
+                        })
+                        .unwrap()
+                        .to_string();
+                    anchor_idx.to_string()
                 }
                 false => {
-                    let anchor_ref_name = match &custom_component_block.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                    match &custom_component_block.target_anchor_id {
+                        Some(anchor_id) => {
+                            let reference_node_idx =
+                                ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                            reference_node_idx.to_string()
+                        }
                         None => "null".to_string(),
-                    };
-                    render_custom_statements.push(format!(
-                        "const $$lunas{}Comp = {}({}).insert($$lunas{}Ref, {});",
-                        custom_component_block.custom_component_block_id,
-                        custom_component_block.component_name,
-                        custom_component_block.args.to_object(variable_names),
-                        custom_component_block.parent_id,
-                        anchor_ref_name
-                    ));
+                    }
                 }
-            }
-        } else {
+            };
+            let parent_idx = ref_node_ids
+                .iter()
+                .position(|id| id == &custom_component_block.parent_id)
+                .unwrap()
+                .to_string();
+            let ref_idx = ref_node_ids.len();
             render_custom_statements.push(format!(
-                "const $$lunas{}Comp = {}({}).mount($$lunas{}Ref);",
-                custom_component_block.custom_component_block_id,
+                "$$lunasInsertComponent({}({}), {}, {}, {});",
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),
-                custom_component_block.parent_id
+                parent_idx,
+                anchor,
+                ref_idx
+            ));
+            ref_node_ids.push(format!(
+                "{}-component",
+                custom_component_block.custom_component_block_id
+            ));
+        } else {
+            let parent_idx = ref_node_ids
+                .iter()
+                .position(|id| id == &custom_component_block.parent_id)
+                .unwrap()
+                .to_string();
+            let ref_idx = ref_node_ids.len();
+            render_custom_statements.push(format!(
+                "$$lunasMountComponent({}({}), {}, {});",
+                custom_component_block.component_name,
+                custom_component_block.args.to_object(variable_names),
+                parent_idx,
+                ref_idx
+            ));
+            ref_node_ids.push(format!(
+                "{}-component",
+                custom_component_block.custom_component_block_id
             ));
         }
     }
