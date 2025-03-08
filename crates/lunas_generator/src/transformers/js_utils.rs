@@ -1,10 +1,14 @@
 use std::vec;
 
 use lunas_parser::DetailedBlock;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
-use crate::structs::transform_info::{
-    AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo, VariableNameAndAssignedNumber,
+use crate::structs::{
+    js_utils::JsSearchParent,
+    transform_info::{
+        AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo,
+        VariableNameAndAssignedNumber,
+    },
 };
 
 use super::utils::add_or_remove_strings_to_script;
@@ -27,7 +31,7 @@ pub fn analyze_js(
             &js_block.raw,
             &variable_names,
             Some(&imports),
-            None,
+            JsSearchParent::NoneValue,
         );
         positions.extend(position_result);
         imports.extend(import_result);
@@ -130,13 +134,14 @@ pub fn search_json(
     variables: &Vec<String>,
     // FIXME: imports are unused
     imports: Option<&Vec<String>>,
-    parent: Option<&Map<String, Value>>,
+    parent: JsSearchParent,
 ) -> (vec::Vec<TransformInfo>, vec::Vec<String>, vec::Vec<String>) {
     if let Value::Object(obj) = json {
         if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
-            if parent.is_some()
-                && parent.unwrap().get("type")
-                    != Some(&Value::String("VariableDeclarator".to_string()))
+            if (parent.clone().is_some()
+                && parent.clone().unwrap().get("type").as_ref()
+                    != Some(&&Value::String("VariableDeclarator".to_string())))
+                || parent.clone().eq(&JsSearchParent::ParentIsArray)
             {
                 if let Some(Value::String(variable_name)) = obj.get("value") {
                     if variables.iter().any(|e| e == variable_name) {
@@ -223,8 +228,13 @@ pub fn search_json(
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
         for (_key, value) in obj {
-            let (trans_res, import_res, dep_vars) =
-                search_json(value, raw_js, variables, imports, Some(&obj));
+            let (trans_res, import_res, dep_vars) = search_json(
+                value,
+                raw_js,
+                variables,
+                imports,
+                JsSearchParent::MapValue(&obj),
+            );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
@@ -235,9 +245,13 @@ pub fn search_json(
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
         for child_value in arr {
-            // TODO: Pass parent to search_json
-            let (trans_res, import_res, dep_vars) =
-                search_json(child_value, raw_js, variables, imports, None);
+            let (trans_res, import_res, dep_vars) = search_json(
+                child_value,
+                raw_js,
+                variables,
+                imports,
+                JsSearchParent::ParentIsArray,
+            );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
