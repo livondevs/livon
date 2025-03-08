@@ -1,6 +1,6 @@
 {
   "name": "lunas-formatter",
-  "version": "0.0.1-beta.3",
+  "version": "0.0.1-beta.4",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
   "scripts": {

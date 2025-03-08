@@ -133,11 +133,11 @@ export async function formatParsedContent(
   };
 
   const jsOptions: prettier.Options = {
-    parser: "babel",
+    parser: "typescript",
     tabWidth: 2,
     printWidth: Infinity,
     endOfLine: "lf",
-    plugins: [await import("prettier/plugins/babel")],
+    plugins: [await import("prettier/plugins/typescript")],
   };
 
   const cssOptions: prettier.Options = {
