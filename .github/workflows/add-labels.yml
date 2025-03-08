@@ -30,6 +30,8 @@ jobs:
             LABEL="refactor"
           elif [[ "$BRANCH_NAME" == version/* ]]; then
             LABEL="version"
+          elif [[ "$BRANCH_NAME" == chore/* ]]; then
+            LABEL="chore"
           else
             LABEL=""
           fi

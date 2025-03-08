@@ -1,8 +1,0 @@
-html:
-  <h1>Hello Lunas!</h1>
-  <button @click="increment">${count}</button>
-script:
-  let count = 0
-  function increment(){
-    count++
-  }

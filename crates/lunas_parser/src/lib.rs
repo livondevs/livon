@@ -3,6 +3,7 @@ mod parser1;
 mod parsers;
 pub mod structs;
 mod swc_parser;
+mod ts_to_js;
 
 use parse2::parse2;
 use parser1::parse1;
@@ -22,8 +23,6 @@ pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
         Ok(r) => r,
         Err(e) => return Err(format!("{:?}", e)),
     };
-
-    println!("{:?}", detailed_block.detailed_meta_data);
 
     Ok(detailed_block)
 }

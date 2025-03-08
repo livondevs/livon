@@ -1,4 +1,4 @@
-use crate::structs::transform_info::{AddStringToPosition, TransformInfo};
+use crate::structs::{js_utils::JsSearchParent, transform_info::{AddStringToPosition, TransformInfo}};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
 use std::{env, sync::Mutex};
@@ -104,8 +104,13 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 
     let parsed_json = serde_json::to_value(&parsed).unwrap();
 
-    let (positions, _, depending_vars) =
-        search_json(&parsed_json, &input.to_string(), &variables, None, None);
+    let (positions, _, depending_vars) = search_json(
+        &parsed_json,
+        &input.to_string(),
+        &variables,
+        None,
+        JsSearchParent::ParentIsArray,
+    );
 
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
 

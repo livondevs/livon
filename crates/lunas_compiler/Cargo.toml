@@ -10,9 +10,9 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 lunas_parser = { path = "../lunas_parser" }
-lunas_generator = { path = "../lunas_generator", features = ["playground"] }
-wasm-bindgen = "0.2.86"
-serde = "1.0.204"
+lunas_generator = { path = "../lunas_generator" }
+wasm-bindgen = "0.2.100"
+serde = "1.0.217"
 
 [features]
-playground = []
+playground = ["lunas_generator/playground"]

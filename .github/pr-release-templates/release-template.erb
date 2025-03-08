@@ -1,4 +1,37 @@
-Release <%= Time.now %>
-<% pull_requests.each do |pr| -%>
-<%=  pr.to_checklist_item %>
-<% end -%>
+🚀 Release (<%= Time.now.strftime('%Y-%m-%d') %> - <%= ENV['GIT_PR_RELEASE_BRANCH_PRODUCTION'] %>)
+## 🛠 Fixes
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'fix' } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>
+## ✨ New Features
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'feature' } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>
+## 🔨 Refactoring
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'refactor' } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>
+## 📌 Version Updates
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'version' } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>
+## 🔧 Chore
+<%- pull_requests.each do |pr| -%>
+<%- if pr.labels.any? { |l| l.name == 'chore' } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>
+## 👻 Others
+<%- pull_requests.each do |pr| -%>
+<%- unless pr.labels.any? { |l| ['fix', 'feature', 'refactor', 'version', 'chore'].include?(l.name) } -%>
+- [ ] #<%= pr.number %> @<%= pr.user.login %>
+<%- end -%>
+<%- end -%>

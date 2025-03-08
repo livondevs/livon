@@ -96,8 +96,6 @@ fn parse_input_content(input: &str) -> IResult<&str, (&str, &str, Option<&str>, 
     ))
 }
 
-// @use MyComponent from './components/my-component.blv'
-
 use nom::{
     branch::alt,
     bytes::complete::take_while,
