@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.1-beta.6](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.6...0.0.1-beta.7) (2024-7-28)
+
+### Features
+- Fixed the issue where multiple conditions could not be nested in an IF block. #54
+- Added a formatter. #55
+- Added TypeScript support. #58
+
+### Refactor
+- Simplified the code for component declarations. #60
+
+### DevOps
+- Automatically categorize PR templates. #62
+
 ## [0.0.1-beta.6](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.5...0.0.1-beta.6) (2024-7-28)
 
 ### Other Changes

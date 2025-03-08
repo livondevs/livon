@@ -1,6 +1,6 @@
 {
   "name": "lunas",
-  "version": "0.0.1-beta.6",
+  "version": "0.0.1-beta.7",
   "description": "Lunas - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {
