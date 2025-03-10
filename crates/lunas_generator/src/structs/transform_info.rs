@@ -172,6 +172,7 @@ pub struct ForBlockInfo {
     pub node: Node,
     pub ref_text_node_id: Option<String>,
     pub item_name: String,
+    pub item_index: String,
     pub item_collection: String,
     pub dep_vars: Vec<String>,
     pub ctx_under_for: Vec<String>,

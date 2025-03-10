@@ -105,7 +105,10 @@ pub fn check_html_elms(
                     } else if key == ":for" {
                         // TODO: Add error message for unwrap below
                         let condition = action_value.clone().unwrap();
-                        // TODO: implement parser for 'for of'
+                        // TODO: (P1) implement parser for 'for of'
+                        // Pattern1 :for="item of items"
+                        // Pattern2 :for="(item) of items"
+                        // Pattern3 :for="(item, index) of items"
                         let parts: Vec<&str> = condition.split(" of ").collect();
                         if parts.len() != 2 {
                             return Err(format!(
@@ -113,8 +116,27 @@ pub fn check_html_elms(
                                 condition
                             ));
                         }
-                        let item_name = parts[0].trim();
+                        let item_part = parts[0].trim();
                         let items_collection = parts[1].trim();
+
+                        let (item_name, index_name) = if item_part.starts_with('(')
+                            && item_part.ends_with(')')
+                        {
+                            let inner_parts: Vec<&str> = item_part[1..item_part.len() - 1]
+                                .split(',')
+                                .map(|s| s.trim())
+                                .collect();
+                            match inner_parts.len() {
+                                1 => (inner_parts[0], Some("index")),
+                                2 => (inner_parts[0], Some(inner_parts[1])),
+                                _ => return Err(format!(
+                                    "Invalid format for :for directive. Expected '(item, index) of items', got '{}'",
+                                    condition
+                                )),
+                            }
+                        } else {
+                            (item_part, Some("index"))
+                        };
 
                         // Validate item_name is a valid variable name
                         if item_name.is_empty() {
@@ -147,6 +169,7 @@ pub fn check_html_elms(
                                 RemoveChildForRepeatStatement {
                                     child_uuid: node.uuid.clone(),
                                     item_name: item_name.to_string(),
+                                    item_index: index_name.unwrap().to_string(),
                                     item_collection: items_collection.to_string(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
@@ -481,6 +504,7 @@ pub fn check_html_elms(
                                 node: deleted_node,
                                 ref_text_node_id,
                                 item_name: remove_statement.item_name.clone(),
+                                item_index: remove_statement.item_index.clone(),
                                 item_collection,
                                 ctx_over_for: remove_statement.ctx_over_for.clone(),
                                 ctx_under_for: remove_statement.ctx_under_for.clone(),

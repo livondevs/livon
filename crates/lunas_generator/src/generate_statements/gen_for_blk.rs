@@ -81,9 +81,11 @@ pub fn gen_render_for_blk_func(
             "() => {}".to_string()
         } else {
             format!(
-                r#"function(renderedNodeId) {{
+                r#"({}, {}) => {{
 {}
 }}"#,
+                for_block.item_name,
+                for_block.item_index,
                 create_indent(post_render_statement.join("\n").as_str()),
             )
         };
@@ -141,7 +143,7 @@ pub fn gen_render_for_blk_func(
 
         let create_for_func_inside = format!(
             r#""{}",
-({}, index) => {},
+({}, {}) => {},
 () => ({}),
 {},
 {},
@@ -149,6 +151,7 @@ pub fn gen_render_for_blk_func(
 [{}{}]"#,
             for_block.target_for_blk_id,
             for_block.item_name,
+            for_block.item_index,
             create_internal_element_statement,
             for_block.item_collection,
             for_on_create,

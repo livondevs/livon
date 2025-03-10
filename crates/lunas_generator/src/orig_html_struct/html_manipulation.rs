@@ -31,6 +31,7 @@ pub struct RemoveChildForIfStatement {
 pub struct RemoveChildForRepeatStatement {
     pub child_uuid: String,
     pub item_name: String,
+    pub item_index: String,
     pub item_collection: String,
     pub block_id: String,
     pub ctx_under_for: Vec<String>,

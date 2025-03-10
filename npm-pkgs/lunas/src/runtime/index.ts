@@ -369,7 +369,7 @@ export const $$lunasInitComponent = function (
       forBlockId: string,
       renderItem: (item: unknown, index: number) => LunasInternalElement,
       getDataArray: () => unknown[],
-      afterRenderHook: () => void,
+      afterRenderHook: (item: unknown, index: number) => void,
       updateFlag: number,
       mapInfo: [mapOffset: number, mapLength: number],
       refIdx: [parentElementIndex: number, refElementIndex?: number],
@@ -414,7 +414,7 @@ export const $$lunasInitComponent = function (
 
         (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
         containerElm.insertBefore(domElm, insertionPointElm);
-        afterRenderHook?.();
+        afterRenderHook?.(item, index);
       });
 
       this.updateComponentFuncs[0].push(
@@ -651,7 +651,7 @@ function updateForBlock(
   _forBlockId: string,
   newItems: unknown[],
   renderItem: (item: unknown, index: number) => LunasInternalElement,
-  afterRenderHook: () => void,
+  afterRenderHook: (item: unknown, index: number) => void,
   containerElm: HTMLElement,
   insertionPointElm: HTMLElement | null,
   mapOffset: number,
@@ -673,6 +673,6 @@ function updateForBlock(
     const domElm = _createDomElementFromLunasElement(lunasElm);
     (refMap[mapOffset]! as HTMLElement[]).push(domElm);
     containerElm.insertBefore(domElm, insertionPointElm);
-    afterRenderHook && afterRenderHook();
+    afterRenderHook && afterRenderHook(item, index);
   });
 }
