@@ -16,6 +16,7 @@ export type LunasComponentState = {
   internalElement: LunasInternalElement;
   currentVarBit: number;
   currentIfBlkBit: number;
+  currentForBlkBit: number;
   ifBlocks: {
     [key: string]: {
       renderer: () => void;
@@ -65,8 +66,8 @@ class valueObj<T> {
   set v(v: T) {
     if (this._v === v) return;
     this._v = v;
-    for (const keys of Object.getOwnPropertySymbols(this.dependencies)) {
-      const [componentObj, symbolIndex] = this.dependencies[keys];
+    for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
+      const [componentObj, symbolIndex] = this.dependencies[key];
       componentObj.valUpdateMap |= symbolIndex;
       if (!componentObj.updatedFlag) {
         Promise.resolve().then(componentObj.__lunas_update.bind(componentObj));
@@ -100,6 +101,7 @@ export const $$lunasInitComponent = function (
   this.blkUpdateMap = 0;
   this.currentVarBit = 0;
   this.currentIfBlkBit = 0;
+  this.currentForBlkBit = 0;
   this.isMounted = false;
   this.ifBlocks = {};
   this.compSymbol = Symbol();
@@ -115,6 +117,17 @@ export const $$lunasInitComponent = function (
       } else {
         this.currentVarBit <<= 1;
         yield this.currentVarBit;
+      }
+    }
+  }.bind(this);
+  const genBitOfForBlock = function* (this: LunasComponentState) {
+    while (true) {
+      if (this.currentForBlkBit === 0) {
+        this.currentForBlkBit = 1;
+        yield this.currentForBlkBit;
+      } else {
+        this.currentForBlkBit <<= 1;
+        yield this.currentForBlkBit;
       }
     }
   }.bind(this);
@@ -350,6 +363,77 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
+  const createForBlock = function (
+    this: LunasComponentState,
+    forBlocksConfig: [
+      forBlockId: string,
+      renderItem: (item: unknown, index: number) => LunasInternalElement,
+      getDataArray: () => unknown[],
+      afterRenderHook: () => void,
+      updateFlag: number,
+      refIdx: [parentElementIndex: number, refElementIndex?: number],
+      context: any,
+      containerRef: string,
+      insertionPointRef: string | null,
+      additionalParams: { [key: string]: any }
+    ][]
+  ): void {
+    for (const config of forBlocksConfig) {
+      const [
+        forBlockId,
+        renderItem,
+        getDataArray,
+        afterRenderHook,
+        updateFlag,
+        [parentElementIndex, refElementIndex],
+        // TODO: Decide whether to use the following or delete it
+        // context,
+        // updateFlag,
+        // containerRef,
+        // insertionPointRef,
+        // additionalParams,
+      ] = config;
+
+      // 初回レンダリング
+      const items = getDataArray();
+      const uniqueBit = genBitOfForBlock().next().value;
+
+      const containerElm = this.refMap[parentElementIndex] as HTMLElement;
+
+      const insertionPointElm =
+        refElementIndex == undefined
+          ? null
+          : (this.refMap[refElementIndex] as HTMLElement);
+
+      items.forEach((item, index) => {
+        const lunasElm = renderItem(item, index);
+        const domElm = _createDomElementFromLunasElement(lunasElm);
+
+        containerElm.insertBefore(domElm, insertionPointElm);
+        afterRenderHook?.();
+      });
+
+      this.updateComponentFuncs[0].push(
+        (() => {
+          if (this.valUpdateMap & updateFlag) {
+            const newItems = getDataArray();
+            if (diffDetected(items, newItems)) {
+              updateForBlock(
+                forBlockId,
+                newItems,
+                renderItem,
+                afterRenderHook,
+                containerElm,
+                insertionPointElm,
+                uniqueBit
+              );
+            }
+          }
+        }).bind(this)
+      );
+    }
+  }.bind(this);
+
   const insertTextNodes = function (
     this: LunasComponentState,
     args: [amount: number, parent: number, anchor?: number, text?: string][],
@@ -440,6 +524,7 @@ export const $$lunasInitComponent = function (
     $$lunasAfterMount: setAfterMount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
+    $$lunasCreateForBlock: createForBlock,
     $$lunasRenderIfBlock: renderIfBlock,
     $$lunasGetElmRefs: getElmRefs,
     $$lunasInsertTextNodes: insertTextNodes,
@@ -492,7 +577,7 @@ export function $$lunasReplaceAttr(
 export function $$createLunasElement(
   innerHtml: string,
   topElmTag: string,
-  topElmAttr: { [key: string]: string }
+  topElmAttr: { [key: string]: string } = {}
 ): LunasInternalElement {
   return {
     innerHtml,
@@ -542,4 +627,29 @@ enum FragmentType {
   ATTRIBUTE = 0,
   TEXT = 1,
   ELEMENT = 2,
+}
+
+function diffDetected<T>(oldArray: T[], newArray: T[]): boolean {
+  return (
+    oldArray.length !== newArray.length ||
+    oldArray.some((v, i) => v !== newArray[i])
+  );
+}
+
+function updateForBlock(
+  _forBlockId: string,
+  newItems: unknown[],
+  renderItem: (item: unknown, index: number) => LunasInternalElement,
+  afterRenderHook: () => void,
+  containerElm: HTMLElement,
+  insertionPointElm: HTMLElement | null,
+  _forBlkBit: number
+): void {
+  if (!containerElm) return;
+  newItems.forEach((item, index) => {
+    const lunasElm = renderItem(item, index);
+    const domElm = _createDomElementFromLunasElement(lunasElm);
+    containerElm.insertBefore(domElm, insertionPointElm);
+    afterRenderHook && afterRenderHook();
+  });
 }

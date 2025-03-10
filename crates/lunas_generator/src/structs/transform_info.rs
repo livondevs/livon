@@ -113,6 +113,23 @@ pub struct IfBlockInfo {
     pub element_location: Vec<usize>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForBlockInfo {
+    pub parent_id: String,
+    pub target_for_blk_id: String,
+    pub distance_to_next_elm: u64,
+    pub target_anchor_id: Option<String>,
+    pub node: Node,
+    pub ref_text_node_id: Option<String>,
+    pub item_name: String,
+    pub item_collection: String,
+    pub dep_vars: Vec<String>,
+    pub ctx_under_for: Vec<String>,
+    pub ctx_over_for: Vec<String>,
+    pub for_blk_id: String,
+    pub element_location: Vec<usize>,
+}
+
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
     if_blocks.sort_by(|a, b| a.element_location.cmp(&b.element_location));
 }
@@ -204,6 +221,7 @@ pub struct ManualRendererForTextNode {
 pub enum TextNodeRenderer {
     ManualRenderer(ManualRendererForTextNode),
     IfBlockRenderer(IfBlockInfo),
+    ForBlockRenderer(ForBlockInfo),
     CustomComponentRenderer(CustomComponentBlockInfo),
 }
 
@@ -212,6 +230,7 @@ impl TextNodeRenderer {
         match self {
             TextNodeRenderer::ManualRenderer(renderer) => &renderer.element_location,
             TextNodeRenderer::IfBlockRenderer(renderer) => &renderer.element_location,
+            TextNodeRenderer::ForBlockRenderer(renderer) => &renderer.element_location,
             TextNodeRenderer::CustomComponentRenderer(renderer) => &renderer.element_location,
         }
     }
@@ -237,6 +256,15 @@ impl TextNodeRenderer {
                         .custom_component_block_id
                         .clone(),
                     custom_component_block_info.parent_id.clone(),
+                );
+            }
+            TextNodeRenderer::ForBlockRenderer(for_block_info) => {
+                return (
+                    for_block_info.distance_to_next_elm,
+                    for_block_info.ctx_over_for.clone(),
+                    for_block_info.target_anchor_id.clone(),
+                    for_block_info.for_blk_id.clone(),
+                    for_block_info.parent_id.clone(),
                 );
             }
             TextNodeRenderer::ManualRenderer(_) => {
@@ -285,12 +313,16 @@ impl TextNodeRendererGroup {
 
     pub fn new(
         if_blk: &Vec<IfBlockInfo>,
+        for_blk: &Vec<ForBlockInfo>,
         text_node_renderer: &Vec<ManualRendererForTextNode>,
         custom_component_block: &Vec<CustomComponentBlockInfo>,
     ) -> Self {
         let mut renderers: Vec<TextNodeRenderer> = vec![];
         for if_blk in if_blk {
             renderers.push(TextNodeRenderer::IfBlockRenderer(if_blk.clone()));
+        }
+        for for_block in for_blk {
+            renderers.push(TextNodeRenderer::ForBlockRenderer(for_block.clone()));
         }
         for txt_node_renderer in text_node_renderer {
             renderers.push(TextNodeRenderer::ManualRenderer(txt_node_renderer.clone()));

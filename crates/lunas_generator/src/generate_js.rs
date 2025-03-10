@@ -3,6 +3,7 @@ use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStat
 use crate::{
     consts::ROUTER_VIEW,
     generate_statements::{
+        gen_for_blk::gen_render_for_blk_func,
         gen_if_blk::gen_render_if_blk_func,
         utils::{create_indent, gen_binary_map_from_bool},
     },
@@ -109,6 +110,7 @@ pub fn generate_js_from_blocks(
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
     let mut if_blocks_info = vec![];
+    let mut for_blocks_info = vec![];
     let mut custom_component_blocks_info = vec![];
     let mut text_node_renderer = vec![];
 
@@ -126,6 +128,7 @@ pub fn generate_js_from_blocks(
         None, // parent_uuid
         &mut vec![],
         &mut if_blocks_info,
+        &mut for_blocks_info,
         &mut custom_component_blocks_info,
         &mut text_node_renderer,
         &vec![],  // ctx
@@ -158,6 +161,7 @@ pub fn generate_js_from_blocks(
 
     let text_node_renderer_group = TextNodeRendererGroup::new(
         &if_blocks_info,
+        &for_blocks_info,
         &text_node_renderer,
         &custom_component_blocks_info,
     );
@@ -195,7 +199,19 @@ pub fn generate_js_from_blocks(
         &elm_and_var_relation,
         &mut ref_node_ids,
     );
+    let render_for = gen_render_for_blk_func(
+        &for_blocks_info,
+        &needed_id,
+        &action_and_target,
+        &text_node_renderer_group,
+        &custom_component_blocks_info,
+        &variable_names,
+        &variables,
+        &elm_and_var_relation,
+        &mut ref_node_ids,
+    );
     after_mount_code_array.extend(render_if);
+    after_mount_code_array.extend(render_for);
     let render_component = gen_render_custom_component_statements(
         &custom_component_blocks_info,
         &vec![],
@@ -258,7 +274,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasCreateIfBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
 {}
 }}"#,
         runtime_path, imports_string, arg_names_array, code,
@@ -622,16 +638,14 @@ pub fn gen_render_custom_component_statements(
                         .to_string();
                     anchor_idx.to_string()
                 }
-                false => {
-                    match &custom_component_block.target_anchor_id {
-                        Some(anchor_id) => {
-                            let reference_node_idx =
-                                ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
-                            reference_node_idx.to_string()
-                        }
-                        None => "null".to_string(),
+                false => match &custom_component_block.target_anchor_id {
+                    Some(anchor_id) => {
+                        let reference_node_idx =
+                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
+                        reference_node_idx.to_string()
                     }
-                }
+                    None => "null".to_string(),
+                },
             };
             let parent_idx = ref_node_ids
                 .iter()

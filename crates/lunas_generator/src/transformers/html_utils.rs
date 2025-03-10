@@ -5,14 +5,15 @@ use crate::{
     orig_html_struct::{
         html_manipulation::{
             HtmlManipulation, HtmlManipulator, RemoveChildForCustomComponent,
-            RemoveChildForIfStatement, RemoveChildTextNode, SetIdToParentForChildReactiveText,
+            RemoveChildForIfStatement, RemoveChildForRepeatStatement, RemoveChildTextNode,
+            SetIdToParentForChildReactiveText,
         },
         structs::{Element, Node, NodeContent},
     },
     structs::{
         transform_info::{
             ActionAndTarget, ComponentArgs, CustomComponentBlockInfo, EventBindingStatement,
-            EventTarget, IfBlockInfo, ManualRendererForTextNode, NeededIdName,
+            EventTarget, ForBlockInfo, IfBlockInfo, ManualRendererForTextNode, NeededIdName,
         },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation, NodeAndReactiveInfo,
@@ -37,6 +38,7 @@ pub fn check_html_elms(
     parent_uuid: Option<&String>,
     html_manipulators: &mut Vec<HtmlManipulator>,
     if_blocks_info: &mut Vec<IfBlockInfo>,
+    for_blocks_info: &mut Vec<ForBlockInfo>,
     custom_component_blocks_info: &mut Vec<CustomComponentBlockInfo>,
     txt_node_renderer: &mut Vec<ManualRendererForTextNode>,
     if_blk_ctx: &Vec<String>,
@@ -86,6 +88,62 @@ pub fn check_html_elms(
                                     block_id: node_id.clone(),
                                     ctx_over_if: ctx_array.clone(),
                                     ctx_under_if,
+                                    elm_loc: element_location.clone(),
+                                },
+                            ),
+                        });
+                        element.attributes.remove(key);
+                        element
+                            .attributes
+                            .insert("$$$conditional$$$".to_string(), None);
+                        ctx_array.push(node.uuid.clone());
+                    } else if key == ":for" {
+                        // TODO: Add error message for unwrap below
+                        let condition = action_value.clone().unwrap();
+                        let parts: Vec<&str> = condition.split(" of ").collect();
+                        if parts.len() != 2 {
+                            return Err(format!(
+                                "Invalid format for :for directive. Expected 'item of items', got '{}'",
+                                condition
+                            ));
+                        }
+                        let item_name = parts[0].trim();
+                        let items_collection = parts[1].trim();
+
+                        // Validate item_name is a valid variable name
+                        if item_name.is_empty() {
+                            return Err(format!(
+                                "Item variable name cannot be empty in :for directive"
+                            ));
+                        }
+
+                        // Check if the items_collection exists in the available variables
+                        if !varibale_names.contains(&items_collection.to_string())
+                            && !items_collection.contains(".")
+                        {
+                            // Allow dot notation for accessing properties, but warn about the base variable
+                            return Err(format!(
+                                "Collection '{}' in :for directive is not defined",
+                                items_collection
+                            ));
+                        }
+
+                        let ctx_under_if = {
+                            let mut ctx = ctx_array.clone();
+                            ctx.push(node.uuid.clone());
+                            ctx
+                        };
+
+                        html_manipulators.push(HtmlManipulator {
+                            target_uuid: parent_uuid.unwrap().clone(),
+                            manipulations: HtmlManipulation::RemoveChildForForStatement(
+                                RemoveChildForRepeatStatement {
+                                    child_uuid: node.uuid.clone(),
+                                    item_name: item_name.to_string(),
+                                    item_collection: items_collection.to_string(),
+                                    block_id: node_id.clone(),
+                                    ctx_over_for: ctx_array.clone(),
+                                    ctx_under_for: ctx_under_if,
                                     elm_loc: element_location.clone(),
                                 },
                             ),
@@ -247,6 +305,7 @@ pub fn check_html_elms(
                     Some(&node.uuid),
                     html_manipulators,
                     if_blocks_info,
+                    for_blocks_info,
                     custom_component_blocks_info,
                     txt_node_renderer,
                     &ctx_array,
@@ -265,6 +324,7 @@ pub fn check_html_elms(
                         HtmlManipulation::RemoveChildForCustomComponent(b) => b.elm_loc.clone(),
                         HtmlManipulation::SetIdForReactiveContent(c) => c.elm_loc.clone(),
                         HtmlManipulation::RemoveChildTextNode(d) => d.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildForForStatement(e) => e.elm_loc.clone(),
                     }
                 }
                 let aloc = manip_to_ctx(a);
@@ -344,6 +404,77 @@ pub fn check_html_elms(
                                 ctx_over_if: remove_statement.ctx_over_if.clone(),
                                 if_blk_id: remove_statement.block_id.clone(),
                                 element_location: remove_statement.elm_loc.clone(),
+                            });
+                        }
+                        HtmlManipulation::RemoveChildForForStatement(remove_statement) => {
+                            set_id_for_needed_elm(
+                                element,
+                                needed_ids,
+                                &node_id,
+                                &remove_statement.ctx_over_for,
+                                element_location,
+                            );
+                            let (mut deleted_node, _, distance, idx_of_ref) =
+                                element.remove_child(&remove_statement.child_uuid, component_names);
+
+                            let deleted_elm = match &mut deleted_node.content {
+                                NodeContent::Element(elm) => elm,
+                                _ => panic!("not element"),
+                            };
+
+                            // set_id_for_needed_elm(
+                            //     deleted_elm,
+                            //     needed_ids,
+                            //     &remove_statement.child_uuid,
+                            //     &remove_statement.ctx,
+                            //     &remove_statement.elm_loc,
+                            // );
+
+                            // TODO:remove_childにまとめる
+                            let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
+                                let node_id =
+                                    &element.children[idx_of_ref as usize - 1].uuid.clone();
+                                Some(set_id_for_needed_elm(
+                                    match &mut element.children[idx_of_ref as usize - 1].content {
+                                        NodeContent::Element(elm) => elm,
+                                        _ => panic!("not element"),
+                                    },
+                                    needed_ids,
+                                    node_id,
+                                    // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
+                                    &if_blk_ctx,
+                                    {
+                                        let mut new_element_location = element_location.clone();
+                                        new_element_location.push(idx_of_ref as usize);
+                                        &new_element_location.clone()
+                                    },
+                                ));
+                                Some(node_id.clone())
+                            } else {
+                                None
+                            };
+                            let ref_text_node_id = match distance != 1 {
+                                true => Some(nanoid!()),
+                                false => None,
+                            };
+                            let (item_collection, dep_vars) = append_v_to_vars_in_html(
+                                &remove_statement.item_collection.as_str(),
+                                &varibale_names,
+                            );
+                            for_blocks_info.push(ForBlockInfo {
+                                parent_id: node_id.clone(),
+                                target_for_blk_id: remove_statement.child_uuid.clone(),
+                                distance_to_next_elm: distance,
+                                target_anchor_id,
+                                node: deleted_node,
+                                ref_text_node_id,
+                                item_name: remove_statement.item_name.clone(),
+                                item_collection,
+                                ctx_over_for: remove_statement.ctx_over_for.clone(),
+                                ctx_under_for: remove_statement.ctx_under_for.clone(),
+                                for_blk_id: remove_statement.block_id.clone(),
+                                element_location: remove_statement.elm_loc.clone(),
+                                dep_vars,
                             });
                         }
                         HtmlManipulation::RemoveChildForCustomComponent(remove_statement) => {
