@@ -7,8 +7,8 @@ use crate::{
     orig_html_struct::structs::NodeContent,
     structs::{
         transform_info::{
-            ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
-            TextNodeRendererGroup, VariableNameAndAssignedNumber,
+            ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, RefMap, TextNodeRendererGroup,
+            VariableNameAndAssignedNumber,
         },
         transform_targets::NodeAndReactiveInfo,
     },
@@ -20,7 +20,7 @@ use super::utils::create_indent;
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_if_blk_func(
     if_block_info: &Vec<IfBlockInfo>,
-    needed_ids: &Vec<NeededIdName>,
+    needed_ids: &Vec<RefMap>,
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
@@ -42,18 +42,16 @@ pub fn gen_render_if_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        let ref_getter_str = gen_ref_getter_from_needed_ids(
-            needed_ids,
-            &Some(if_block),
-            &Some(&if_block.ctx_under_if),
-            ref_node_ids,
-        );
-        post_render_statement.push(ref_getter_str);
+        let ref_getter_str =
+            gen_ref_getter_from_needed_ids(needed_ids, &Some(&if_block.ctx_under_if), ref_node_ids);
+        if let Some(ref_getter) = ref_getter_str {
+            post_render_statement.push(ref_getter);
+        }
 
         let ev_listener_code =
             create_event_listener(actions_and_targets, &if_block.ctx_under_if, &ref_node_ids);
         if let Some(ev_listener_code) = ev_listener_code {
-            post_render_statement.push(ev_listener_code.clone()); // `as_str()` を使って `&str` を追加
+            post_render_statement.push(ev_listener_code);
         }
 
         let gen_anchor =

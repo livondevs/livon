@@ -45,15 +45,44 @@ pub struct ActionAndTarget {
     pub ctx: Vec<String>,
 }
 
-// FIXME: 命名
 #[derive(Debug)]
-pub struct NeededIdName {
+pub enum RefMap {
+    NodeCreationMethod(NodeCreationMethod),
+    IdBasedElementAccess(IdBasedElementAccess),
+}
+
+#[derive(Debug)]
+pub struct NodeCreationMethod {
+    pub node_id: String,
+    pub ctx: Vec<String>,
+    pub elm_loc: Vec<usize>,
+}
+
+#[derive(Debug)]
+pub struct IdBasedElementAccess {
     pub id_name: String,
     pub to_delete: bool,
     pub node_id: String,
     pub ctx: Vec<String>,
     pub elm_loc: Vec<usize>,
     pub is_array: bool,
+}
+
+impl RefMap {
+    pub fn elm_loc(&self) -> &Vec<usize> {
+        match self {
+            RefMap::NodeCreationMethod(node_creation_method) => &node_creation_method.elm_loc,
+            RefMap::IdBasedElementAccess(id_based_element_access) => {
+                &id_based_element_access.elm_loc
+            }
+        }
+    }
+    pub fn ctx(&self) -> &Vec<String> {
+        match self {
+            RefMap::NodeCreationMethod(node_creation_method) => &node_creation_method.ctx,
+            RefMap::IdBasedElementAccess(id_based_element_access) => &id_based_element_access.ctx,
+        }
+    }
 }
 
 #[derive(Debug)]

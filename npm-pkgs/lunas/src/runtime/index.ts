@@ -668,7 +668,6 @@ function updateForBlock(
       refArr.splice(i, 1);
     }
   }
-  console.log(refArr);
   newItems.forEach((item, index) => {
     const lunasElm = renderItem(item, index);
     const domElm = _createDomElementFromLunasElement(lunasElm);

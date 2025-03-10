@@ -10,8 +10,8 @@ use crate::{
     orig_html_struct::structs::{Node, NodeContent},
     structs::{
         transform_info::{
-            sort_if_blocks, ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
-            TextNodeRendererGroup, VariableNameAndAssignedNumber,
+            sort_if_blocks, ActionAndTarget, CustomComponentBlockInfo, IdBasedElementAccess,
+            RefMap, TextNodeRendererGroup, VariableNameAndAssignedNumber,
         },
         transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
@@ -105,7 +105,7 @@ pub fn generate_js_from_blocks(
     }
 
     // Clone HTML as mutable reference
-    let mut needed_id = vec![];
+    let mut ref_map = vec![];
 
     let mut elm_and_var_relation = vec![];
     let mut action_and_target = vec![];
@@ -122,7 +122,7 @@ pub fn generate_js_from_blocks(
         &variable_names,
         &component_names,
         &mut new_node,
-        &mut needed_id,
+        &mut ref_map,
         &mut elm_and_var_relation,
         &mut action_and_target,
         None, // parent_uuid
@@ -146,7 +146,7 @@ pub fn generate_js_from_blocks(
         _ => panic!(),
     };
 
-    needed_id.sort_by(|a, b| a.elm_loc.cmp(&b.elm_loc));
+    ref_map.sort_by(|a, b| a.elm_loc().cmp(b.elm_loc()));
 
     // Generate JavaScript
     let html_insert = format!(
@@ -168,9 +168,10 @@ pub fn generate_js_from_blocks(
 
     // Generate AfterMount
     let mut after_mount_code_array = vec![];
-    let ref_getter_expression =
-        gen_ref_getter_from_needed_ids(&needed_id, &None, &None, &mut ref_node_ids);
-    after_mount_code_array.push(ref_getter_expression);
+    let ref_getter_expression = gen_ref_getter_from_needed_ids(&ref_map, &None, &mut ref_node_ids);
+    if let Some(ref_getter_expression) = ref_getter_expression {
+        after_mount_code_array.push(ref_getter_expression);
+    }
     let create_anchor_statements =
         gen_create_anchor_statements(&text_node_renderer_group, &vec![], &mut ref_node_ids);
     if let Some(create_anchor_statements) = create_anchor_statements {
@@ -190,7 +191,7 @@ pub fn generate_js_from_blocks(
 
     let render_if = gen_render_if_blk_func(
         &if_blocks_info,
-        &needed_id,
+        &ref_map,
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
@@ -201,7 +202,7 @@ pub fn generate_js_from_blocks(
     );
     let render_for = gen_render_for_blk_func(
         &for_blocks_info,
-        &needed_id,
+        &ref_map,
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
@@ -282,41 +283,61 @@ export default function(args = {{}}) {{
 }
 
 pub fn gen_ref_getter_from_needed_ids(
-    needed_ids: &Vec<NeededIdName>,
-    if_blk: &Option<&IfBlockInfo>,
+    ref_maps: &Vec<RefMap>,
     ctx: &Option<&Vec<String>>,
     ref_node_ids: &mut Vec<String>,
-) -> String {
+) -> Option<String> {
     let ref_node_ids_count = ref_node_ids.len();
-    let needed_ids_to_get_here = needed_ids
+    let ctx = match ctx.is_none() {
+        true => vec![],
+        false => ctx.unwrap().clone(), // Clone the Vec<String> to avoid borrowing issues
+    };
+    let refs_for_current_context = ref_maps
         .iter()
-        .filter(|needed_elm: &&NeededIdName| match *if_blk == None {
-            true => needed_elm.ctx.len() == 0,
-            false => &needed_elm.ctx == ctx.unwrap(),
-        })
-        // As of now, we get ref of if block on the first render of the block
-        // in future, we will store ref to if blk on generation
-        // // do not get the Ref of the IF block itself
-        // // .filter(|needed_elm: &&NeededIdName| match *if_blk == None {
-        // //     true => true,
-        // //     false => needed_elm.node_id != if_blk.unwrap().if_block_id,
-        // // })
-        .collect::<Vec<&NeededIdName>>();
+        .filter(|needed_elm| needed_elm.ctx() == &ctx)
+        .collect::<Vec<&RefMap>>();
 
-    for needed_id in needed_ids_to_get_here.iter() {
-        ref_node_ids.push(needed_id.node_id.clone());
+    for ref_obj in refs_for_current_context.iter() {
+        match ref_obj {
+            RefMap::NodeCreationMethod(node_creation_method) => {
+                ref_node_ids.push(node_creation_method.node_id.clone())
+            }
+            RefMap::IdBasedElementAccess(id_based_element_access) => {
+                ref_node_ids.push(id_based_element_access.node_id.clone())
+            }
+        }
     }
 
     // TODO: Use format! to improve code readability
+    let node_creation_method_count = refs_for_current_context
+        .iter()
+        .filter(|id| match id {
+            RefMap::NodeCreationMethod(_) => true,
+            _ => false,
+        })
+        .count();
+
+    let id_based_elements = refs_for_current_context
+        .iter()
+        .filter_map(|id| match id {
+            RefMap::IdBasedElementAccess(id) => Some(id),
+            _ => None,
+        })
+        .collect::<Vec<&IdBasedElementAccess>>();
+
+    if id_based_elements.is_empty() {
+        return None;
+    }
+
     let mut ref_getter_str = String::from("$$lunasGetElmRefs([");
     ref_getter_str.push_str(
-        &needed_ids_to_get_here
+        &id_based_elements
             .iter()
             .map(|id| format!("\"{}\"", id.id_name))
             .collect::<Vec<String>>()
             .join(", "),
     );
-    let delete_id_bool_map = needed_ids_to_get_here
+    let delete_id_bool_map = id_based_elements
         .iter()
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
@@ -325,14 +346,14 @@ pub fn gen_ref_getter_from_needed_ids(
     let offset = if ref_node_ids_count == 0 {
         "".to_string()
     } else {
-        format!(", {}", ref_node_ids_count)
+        format!(", {}", ref_node_ids_count + node_creation_method_count)
     };
     ref_getter_str.push_str(&format!(
         "], {map}{offset});",
         map = delete_id_map,
         offset = offset.as_str()
     ));
-    ref_getter_str
+    Some(ref_getter_str)
 }
 
 pub fn create_event_listener(
@@ -424,7 +445,7 @@ pub fn create_fragments(
             NodeAndReactiveInfo::ElmAndReactiveAttributeRelation(elm_and_attr_relation) => {
                 let _elm_and_attr_relation = elm_and_attr_relation.clone();
                 for c in _elm_and_attr_relation.reactive_attr {
-                    let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                    let dep_vars_assigned_numbers = variable_name_and_assigned_numbers
                         .iter()
                         .filter(|v| {
                             c.variable_names
@@ -446,7 +467,7 @@ pub fn create_fragments(
                         c.content_of_attr,
                         c.attribute_key,
                         target_node_idx,
-                        get_combined_binary_number(dep_vars_assined_numbers),
+                        get_combined_binary_number(dep_vars_assigned_numbers),
                         "0" // FragmentType.ATTRIBUTE
                     ));
                 }
@@ -519,9 +540,11 @@ pub fn gen_create_anchor_statements(
                 }
                 let anchor_idx = match &txt_renderer.target_anchor_id {
                     Some(anchor_id) => {
-                        let reference_node_idx =
-                            ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
-                        reference_node_idx.to_string()
+                        let reference_node_idx = ref_node_ids.iter().position(|id| id == anchor_id);
+                        match reference_node_idx {
+                            Some(idx) => idx.to_string(),
+                            None => "null".to_string(),
+                        }
                     }
                     None => "null".to_string(),
                 };

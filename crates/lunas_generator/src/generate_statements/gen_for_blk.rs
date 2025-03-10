@@ -7,8 +7,8 @@ use crate::{
     orig_html_struct::structs::NodeContent,
     structs::{
         transform_info::{
-            ActionAndTarget, CustomComponentBlockInfo, ForBlockInfo, NeededIdName,
-            TextNodeRendererGroup, VariableNameAndAssignedNumber,
+            ActionAndTarget, CustomComponentBlockInfo, ForBlockInfo, RefMap, TextNodeRendererGroup,
+            VariableNameAndAssignedNumber,
         },
         transform_targets::NodeAndReactiveInfo,
     },
@@ -20,7 +20,7 @@ use super::utils::create_indent;
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_for_blk_func(
     for_block_info: &Vec<ForBlockInfo>,
-    needed_ids: &Vec<NeededIdName>,
+    needed_ids: &Vec<RefMap>,
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
@@ -42,15 +42,14 @@ pub fn gen_render_for_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        // for_block.ctx_under_for -> for_block.ctx
-        // let ref_getter_str = gen_ref_getter_from_needed_ids(
-        //     needed_ids,
-        //     // TODO以下はIFブロックの下のforブロックではNoneではいけないので緊急で修正する
-        //     &None,
-        //     &Some(&for_block.ctx),
-        //     ref_node_ids,
-        // );
-        // post_render_statement.push(ref_getter_str);
+        let ref_getter_str = gen_ref_getter_from_needed_ids(
+            needed_ids,
+            &Some(&for_block.ctx_under_for),
+            ref_node_ids,
+        );
+        if let Some(ref_getter) = ref_getter_str {
+            post_render_statement.push(ref_getter);
+        }
 
         let ev_listener_code =
             create_event_listener(actions_and_targets, &for_block.ctx_under_for, &ref_node_ids);
@@ -88,17 +87,6 @@ pub fn gen_render_for_blk_func(
                 create_indent(post_render_statement.join("\n").as_str()),
             )
         };
-        //         // forブロックの初期化処理（renderedNodeId用）を生成
-        //         let for_on_create = if post_render_statement.is_empty() {
-        //             "() => {}".to_string()
-        //         } else {
-        //             format!(
-        //                 r#"function(renderedNodeId) {{
-        // {}
-        // }}"#,
-        //                 create_indent(post_render_statement.join("\n").as_str()),
-        //             )
-        //         };
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
@@ -149,13 +137,6 @@ pub fn gen_render_for_blk_func(
         let anchor_idx = match idx_of_anchor_of_if_blk {
             Some(idx) => format!(r#", {}"#, idx),
             None => "".to_string(),
-        };
-
-        let create_internal_element_statement = match &for_block.node.content {
-            NodeContent::Element(elm) => {
-                create_lunas_internal_component_statement(elm, "$$createLunasElement")
-            }
-            _ => panic!(),
         };
 
         let create_for_func_inside = format!(

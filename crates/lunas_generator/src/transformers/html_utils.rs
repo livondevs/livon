@@ -13,7 +13,8 @@ use crate::{
     structs::{
         transform_info::{
             ActionAndTarget, ComponentArgs, CustomComponentBlockInfo, EventBindingStatement,
-            EventTarget, ForBlockInfo, IfBlockInfo, ManualRendererForTextNode, NeededIdName,
+            EventTarget, ForBlockInfo, IdBasedElementAccess, IfBlockInfo,
+            ManualRendererForTextNode, NodeCreationMethod, RefMap,
         },
         transform_targets::{
             ElmAndReactiveAttributeRelation, ElmAndVariableContentRelation, NodeAndReactiveInfo,
@@ -32,7 +33,7 @@ pub fn check_html_elms(
     component_names: &Vec<String>,
     node: &mut Node,
     // TODO: needed_idsからリネーム
-    needed_ids: &mut Vec<NeededIdName>,
+    needed_ids: &mut Vec<RefMap>,
     elm_and_var_relation: &mut Vec<NodeAndReactiveInfo>,
     actions_and_targets: &mut Vec<ActionAndTarget>,
     parent_uuid: Option<&String>,
@@ -101,6 +102,7 @@ pub fn check_html_elms(
                     } else if key == ":for" {
                         // TODO: Add error message for unwrap below
                         let condition = action_value.clone().unwrap();
+                        // TODO: implement parser for 'for of'
                         let parts: Vec<&str> = condition.split(" of ").collect();
                         if parts.len() != 2 {
                             return Err(format!(
@@ -351,18 +353,16 @@ pub fn check_html_elms(
                             let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
 
-                            let deleted_elm = match &mut deleted_node.content {
+                            let _deleted_elm = match &mut deleted_node.content {
                                 NodeContent::Element(elm) => elm,
                                 _ => panic!("not element"),
                             };
 
-                            set_id_for_needed_elm(
-                                deleted_elm,
+                            create_space_for_ref_map(
                                 needed_ids,
-                                &remove_statement.child_uuid,
+                                &deleted_node.uuid,
                                 &remove_statement.ctx_under_if,
                                 &remove_statement.elm_loc,
-                                false,
                             );
 
                             // TODO:remove_childにまとめる
@@ -424,18 +424,16 @@ pub fn check_html_elms(
                             let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
 
-                            let deleted_elm = match &mut deleted_node.content {
+                            let _deleted_elm = match &mut deleted_node.content {
                                 NodeContent::Element(elm) => elm,
                                 _ => panic!("not element"),
                             };
 
-                            set_id_for_needed_elm(
-                                deleted_elm,
+                            create_space_for_ref_map(
                                 needed_ids,
-                                &remove_statement.child_uuid,
+                                &deleted_node.uuid,
                                 &remove_statement.ctx_under_for,
                                 &remove_statement.elm_loc,
-                                true,
                             );
 
                             // TODO:remove_childにまとめる
@@ -654,24 +652,43 @@ pub fn check_html_elms(
 
 fn set_id_for_needed_elm(
     element: &mut Element,
-    needed_ids: &mut Vec<NeededIdName>,
+    ref_maps: &mut Vec<RefMap>,
     node_id: &String,
     ctx: &Vec<String>,
     elm_loc: &Vec<usize>,
     is_array: bool,
 ) -> String {
+    // If a reference to the element already exists in refMap as NodeCreationMethod, return only the element UUID without setting an ID
+    let node_creation_methods = ref_maps.iter().filter_map(|x| match x {
+        RefMap::NodeCreationMethod(inner) => Some(inner),
+        _ => None,
+    });
+    for method in node_creation_methods {
+        if method.node_id == *node_id {
+            return method.node_id.clone();
+        }
+    }
+
+    let id_based_methods = ref_maps
+        .iter()
+        .filter_map(|x| match x {
+            RefMap::IdBasedElementAccess(inner) => Some(inner),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
     if let Some(Some(id)) = element.attributes.get("id") {
-        let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
+        let id = if id_based_methods.iter().any(|x| x.id_name == id.clone()) {
             id.clone()
         } else {
-            needed_ids.push(NeededIdName {
+            ref_maps.push(RefMap::IdBasedElementAccess(IdBasedElementAccess {
                 id_name: id.clone(),
                 to_delete: false,
                 node_id: node_id.clone(),
                 ctx: ctx.clone(),
                 elm_loc: elm_loc.clone(),
                 is_array,
-            });
+            }));
             id.clone()
         };
         id
@@ -680,16 +697,29 @@ fn set_id_for_needed_elm(
         element
             .attributes
             .insert("id".to_string(), Some(new_id.clone()));
-        needed_ids.push(NeededIdName {
+        ref_maps.push(RefMap::IdBasedElementAccess(IdBasedElementAccess {
             id_name: new_id.clone(),
             to_delete: true,
             node_id: node_id.clone(),
             ctx: ctx.clone(),
             elm_loc: elm_loc.clone(),
             is_array,
-        });
+        }));
         new_id
     }
+}
+
+fn create_space_for_ref_map(
+    ref_maps: &mut Vec<RefMap>,
+    id: &String,
+    ctx: &Vec<String>,
+    elm_loc: &Vec<usize>,
+) {
+    ref_maps.push(RefMap::NodeCreationMethod(NodeCreationMethod {
+        node_id: id.clone(),
+        ctx: ctx.clone(),
+        elm_loc: elm_loc.clone(),
+    }));
 }
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
