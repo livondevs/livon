@@ -11,6 +11,7 @@ use crate::{
         structs::{Element, Node, NodeContent},
     },
     structs::{
+        ctx::ContextCategories,
         transform_info::{
             ActionAndTarget, ComponentArgs, CustomComponentBlockInfo, EventBindingStatement,
             EventTarget, ForBlockInfo, IdBasedElementAccess, IfBlockInfo,
@@ -42,6 +43,7 @@ pub fn check_html_elms(
     for_blocks_info: &mut Vec<ForBlockInfo>,
     custom_component_blocks_info: &mut Vec<CustomComponentBlockInfo>,
     txt_node_renderer: &mut Vec<ManualRendererForTextNode>,
+    ctx_cats: &mut ContextCategories,
     if_blk_ctx: &Vec<String>,
     element_location: &Vec<usize>,
     count_of_siblings: usize,
@@ -81,6 +83,7 @@ pub fn check_html_elms(
                             ctx.push(node.uuid.clone());
                             ctx
                         };
+                        ctx_cats.if_ctx.push(node.uuid.clone());
                         html_manipulators.push(HtmlManipulator {
                             target_uuid: parent_uuid.unwrap().clone(),
                             manipulations: HtmlManipulation::RemoveChildForIfStatement(
@@ -136,6 +139,7 @@ pub fn check_html_elms(
                             ctx.push(node.uuid.clone());
                             ctx
                         };
+                        ctx_cats.for_ctx.push(node.uuid.clone());
 
                         html_manipulators.push(HtmlManipulator {
                             target_uuid: parent_uuid.unwrap().clone(),
@@ -313,6 +317,7 @@ pub fn check_html_elms(
                     for_blocks_info,
                     custom_component_blocks_info,
                     txt_node_renderer,
+                    ctx_cats,
                     &ctx_array,
                     &new_element_location,
                     count_of_siblings,

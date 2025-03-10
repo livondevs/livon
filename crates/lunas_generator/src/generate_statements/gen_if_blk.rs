@@ -6,6 +6,7 @@ use crate::{
     },
     orig_html_struct::structs::NodeContent,
     structs::{
+        ctx::ContextCategories,
         transform_info::{
             ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, RefMap, TextNodeRendererGroup,
             VariableNameAndAssignedNumber,
@@ -28,10 +29,15 @@ pub fn gen_render_if_blk_func(
     dep_vars_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     elm_and_var_relation: &Vec<NodeAndReactiveInfo>,
     ref_node_ids: &mut Vec<String>,
+    ctx_categories: &ContextCategories,
+    current_for_ctx: Option<String>,
 ) -> Option<String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info.iter() {
+        if !if_block.check_latest_for_ctx(ctx_categories, &current_for_ctx) {
+            continue;
+        }
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {

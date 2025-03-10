@@ -5,6 +5,8 @@ use crate::{
     transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
 };
 
+use super::ctx::ContextCategories;
+
 #[derive(Debug, Clone)]
 pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
@@ -141,6 +143,24 @@ pub struct IfBlockInfo {
     pub ctx_over_if: Vec<String>,
     pub if_blk_id: String,
     pub element_location: Vec<usize>,
+}
+
+impl IfBlockInfo {
+    pub fn check_latest_for_ctx(
+        &self,
+        ctx_categories: &ContextCategories,
+        current_for_ctx: &Option<String>,
+    ) -> bool {
+        let ctx_under_if = &self.ctx_under_if;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for ctx in ctx_under_if.iter().rev() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx.clone()) == *current_for_ctx;
+            }
+        }
+        None == *current_for_ctx
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

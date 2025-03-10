@@ -9,6 +9,7 @@ use crate::{
     },
     orig_html_struct::structs::{Node, NodeContent},
     structs::{
+        ctx::ContextCategories,
         transform_info::{
             sort_if_blocks, ActionAndTarget, CustomComponentBlockInfo, IdBasedElementAccess,
             RefMap, TextNodeRendererGroup, VariableNameAndAssignedNumber,
@@ -113,6 +114,10 @@ pub fn generate_js_from_blocks(
     let mut for_blocks_info = vec![];
     let mut custom_component_blocks_info = vec![];
     let mut text_node_renderer = vec![];
+    let mut ctx_cats = ContextCategories {
+        if_ctx: vec![],
+        for_ctx: vec![],
+    };
 
     let mut ref_node_ids = vec![];
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
@@ -131,6 +136,7 @@ pub fn generate_js_from_blocks(
         &mut for_blocks_info,
         &mut custom_component_blocks_info,
         &mut text_node_renderer,
+        &mut ctx_cats,
         &vec![],  // ctx
         &vec![0], // ctx_num
         1,        // ctx_num_index
@@ -199,6 +205,8 @@ pub fn generate_js_from_blocks(
         &variables,
         &elm_and_var_relation,
         &mut ref_node_ids,
+        &ctx_cats,
+        None,
     );
     let render_for = gen_render_for_blk_func(
         &for_blocks_info,
