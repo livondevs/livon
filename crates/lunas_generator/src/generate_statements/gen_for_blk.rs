@@ -100,7 +100,7 @@ pub fn gen_render_for_blk_func(
         //             )
         //         };
 
-        // let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
+        let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
             .filter(|v| {
@@ -164,6 +164,7 @@ pub fn gen_render_for_blk_func(
 () => ({}),
 {},
 {},
+[{}, {}],
 [{}{}]"#,
             for_block.target_for_blk_id,
             for_block.item_name,
@@ -171,10 +172,10 @@ pub fn gen_render_for_blk_func(
             for_block.item_collection,
             for_on_create,
             get_combined_binary_number(dep_number),
+            initial_ref_node_ids_len,
+            ref_node_ids_len_increase,
             parent_if_blk_id_idx,
             anchor_idx,
-            // initial_ref_node_ids_len,
-            // ref_node_ids_len_increase
         );
 
         let create_for_func = format!(

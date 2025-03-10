@@ -61,6 +61,7 @@ pub fn check_html_elms(
                             &node_id,
                             &ctx_array,
                             element_location,
+                            false,
                         );
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
@@ -161,6 +162,7 @@ pub fn check_html_elms(
                             &node_id,
                             &ctx_array,
                             element_location,
+                            false,
                         );
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
@@ -204,6 +206,7 @@ pub fn check_html_elms(
                             &node_id,
                             &ctx_array,
                             element_location,
+                            false,
                         );
                         let raw_attr_name = &key[1..];
                         let raw_attr_value = action_value.clone();
@@ -343,6 +346,7 @@ pub fn check_html_elms(
                                 &node_id,
                                 &remove_statement.ctx_over_if,
                                 element_location,
+                                false,
                             );
                             let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
@@ -358,6 +362,7 @@ pub fn check_html_elms(
                                 &remove_statement.child_uuid,
                                 &remove_statement.ctx_under_if,
                                 &remove_statement.elm_loc,
+                                false,
                             );
 
                             // TODO:remove_childにまとめる
@@ -378,6 +383,7 @@ pub fn check_html_elms(
                                         new_element_location.push(idx_of_ref as usize);
                                         &new_element_location.clone()
                                     },
+                                    false,
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -413,6 +419,7 @@ pub fn check_html_elms(
                                 &node_id,
                                 &remove_statement.ctx_over_for,
                                 element_location,
+                                false,
                             );
                             let (mut deleted_node, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
@@ -422,13 +429,14 @@ pub fn check_html_elms(
                                 _ => panic!("not element"),
                             };
 
-                            // set_id_for_needed_elm(
-                            //     deleted_elm,
-                            //     needed_ids,
-                            //     &remove_statement.child_uuid,
-                            //     &remove_statement.ctx,
-                            //     &remove_statement.elm_loc,
-                            // );
+                            set_id_for_needed_elm(
+                                deleted_elm,
+                                needed_ids,
+                                &remove_statement.child_uuid,
+                                &remove_statement.ctx_under_for,
+                                &remove_statement.elm_loc,
+                                true,
+                            );
 
                             // TODO:remove_childにまとめる
                             let target_anchor_id = if let Some(idx_of_ref) = idx_of_ref {
@@ -448,6 +456,7 @@ pub fn check_html_elms(
                                         new_element_location.push(idx_of_ref as usize);
                                         &new_element_location.clone()
                                     },
+                                    false,
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -484,6 +493,7 @@ pub fn check_html_elms(
                                 &node_id,
                                 &remove_statement.ctx,
                                 element_location,
+                                false,
                             );
                             let (_, _, distance, idx_of_ref) =
                                 element.remove_child(&remove_statement.child_uuid, component_names);
@@ -506,6 +516,7 @@ pub fn check_html_elms(
                                         new_element_location.push(idx_of_ref as usize);
                                         &new_element_location.clone()
                                     },
+                                    false,
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -534,6 +545,7 @@ pub fn check_html_elms(
                                 &node_id,
                                 &set_id.ctx,
                                 element_location,
+                                false,
                             );
                             elm_and_var_relation.push(NodeAndReactiveInfo::ElmAndVariableRelation(
                                 ElmAndVariableContentRelation {
@@ -552,6 +564,7 @@ pub fn check_html_elms(
                                 &node_id,
                                 &remove_text_node.ctx,
                                 element_location,
+                                false,
                             );
 
                             let (_, _, _, idx_of_ref) =
@@ -574,6 +587,7 @@ pub fn check_html_elms(
                                         new_element_location.push(idx_of_ref as usize);
                                         &new_element_location.clone()
                                     },
+                                    false,
                                 ));
                                 Some(node_id.clone())
                             } else {
@@ -644,6 +658,7 @@ fn set_id_for_needed_elm(
     node_id: &String,
     ctx: &Vec<String>,
     elm_loc: &Vec<usize>,
+    is_array: bool,
 ) -> String {
     if let Some(Some(id)) = element.attributes.get("id") {
         let id = if needed_ids.iter().any(|x| x.id_name == id.clone()) {
@@ -655,6 +670,7 @@ fn set_id_for_needed_elm(
                 node_id: node_id.clone(),
                 ctx: ctx.clone(),
                 elm_loc: elm_loc.clone(),
+                is_array,
             });
             id.clone()
         };
@@ -670,6 +686,7 @@ fn set_id_for_needed_elm(
             node_id: node_id.clone(),
             ctx: ctx.clone(),
             elm_loc: elm_loc.clone(),
+            is_array,
         });
         new_id
     }

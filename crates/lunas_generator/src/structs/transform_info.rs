@@ -53,6 +53,7 @@ pub struct NeededIdName {
     pub node_id: String,
     pub ctx: Vec<String>,
     pub elm_loc: Vec<usize>,
+    pub is_array: bool,
 }
 
 #[derive(Debug)]

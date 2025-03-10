@@ -41,7 +41,7 @@ export type LunasComponentState = {
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
 
-  refMap: (Node | undefined)[];
+  refMap: RefMap;
 };
 
 type LunasInternalElement = {
@@ -271,9 +271,9 @@ export const $$lunasInitComponent = function (
           const componentElm = _createDomElementFromLunasElement(
             lunasElement()
           );
-          const parentElement = this.refMap[parentElementIndex];
+          const parentElement = this.refMap[parentElementIndex] as HTMLElement;
           const refElement = refElementIndex
-            ? this.refMap[refElementIndex]!
+            ? (this.refMap[refElementIndex] as HTMLElement)
             : null;
           parentElement!.insertBefore(componentElm, refElement);
           this.refMap[mapOffset] = componentElm;
@@ -296,8 +296,8 @@ export const $$lunasInitComponent = function (
               if (condition()) {
                 this.ifBlocks[name].renderer();
               } else {
-                const ifBlkElm = this.refMap[mapOffset]!;
-                (ifBlkElm as HTMLElement).remove();
+                const ifBlkElm = this.refMap[mapOffset] as HTMLElement;
+                ifBlkElm.remove();
                 this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
                 this.blkRenderedMap ^= ifBlkBit;
               }
@@ -359,7 +359,7 @@ export const $$lunasInitComponent = function (
     args: [number, string, EventListener][]
   ) {
     for (const [elmIdx, evName, evFunc] of args) {
-      this.refMap[elmIdx]!.addEventListener(evName, evFunc);
+      (this.refMap[elmIdx] as HTMLElement).addEventListener(evName, evFunc);
     }
   }.bind(this);
 
@@ -371,6 +371,7 @@ export const $$lunasInitComponent = function (
       getDataArray: () => unknown[],
       afterRenderHook: () => void,
       updateFlag: number,
+      mapInfo: [mapOffset: number, mapLength: number],
       refIdx: [parentElementIndex: number, refElementIndex?: number],
       context: any,
       containerRef: string,
@@ -385,6 +386,7 @@ export const $$lunasInitComponent = function (
         getDataArray,
         afterRenderHook,
         updateFlag,
+        [mapOffset, mapLength],
         [parentElementIndex, refElementIndex],
         // TODO: Decide whether to use the following or delete it
         // context,
@@ -405,10 +407,12 @@ export const $$lunasInitComponent = function (
           ? null
           : (this.refMap[refElementIndex] as HTMLElement);
 
+      this.refMap[mapOffset] = [] as HTMLElement[];
       items.forEach((item, index) => {
         const lunasElm = renderItem(item, index);
         const domElm = _createDomElementFromLunasElement(lunasElm);
 
+        (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
         containerElm.insertBefore(domElm, insertionPointElm);
         afterRenderHook?.();
       });
@@ -425,6 +429,8 @@ export const $$lunasInitComponent = function (
                 afterRenderHook,
                 containerElm,
                 insertionPointElm,
+                mapOffset,
+                this.refMap,
                 uniqueBit
               );
             }
@@ -443,8 +449,10 @@ export const $$lunasInitComponent = function (
     for (const [amount, parentIdx, anchorIdx, text] of args) {
       for (let i = 0; i < amount; i++) {
         const empty = document.createTextNode(text ?? " ");
-        const parent = this.refMap[parentIdx]!;
-        const anchor = anchorIdx ? this.refMap[anchorIdx]! : null;
+        const parent = this.refMap[parentIdx] as HTMLElement;
+        const anchor = anchorIdx
+          ? (this.refMap[anchorIdx] as HTMLElement)
+          : null;
         parent.insertBefore(empty, anchor);
         this.refMap[offset + i] = empty;
       }
@@ -480,7 +488,7 @@ export const $$lunasInitComponent = function (
           if (!valueUpdated) {
             return;
           }
-          const target = this.refMap[nodeIdx]!;
+          const target = this.refMap[nodeIdx] as HTMLElement;
           if (fragmentType === FragmentType.ATTRIBUTE) {
             $$lunasReplaceAttr(
               attributeName!,
@@ -623,6 +631,9 @@ type Fragment = [
   fragmentType: FragmentType
 ];
 
+type RefMapItem = Node | undefined | RefMapItem[];
+type RefMap = RefMapItem[];
+
 enum FragmentType {
   ATTRIBUTE = 0,
   TEXT = 1,
@@ -643,12 +654,25 @@ function updateForBlock(
   afterRenderHook: () => void,
   containerElm: HTMLElement,
   insertionPointElm: HTMLElement | null,
+  mapOffset: number,
+  refMap: RefMap,
   _forBlkBit: number
 ): void {
   if (!containerElm) return;
+  const refArr = refMap[mapOffset] as RefMapItem[];
+  // Iterate in reverse order to prevent index shift issues when removing elements
+  for (let i = refArr.length - 1; i >= 0; i--) {
+    const item = refArr[i];
+    if (item instanceof HTMLElement) {
+      item.remove();
+      refArr.splice(i, 1);
+    }
+  }
+  console.log(refArr);
   newItems.forEach((item, index) => {
     const lunasElm = renderItem(item, index);
     const domElm = _createDomElementFromLunasElement(lunasElm);
+    (refMap[mapOffset]! as HTMLElement[]).push(domElm);
     containerElm.insertBefore(domElm, insertionPointElm);
     afterRenderHook && afterRenderHook();
   });
