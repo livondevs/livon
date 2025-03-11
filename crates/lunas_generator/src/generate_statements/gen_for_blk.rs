@@ -6,21 +6,22 @@ use crate::{
     },
     orig_html_struct::structs::NodeContent,
     structs::{
+        ctx::ContextCategories,
         transform_info::{
-            ActionAndTarget, CustomComponentBlockInfo, ForBlockInfo, RefMap, TextNodeRendererGroup,
-            VariableNameAndAssignedNumber,
+            ActionAndTarget, CustomComponentBlockInfo, ForBlockInfo, IfBlockInfo, RefMap,
+            TextNodeRendererGroup, VariableNameAndAssignedNumber,
         },
         transform_targets::NodeAndReactiveInfo,
     },
     transformers::html_utils::create_lunas_internal_component_statement,
 };
 
-use super::utils::create_indent;
+use super::{gen_if_blk::gen_render_if_blk_func, utils::create_indent};
 
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_for_blk_func(
     for_block_info: &Vec<ForBlockInfo>,
-    needed_ids: &Vec<RefMap>,
+    ref_map: &Vec<RefMap>,
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
@@ -28,6 +29,8 @@ pub fn gen_render_for_blk_func(
     dep_vars_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     elm_and_var_relation: &Vec<NodeAndReactiveInfo>,
     ref_node_ids: &mut Vec<String>,
+    ctx_categories: &ContextCategories,
+    if_blocks_info: &Vec<IfBlockInfo>,
 ) -> Option<String> {
     let mut render_for = vec![];
 
@@ -43,16 +46,21 @@ pub fn gen_render_for_blk_func(
         let mut post_render_statement: Vec<String> = Vec::new();
 
         let ref_getter_str = gen_ref_getter_from_needed_ids(
-            needed_ids,
+            ref_map,
             &Some(&for_block.ctx_under_for),
             ref_node_ids,
+            ctx_categories,
         );
         if let Some(ref_getter) = ref_getter_str {
             post_render_statement.push(ref_getter);
         }
 
-        let ev_listener_code =
-            create_event_listener(actions_and_targets, &for_block.ctx_under_for, &ref_node_ids);
+        let ev_listener_code = create_event_listener(
+            actions_and_targets,
+            &for_block.ctx_under_for,
+            &ref_node_ids,
+            true,
+        );
         if let Some(ev_listener_code) = ev_listener_code {
             post_render_statement.push(ev_listener_code.clone());
         }
@@ -74,6 +82,27 @@ pub fn gen_render_for_blk_func(
         );
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);
+        }
+
+        // ctx_under_forの最後の要素
+        let last_ctx_under_for = for_block.ctx_under_for.last().unwrap();
+        let if_blk_gen = gen_render_if_blk_func(
+            &if_blocks_info,
+            &ref_map,
+            &actions_and_targets,
+            &text_node_renderer,
+            &custom_component_blocks_info,
+            &variable_names,
+            &dep_vars_assigned_numbers,
+            &elm_and_var_relation,
+            ref_node_ids,
+            &ctx_categories,
+            Some(last_ctx_under_for),
+            true,
+        );
+
+        if let Some(if_blk_gen) = if_blk_gen {
+            post_render_statement.push(if_blk_gen);
         }
 
         // forブロックの初期化処理（renderedNodeId用）を生成

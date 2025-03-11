@@ -174,7 +174,8 @@ pub fn generate_js_from_blocks(
 
     // Generate AfterMount
     let mut after_mount_code_array = vec![];
-    let ref_getter_expression = gen_ref_getter_from_needed_ids(&ref_map, &None, &mut ref_node_ids);
+    let ref_getter_expression =
+        gen_ref_getter_from_needed_ids(&ref_map, &None, &mut ref_node_ids, &ctx_cats);
     if let Some(ref_getter_expression) = ref_getter_expression {
         after_mount_code_array.push(ref_getter_expression);
     }
@@ -183,7 +184,8 @@ pub fn generate_js_from_blocks(
     if let Some(create_anchor_statements) = create_anchor_statements {
         after_mount_code_array.push(create_anchor_statements);
     }
-    let event_listener_code = create_event_listener(&action_and_target, &vec![], &ref_node_ids);
+    let event_listener_code =
+        create_event_listener(&action_and_target, &vec![], &ref_node_ids, false);
 
     if let Some(code) = event_listener_code {
         after_mount_code_array.push(code);
@@ -207,6 +209,7 @@ pub fn generate_js_from_blocks(
         &mut ref_node_ids,
         &ctx_cats,
         None,
+        false
     );
     let render_for = gen_render_for_blk_func(
         &for_blocks_info,
@@ -218,6 +221,8 @@ pub fn generate_js_from_blocks(
         &variables,
         &elm_and_var_relation,
         &mut ref_node_ids,
+        &ctx_cats,
+        &if_blocks_info,
     );
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
@@ -294,6 +299,7 @@ pub fn gen_ref_getter_from_needed_ids(
     ref_maps: &Vec<RefMap>,
     ctx: &Option<&Vec<String>>,
     ref_node_ids: &mut Vec<String>,
+    ctx_cats: &ContextCategories,
 ) -> Option<String> {
     let ref_node_ids_count = ref_node_ids.len();
     let ctx = match ctx.is_none() {
@@ -350,11 +356,19 @@ pub fn gen_ref_getter_from_needed_ids(
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-    // ref_node_ids_count
-    let offset = if ref_node_ids_count == 0 {
-        "".to_string()
+    // TODO: 超重要、2重forに対応する
+    let is_under_for_clause = ctx_cats.is_under_for_clause(&ctx);
+    let offset = if !is_under_for_clause {
+        if ref_node_ids_count + node_creation_method_count == 0 {
+            "".to_string()
+        } else {
+            format!(", {}", ref_node_ids_count + node_creation_method_count)
+        }
     } else {
-        format!(", {}", ref_node_ids_count + node_creation_method_count)
+        format!(
+            ", [{}, index]",
+            ref_node_ids_count + node_creation_method_count
+        )
     };
     ref_getter_str.push_str(&format!(
         "], {map}{offset});",
@@ -368,6 +382,7 @@ pub fn create_event_listener(
     actions_and_targets: &Vec<ActionAndTarget>,
     current_ctx: &Vec<String>,
     ref_node_ids: &Vec<String>,
+    under_if: bool,
 ) -> Option<String> {
     let filtered_targets = actions_and_targets
         .iter()
@@ -383,9 +398,14 @@ pub fn create_event_listener(
             .iter()
             .position(|id| id == &action_and_target.target)
             .unwrap();
+        // TODO: ネストIFに対応する、重要
+        let reference_string = match under_if {
+            true => format!("[{}, index]", reference_node_idx),
+            false => reference_node_idx.to_string(),
+        };
         result.push(format!(
             "[{}, \"{}\", {}]{}",
-            reference_node_idx,
+            reference_string,
             action_and_target.action_name,
             action_and_target.action.to_string(),
             if index != filtered_targets.len() - 1 {

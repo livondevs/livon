@@ -30,7 +30,8 @@ pub fn gen_render_if_blk_func(
     elm_and_var_relation: &Vec<NodeAndReactiveInfo>,
     ref_node_ids: &mut Vec<String>,
     ctx_categories: &ContextCategories,
-    current_for_ctx: Option<String>,
+    current_for_ctx: Option<&String>,
+    under_for: bool,
 ) -> Option<String> {
     let mut render_if = vec![];
 
@@ -39,6 +40,10 @@ pub fn gen_render_if_blk_func(
             continue;
         }
         let initial_ref_node_ids_len = ref_node_ids.len();
+        let if_blk_elm_loc = match under_for {
+            true => format!("[{}, index]", ref_node_ids.len()),
+            false => ref_node_ids.len().to_string(),
+        };
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
                 create_lunas_internal_component_statement(elm, "$$createLunasElement")
@@ -48,14 +53,27 @@ pub fn gen_render_if_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        let ref_getter_str =
-            gen_ref_getter_from_needed_ids(needed_ids, &Some(&if_block.ctx_under_if), ref_node_ids);
+        let ref_getter_str = gen_ref_getter_from_needed_ids(
+            needed_ids,
+            &Some(&if_block.ctx_under_if),
+            ref_node_ids,
+            ctx_categories,
+        );
         if let Some(ref_getter) = ref_getter_str {
             post_render_statement.push(ref_getter);
         }
 
-        let ev_listener_code =
-            create_event_listener(actions_and_targets, &if_block.ctx_under_if, &ref_node_ids);
+        let if_blk_name = match under_for {
+            true => format!("`{}-${{index}}`", if_block.target_if_blk_id),
+            false => format!("\"{}\"", if_block.target_if_blk_id),
+        };
+
+        let ev_listener_code = create_event_listener(
+            actions_and_targets,
+            &if_block.ctx_under_if,
+            &ref_node_ids,
+            true,
+        );
         if let Some(ev_listener_code) = ev_listener_code {
             post_render_statement.push(ev_listener_code);
         }
@@ -76,11 +94,18 @@ pub fn gen_render_if_blk_func(
             post_render_statement.extend(render_child_component);
         }
 
-        let parent_if_blk_id_idx = ref_node_ids
+        println!("ref_node_ids: {:?}", ref_node_ids);
+        println!("parent_id: {:?}", if_block.parent_id);
+        let parent_if_blk_id_idx_num = ref_node_ids
             .iter()
             .position(|x| x == &if_block.parent_id)
             .unwrap()
             .to_string();
+        let parent_if_blk_id_idx = match under_for {
+            // TODO: 重要 nestに対応せよ。
+            true => format!("[{}, index]", parent_if_blk_id_idx_num),
+            false => parent_if_blk_id_idx_num.to_string(),
+        };
         let idx_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
             true => Some(
                 ref_node_ids
@@ -112,20 +137,40 @@ pub fn gen_render_if_blk_func(
         };
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
-            Some(idx) => format!(r#", {}"#, idx),
+            Some(idx) => match under_for {
+                true => format!(r#", [{}, index]"#, idx),
+                false => format!(r#", {}"#, idx),
+            },
             None => "".to_string(),
         };
 
         // array to js array string
-        let ctxjs_array = format!(
-            r#"[{}]"#,
-            if_block
-                .ctx_over_if
-                .iter()
-                .map(|x| format!("'{}'", x))
-                .collect::<Vec<String>>()
-                .join(",")
-        );
+        let ctxjs_array = {
+            let mut ctx_over_if = if_block.ctx_over_if.clone();
+            if under_for {
+                let latest_for_ctx = if_block.get_latest_for_ctx(ctx_categories);
+                if let Some(latest_for_ctx) = latest_for_ctx {
+                    let latest_for_ctx_idx = ctx_over_if
+                        .iter()
+                        .position(|x| x == latest_for_ctx)
+                        .unwrap();
+                    // If under_for is true, find the latest_for_ctx and exclude the ones before it
+                    ctx_over_if = ctx_over_if
+                        .iter()
+                        .take(latest_for_ctx_idx)
+                        .map(|x| x.to_string())
+                        .collect();
+                }
+            }
+            format!(
+                r#"[{}]"#,
+                ctx_over_if
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        };
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
@@ -161,7 +206,7 @@ pub fn gen_render_if_blk_func(
         };
 
         let create_if_func_inside = format!(
-            r#""{}",
+            r#"{},
 () => ({}),
 () => ({}),
 {},
@@ -169,13 +214,13 @@ pub fn gen_render_if_blk_func(
 {},
 [{}, {}],
 [{}{}]{}"#,
-            if_block.target_if_blk_id,
+            if_blk_name,
             create_internal_element_statement,
             if_block.condition,
             if_on_create,
             ctxjs_array,
             get_combined_binary_number(dep_number),
-            initial_ref_node_ids_len,
+            if_blk_elm_loc,
             ref_node_ids_len_increase,
             parent_if_blk_id_idx,
             anchor_idx,

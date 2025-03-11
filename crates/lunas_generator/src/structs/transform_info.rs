@@ -149,17 +149,29 @@ impl IfBlockInfo {
     pub fn check_latest_for_ctx(
         &self,
         ctx_categories: &ContextCategories,
-        current_for_ctx: &Option<String>,
+        current_for_ctx: &Option<&String>,
     ) -> bool {
         let ctx_under_if = &self.ctx_under_if;
         let for_ctx = ctx_categories.for_ctx.clone();
 
         for ctx in ctx_under_if.iter().rev() {
             if for_ctx.contains(ctx) {
-                return Some(ctx.clone()) == *current_for_ctx;
+                return Some(ctx) == *current_for_ctx;
             }
         }
-        None == *current_for_ctx
+        current_for_ctx.is_none()
+    }
+
+    pub fn get_latest_for_ctx(&self, ctx_categories: &ContextCategories) -> Option<&String> {
+        let ctx_under_if = &self.ctx_under_if;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for ctx in ctx_under_if.iter().rev() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx);
+            }
+        }
+        None
     }
 }
 
