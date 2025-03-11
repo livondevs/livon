@@ -94,8 +94,6 @@ pub fn gen_render_if_blk_func(
             post_render_statement.extend(render_child_component);
         }
 
-        println!("ref_node_ids: {:?}", ref_node_ids);
-        println!("parent_id: {:?}", if_block.parent_id);
         let parent_if_blk_id_idx_num = ref_node_ids
             .iter()
             .position(|x| x == &if_block.parent_id)
