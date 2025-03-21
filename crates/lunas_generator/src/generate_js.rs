@@ -209,7 +209,7 @@ pub fn generate_js_from_blocks(
         &mut ref_node_ids,
         &ctx_cats,
         None,
-        false
+        false,
     );
     let render_for = gen_render_for_blk_func(
         &for_blocks_info,
@@ -382,7 +382,7 @@ pub fn create_event_listener(
     actions_and_targets: &Vec<ActionAndTarget>,
     current_ctx: &Vec<String>,
     ref_node_ids: &Vec<String>,
-    under_if: bool,
+    under_for: bool,
 ) -> Option<String> {
     let filtered_targets = actions_and_targets
         .iter()
@@ -399,7 +399,7 @@ pub fn create_event_listener(
             .position(|id| id == &action_and_target.target)
             .unwrap();
         // TODO: ネストIFに対応する、重要
-        let reference_string = match under_if {
+        let reference_string = match under_for {
             true => format!("[{}, index]", reference_node_idx),
             false => reference_node_idx.to_string(),
         };

@@ -72,7 +72,7 @@ pub fn gen_render_if_blk_func(
             actions_and_targets,
             &if_block.ctx_under_if,
             &ref_node_ids,
-            true,
+            under_for,
         );
         if let Some(ev_listener_code) = ev_listener_code {
             post_render_statement.push(ev_listener_code);
