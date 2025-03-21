@@ -290,7 +290,8 @@ fn gen_full_code(
 export default function(args = {{}}) {{
     const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
 {}
-}}"#,
+}}
+"#,
         runtime_path, imports_string, arg_names_array, code,
     )
 }
