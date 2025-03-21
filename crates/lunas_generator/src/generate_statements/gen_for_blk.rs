@@ -69,6 +69,7 @@ pub fn gen_render_for_blk_func(
             &text_node_renderer,
             &for_block.ctx_under_for,
             ref_node_ids,
+            true,
         );
         if let Some(gen_anchor) = gen_anchor {
             post_render_statement.push(gen_anchor);
@@ -79,6 +80,7 @@ pub fn gen_render_for_blk_func(
             &for_block.ctx_under_for,
             &variable_names,
             ref_node_ids,
+            true,
         );
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);

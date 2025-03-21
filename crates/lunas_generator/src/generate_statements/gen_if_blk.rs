@@ -78,8 +78,12 @@ pub fn gen_render_if_blk_func(
             post_render_statement.push(ev_listener_code);
         }
 
-        let gen_anchor =
-            gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if, ref_node_ids);
+        let gen_anchor = gen_create_anchor_statements(
+            &text_node_renderer,
+            &if_block.ctx_under_if,
+            ref_node_ids,
+            under_for,
+        );
         if let Some(gen_anchor) = gen_anchor {
             post_render_statement.push(gen_anchor);
         }
@@ -89,6 +93,7 @@ pub fn gen_render_if_blk_func(
             &if_block.ctx_under_if,
             &variable_names,
             ref_node_ids,
+            under_for,
         );
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);

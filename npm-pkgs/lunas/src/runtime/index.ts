@@ -493,17 +493,33 @@ export const $$lunasInitComponent = function (
 
   const insertTextNodes = function (
     this: LunasComponentState,
-    args: [amount: number, parent: number, anchor?: number, text?: string][],
+    args: [
+      amount: number,
+      parent: number | number[],
+      anchor?: number | number[],
+      text?: string
+    ][],
     _offset: number = 0
   ) {
     let offset = _offset;
     for (const [amount, parentIdx, anchorIdx, text] of args) {
       for (let i = 0; i < amount; i++) {
         const empty = document.createTextNode(text ?? " ");
-        const parent = this.refMap[parentIdx] as HTMLElement;
-        const anchor = anchorIdx
-          ? (this.refMap[anchorIdx] as HTMLElement)
-          : null;
+        const parent = (() => {
+          const [locationArray, offset] = getNestedArrayAndItem(
+            parentIdx,
+            this.refMap
+          );
+          return locationArray[offset] as HTMLElement;
+        })();
+        const anchor = (() => {
+          if (anchorIdx == undefined) return null;
+          const [locationArray, offset] = getNestedArrayAndItem(
+            anchorIdx,
+            this.refMap
+          );
+          return locationArray[offset] as HTMLElement;
+        })();
         parent.insertBefore(empty, anchor);
         this.refMap[offset + i] = empty;
       }
@@ -558,13 +574,28 @@ export const $$lunasInitComponent = function (
   const lunasInsertComopnent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
-    parentIdx: number,
-    anchorIdx: number | null,
-    refIdx: number
+    parentIdx: number | number[],
+    anchorIdx: number | number[] | null,
+    refIdx: number | number[]
   ) {
-    this.refMap[refIdx] = componentExport.insert(
-      this.refMap[parentIdx] as HTMLElement,
-      anchorIdx !== null ? (this.refMap[anchorIdx] as HTMLElement) : null
+    const [parentLocationArray, parentOffset] =
+      obtainNestedArrayPositionAndReset(parentIdx, this.refMap);
+    const parentElement = parentLocationArray[parentOffset] as HTMLElement;
+    const anchorElement = (() => {
+      if (anchorIdx == undefined) {
+        return null;
+      }
+      const [anchorLocationArray, anchorOffset] =
+        obtainNestedArrayPositionAndReset(anchorIdx, this.refMap);
+      return anchorLocationArray[anchorOffset] as HTMLElement;
+    })();
+    const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
+      refIdx,
+      this.refMap
+    );
+    referenceMapping[offset] = componentExport.insert(
+      parentElement,
+      anchorElement
     ).componentElm;
   }.bind(this);
 

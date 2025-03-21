@@ -180,7 +180,7 @@ pub fn generate_js_from_blocks(
         after_mount_code_array.push(ref_getter_expression);
     }
     let create_anchor_statements =
-        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &mut ref_node_ids);
+        gen_create_anchor_statements(&text_node_renderer_group, &vec![], &mut ref_node_ids, false);
     if let Some(create_anchor_statements) = create_anchor_statements {
         after_mount_code_array.push(create_anchor_statements);
     }
@@ -231,6 +231,7 @@ pub fn generate_js_from_blocks(
         &vec![],
         &variable_names,
         &mut ref_node_ids,
+        false,
     );
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
@@ -556,6 +557,7 @@ pub fn gen_create_anchor_statements(
     text_node_renderer: &TextNodeRendererGroup,
     ctx_condition: &Vec<String>,
     ref_node_ids: &mut Vec<String>,
+    under_for: bool,
 ) -> Option<String> {
     let ref_node_ids_count_before_creating_anchors = ref_node_ids.len();
     let mut create_anchor_statements = vec![];
@@ -613,11 +615,27 @@ pub fn gen_create_anchor_statements(
                     Some(anchor_id) => {
                         let reference_node_idx =
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
-                        reference_node_idx.to_string()
+                        let reference_node_idx = reference_node_idx.to_string();
+                        match under_for {
+                            true => format!("[{}, index]", reference_node_idx),
+                            false => reference_node_idx,
+                        }
                     }
                     None => "null".to_string(),
                 };
-                let parent_node_idx = ref_node_ids
+                let parent_node_idx = {
+                    let parent_node_idx = ref_node_ids
+                        .iter()
+                        .position(|id| id == &parent_id)
+                        .unwrap()
+                        .to_string();
+                    match under_for {
+                        true => format!("[{}, index]", parent_node_idx),
+                        false => parent_node_idx,
+                    }
+                };
+
+                ref_node_ids
                     .iter()
                     .position(|id| id == &parent_id)
                     .unwrap()
@@ -660,11 +678,13 @@ pub fn gen_create_anchor_statements(
     )
 }
 
+// TODO: move to gen_custom_component.rs
 pub fn gen_render_custom_component_statements(
     custom_component_block_info: &Vec<CustomComponentBlockInfo>,
     ctx: &Vec<String>,
     variable_names: &Vec<String>,
     ref_node_ids: &mut Vec<String>,
+    under_for: bool,
 ) -> Vec<String> {
     let mut render_custom_statements = vec![];
 
@@ -688,23 +708,39 @@ pub fn gen_render_custom_component_statements(
                         })
                         .unwrap()
                         .to_string();
-                    anchor_idx.to_string()
+                    match under_for {
+                        true => format!("[{}, index]", anchor_idx),
+                        false => anchor_idx.to_string(),
+                    }
                 }
                 false => match &custom_component_block.target_anchor_id {
                     Some(anchor_id) => {
                         let reference_node_idx =
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
-                        reference_node_idx.to_string()
+                        // reference_node_idx.to_string()
+                        match under_for {
+                            true => format!("[{}, index]", reference_node_idx),
+                            false => reference_node_idx.to_string(),
+                        }
                     }
                     None => "null".to_string(),
                 },
             };
-            let parent_idx = ref_node_ids
-                .iter()
-                .position(|id| id == &custom_component_block.parent_id)
-                .unwrap()
-                .to_string();
-            let ref_idx = ref_node_ids.len();
+            let parent_idx = {
+                let custom_component_parent_index = ref_node_ids
+                    .iter()
+                    .position(|id| id == &custom_component_block.parent_id)
+                    .unwrap()
+                    .to_string();
+                match under_for {
+                    true => format!("[{}, index]", custom_component_parent_index),
+                    false => custom_component_parent_index,
+                }
+            };
+            let ref_idx = match under_for {
+                true => format!("[{}, index]", ref_node_ids.len()),
+                false => ref_node_ids.len().to_string(),
+            };
             render_custom_statements.push(format!(
                 "$$lunasInsertComponent({}({}), {}, {}, {});",
                 custom_component_block.component_name,
