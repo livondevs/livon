@@ -146,16 +146,12 @@ pub fn gen_render_if_blk_func(
         let ctxjs_array = {
             let mut ctx_over_if = if_block.ctx_over_if.clone();
             if under_for {
-                let latest_for_ctx = if_block.get_latest_for_ctx(ctx_categories);
-                if let Some(latest_for_ctx) = latest_for_ctx {
-                    let latest_for_ctx_idx = ctx_over_if
-                        .iter()
-                        .position(|x| x == latest_for_ctx)
-                        .unwrap();
-                    // If under_for is true, find the latest_for_ctx and exclude the ones before it
+                let latest_for_ctx_idx = if_block.get_latest_for_ctx_idx(ctx_categories);
+                if let Some(latest_for_ctx_idx) = latest_for_ctx_idx {
                     ctx_over_if = ctx_over_if
                         .iter()
-                        .take(latest_for_ctx_idx)
+                        // Get elements after latest_for_ctx_idx (excluding latest_for_ctx_idx itself)
+                        .skip(latest_for_ctx_idx + 1)
                         .map(|x| x.to_string())
                         .collect();
                 }
@@ -163,6 +159,33 @@ pub fn gen_render_if_blk_func(
             format!(
                 r#"[{}]"#,
                 ctx_over_if
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        };
+
+        let parent_for_array = {
+            let for_context_before_current_for = if under_for {
+                let latest_for_ctx_idx = if_block.get_latest_for_ctx_idx(ctx_categories);
+                if let Some(latest_for_ctx_idx) = latest_for_ctx_idx {
+                    if_block
+                        .ctx_over_if
+                        .iter()
+                        .take(latest_for_ctx_idx + 1)
+                        .filter(|x| ctx_categories.for_ctx.iter().any(|f| f == *x))
+                        .map(|x| x.to_string())
+                        .collect()
+                } else {
+                    vec![]
+                }
+            } else {
+                vec![]
+            };
+            format!(
+                r#"[{}]"#,
+                for_context_before_current_for
                     .iter()
                     .map(|x| format!("\"{}\"", x))
                     .collect::<Vec<String>>()
@@ -210,6 +233,7 @@ pub fn gen_render_if_blk_func(
 {},
 {},
 {},
+{},
 [{}, {}],
 [{}{}]{}"#,
             if_blk_name,
@@ -217,6 +241,7 @@ pub fn gen_render_if_blk_func(
             if_block.condition,
             if_on_create,
             ctxjs_array,
+            parent_for_array,
             get_combined_binary_number(dep_number),
             if_blk_elm_loc,
             ref_node_ids_len_increase,

@@ -162,13 +162,13 @@ impl IfBlockInfo {
         current_for_ctx.is_none()
     }
 
-    pub fn get_latest_for_ctx(&self, ctx_categories: &ContextCategories) -> Option<&String> {
+    pub fn get_latest_for_ctx_idx(&self, ctx_categories: &ContextCategories) -> Option<usize> {
         let ctx_under_if = &self.ctx_under_if;
         let for_ctx = ctx_categories.for_ctx.clone();
 
-        for ctx in ctx_under_if.iter().rev() {
+        for (idx, ctx) in ctx_under_if.iter().rev().enumerate() {
             if for_ctx.contains(ctx) {
-                return Some(ctx);
+                return Some(ctx_under_if.len() - 1 - idx);
             }
         }
         None

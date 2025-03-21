@@ -40,6 +40,7 @@ export type LunasComponentState = {
   // __lunas_update_end: () => void;
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
+  cleanUps: { [key: string]: (() => void)[] };
 
   refMap: RefMap;
 };
@@ -108,6 +109,7 @@ export const $$lunasInitComponent = function (
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
+  this.cleanUps = {};
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -248,6 +250,7 @@ export const $$lunasInitComponent = function (
       condition: () => boolean,
       postRender: () => void,
       additionalCtx: string[],
+      forCtx: string[],
       depBit: number,
       mapInfo: [mapOffset: number | number[], mapLength: number],
       refIdx: [parentElementIndex: number, refElementIndex?: number],
@@ -260,6 +263,7 @@ export const $$lunasInitComponent = function (
       condition,
       postRender,
       ifCtx,
+      forCtx,
       depBit,
       [mapOffset, mapLength],
       [parentElementIndex, refElementIndex],
@@ -309,38 +313,54 @@ export const $$lunasInitComponent = function (
         condition,
       };
 
-      this.updateComponentFuncs[0].push(
-        (() => {
-          if (this.valUpdateMap & depBit) {
-            if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
-              if (condition()) {
-                this.ifBlocks[name].renderer();
+      const updateFunc = (() => {
+        if (this.valUpdateMap & depBit) {
+          if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
+            if (condition()) {
+              console.log(name, "render");
+              this.ifBlocks[name].renderer();
+            } else {
+              console.log(name, "remove");
+              const [locationArray, offset] = getNestedArrayAndItem(
+                mapOffset,
+                this.refMap
+              );
+              const ifBlkElm = locationArray[offset] as HTMLElement;
+              ifBlkElm.remove();
+              if (typeof mapOffset === "number") {
+                this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
               } else {
-                const [locationArray, offset] = getNestedArrayAndItem(
-                  mapOffset,
-                  this.refMap
-                );
-                const ifBlkElm = locationArray[offset] as HTMLElement;
-                ifBlkElm.remove();
-                if (typeof mapOffset === "number") {
-                  this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
-                } else {
-                  for (let i = 0; i < mapLength; i++) {
-                    const copiedMapOffset = [...mapOffset];
-                    copiedMapOffset[0] += i;
-                    const [locationArray, offset] = getNestedArrayAndItem(
-                      copiedMapOffset,
-                      this.refMap
-                    );
-                    locationArray[offset] = undefined;
-                  }
+                for (let i = 0; i < mapLength; i++) {
+                  const copiedMapOffset = [...mapOffset];
+                  copiedMapOffset[0] += i;
+                  const [locationArray, offset] = getNestedArrayAndItem(
+                    copiedMapOffset,
+                    this.refMap
+                  );
+                  locationArray[offset] = undefined;
                 }
-                this.blkRenderedMap ^= ifBlkBit;
               }
+              this.blkRenderedMap ^= ifBlkBit;
             }
           }
-        }).bind(this)
-      );
+        }
+      }).bind(this);
+
+      this.updateComponentFuncs[0].push(updateFunc);
+
+      const cleanUp = () => {
+        const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+        this.updateComponentFuncs[0].splice(idx, 1);
+      };
+
+      if (forCtx.length > 0) {
+        const latestFor = forCtx[forCtx.length - 1];
+        if (!this.cleanUps[latestFor]) {
+          this.cleanUps[latestFor] = [];
+        }
+        this.cleanUps[latestFor].push(cleanUp);
+      }
+
       if (fragments && fragments.length > 0) {
         const newCtx = ifCtx.length > 0 ? [...ifCtx, name] : [name];
         const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlocks);
@@ -481,6 +501,17 @@ export const $$lunasInitComponent = function (
                 this.refMap,
                 uniqueBit
               );
+              if (this.cleanUps[forBlockId]) {
+                this.cleanUps[forBlockId].forEach((f) => f());
+                delete this.cleanUps[forBlockId];
+              }
+              newItems.forEach((item, index) => {
+                const lunasElm = renderItem(item, index);
+                const domElm = _createDomElementFromLunasElement(lunasElm);
+                (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
+                containerElm.insertBefore(domElm, insertionPointElm);
+                afterRenderHook && afterRenderHook(item, index);
+              });
             }
             items = newItems;
           }
@@ -720,13 +751,6 @@ function updateForBlock(
       refArr.splice(i, 1);
     }
   }
-  newItems.forEach((item, index) => {
-    const lunasElm = renderItem(item, index);
-    const domElm = _createDomElementFromLunasElement(lunasElm);
-    (refMap[mapOffset]! as HTMLElement[]).push(domElm);
-    containerElm.insertBefore(domElm, insertionPointElm);
-    afterRenderHook && afterRenderHook(item, index);
-  });
 }
 
 // TODO: Currently, getNestedArrayAndItem and its caller are combined for processing,
