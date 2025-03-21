@@ -11,11 +11,8 @@ export type LunasModuleExports = {
 export type LunasComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number;
-  blkRenderedMap: number;
-  blkUpdateMap: number;
   internalElement: LunasInternalElement;
   currentVarBit: number;
-  currentIfBlkBit: number;
   currentForBlkBit: number;
   ifBlocks: {
     [key: string]: {
@@ -24,6 +21,8 @@ export type LunasComponentState = {
       condition: () => boolean;
     };
   };
+  ifBlockStates: Record<string, boolean>;
+  blkUpdateMap: Record<string, boolean>;
   updateComponentFuncs: (() => void)[][];
   isMounted: boolean;
   componentElm: HTMLElement;
@@ -98,13 +97,12 @@ export const $$lunasInitComponent = function (
 ) {
   this.updatedFlag = false;
   this.valUpdateMap = 0;
-  this.blkRenderedMap = 0;
-  this.blkUpdateMap = 0;
+  this.blkUpdateMap = {};
   this.currentVarBit = 0;
-  this.currentIfBlkBit = 0;
-  this.currentForBlkBit = 0;
+  this.currentForBlkBit = 0; // TODO: Delete this
   this.isMounted = false;
   this.ifBlocks = {};
+  this.ifBlockStates = {};
   this.compSymbol = Symbol();
   this.resetDependecies = [];
   this.refMap = [];
@@ -146,18 +144,6 @@ export const $$lunasInitComponent = function (
       genBitOfVariables().next();
     }
   }
-
-  const genBitOfIfBlks = function* (this: LunasComponentState) {
-    while (true) {
-      if (this.currentIfBlkBit === 0) {
-        this.currentIfBlkBit = 1;
-        yield this.currentIfBlkBit;
-      } else {
-        this.currentIfBlkBit <<= 1;
-        yield this.currentIfBlkBit;
-      }
-    }
-  }.bind(this);
 
   const componentElementSetter = function (
     this: LunasComponentState,
@@ -229,7 +215,7 @@ export const $$lunasInitComponent = function (
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = 0;
-      this.blkUpdateMap = 0;
+      this.blkUpdateMap = {};
     }).bind(this);
   }.bind(this);
 
@@ -269,7 +255,6 @@ export const $$lunasInitComponent = function (
       [parentElementIndex, refElementIndex],
       fragments,
     ] of ifBlocks) {
-      const ifBlkBit = genBitOfIfBlks().next().value;
       this.ifBlocks[name] = {
         renderer: ((
           mapOffset: number | number[],
@@ -302,9 +287,10 @@ export const $$lunasInitComponent = function (
           );
           referenceMapping[offset] = componentElm;
           postRender();
-          (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
+          this.ifBlockStates[name] = true;
+          this.blkUpdateMap[name] = true;
           Object.values(this.ifBlocks).forEach((blk) => {
-            if (blk.context[blk.context.length - 1] === name) {
+            if (blk.context.includes(name)) {
               blk.condition() && blk.renderer();
             }
           });
@@ -315,79 +301,64 @@ export const $$lunasInitComponent = function (
 
       const updateFunc = (() => {
         if (this.valUpdateMap & depBit) {
-          if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
-            if (condition()) {
-              console.log(name, "render");
-              this.ifBlocks[name].renderer();
+          const shouldRender = condition();
+          const rendered = !!this.ifBlockStates[name];
+          if (shouldRender && !rendered) {
+            this.ifBlocks[name].renderer();
+          } else if (!shouldRender && rendered) {
+            const [locationArray, offset] = getNestedArrayAndItem(
+              mapOffset,
+              this.refMap
+            );
+            const ifBlkElm = locationArray[offset] as HTMLElement;
+            ifBlkElm.remove();
+
+            if (typeof mapOffset === "number") {
+              this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
             } else {
-              console.log(name, "remove");
-              const [locationArray, offset] = getNestedArrayAndItem(
-                mapOffset,
-                this.refMap
-              );
-              const ifBlkElm = locationArray[offset] as HTMLElement;
-              ifBlkElm.remove();
-              if (typeof mapOffset === "number") {
-                this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
-              } else {
-                for (let i = 0; i < mapLength; i++) {
-                  const copiedMapOffset = [...mapOffset];
-                  copiedMapOffset[0] += i;
-                  const [locationArray, offset] = getNestedArrayAndItem(
-                    copiedMapOffset,
-                    this.refMap
-                  );
-                  locationArray[offset] = undefined;
-                }
+              for (let i = 0; i < mapLength; i++) {
+                const copiedMapOffset = [...mapOffset];
+                copiedMapOffset[0] += i;
+                const [locationArray, offset] = getNestedArrayAndItem(
+                  copiedMapOffset,
+                  this.refMap
+                );
+                locationArray[offset] = undefined;
               }
-              this.blkRenderedMap ^= ifBlkBit;
             }
+
+            delete this.ifBlockStates[name];
           }
         }
       }).bind(this);
 
       this.updateComponentFuncs[0].push(updateFunc);
 
-      const cleanUp = () => {
-        const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
-        this.updateComponentFuncs[0].splice(idx, 1);
-      };
-
-      if (forCtx.length > 0) {
-        const latestFor = forCtx[forCtx.length - 1];
-        if (!this.cleanUps[latestFor]) {
-          this.cleanUps[latestFor] = [];
-        }
-        this.cleanUps[latestFor].push(cleanUp);
-      }
-
-      if (fragments && fragments.length > 0) {
-        const newCtx = ifCtx.length > 0 ? [...ifCtx, name] : [name];
-        const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlocks);
-        let bit = 0;
-        alreadyReigsteredIfBlockNames.forEach((name, idx) => {
-          if (newCtx.includes(name)) {
-            bit |= 2 ** idx;
-          }
+      if (forCtx.length) {
+        const latest = forCtx[forCtx.length - 1];
+        (this.cleanUps[latest] ??= []).push(() => {
+          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+          this.updateComponentFuncs[0].splice(idx, 1);
         });
-        createFragments(fragments, bit);
       }
+
+      if (fragments?.length) {
+        const newCtx = [...ifCtx, name].filter((item) =>
+          Object.keys(this.ifBlocks).includes(item)
+        );
+        createFragments(fragments, newCtx);
+      }
+
       if (ifCtx.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
         const parentBlockName = ifCtx[ifCtx.length - 1];
-        const parentBit =
-          2 **
-          Object.keys(this.ifBlocks).findIndex(
-            (key) => key === parentBlockName
-          );
-        const alreadyRendered = (this.blkRenderedMap & parentBit) === parentBit;
-        if (alreadyRendered) {
-          condition() && this.ifBlocks[name].renderer();
+        if (this.ifBlockStates[parentBlockName] && condition()) {
+          this.ifBlocks[name].renderer();
         }
       }
     }
-    this.blkUpdateMap = 0;
+    this.blkUpdateMap = {};
   }.bind(this);
 
   const renderIfBlock = function (this: LunasComponentState, name: string) {
@@ -543,7 +514,7 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
-    ifCtx?: number
+    ifCtx?: string[]
   ) {
     for (const [
       [textContent, attributeName],
@@ -553,13 +524,14 @@ export const $$lunasInitComponent = function (
     ] of fragments) {
       this.updateComponentFuncs[1].push(
         (() => {
-          if (ifCtx != undefined) {
-            const blockRendered = (this.blkRenderedMap & ifCtx) === ifCtx;
-            const blockAlreadyUpdated = (this.blkUpdateMap & ifCtx) === ifCtx;
-            if (!blockRendered) {
-              return;
-            }
-            if (blockAlreadyUpdated) {
+          if (ifCtx?.length) {
+            const blockRendered = ifCtx.every(
+              (ctxName) => this.ifBlockStates[ctxName]
+            );
+            const blockAlreadyUpdated = ifCtx.every(
+              (ctxName) => this.blkUpdateMap[ctxName]
+            );
+            if (!blockRendered || blockAlreadyUpdated) {
               return;
             }
           }
