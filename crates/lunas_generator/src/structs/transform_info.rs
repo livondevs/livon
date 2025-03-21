@@ -67,7 +67,6 @@ pub struct IdBasedElementAccess {
     pub node_id: String,
     pub ctx: Vec<String>,
     pub elm_loc: Vec<usize>,
-    pub is_array: bool,
 }
 
 impl RefMap {
