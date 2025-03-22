@@ -70,6 +70,31 @@ impl Element {
         attributes.remove("$$$conditional$$$");
         attributes
     }
+
+    pub fn attributes_to_array(self) -> Vec<(String, Option<String>)> {
+        let mut attributes: Vec<(String, Option<String>)> = self.attributes.into_iter().collect();
+
+        attributes.sort_by(|a, b| {
+            let order = |key: &str| {
+                if key.starts_with(":for") {
+                    0
+                } else if key.starts_with(":if") {
+                    1
+                } else if key.starts_with("::") {
+                    2
+                } else if key.starts_with(":") {
+                    3
+                } else if key.starts_with("@") {
+                    4
+                } else {
+                    5
+                }
+            };
+            order(&a.0).cmp(&order(&b.0))
+        });
+
+        attributes
+    }
 }
 
 impl Node {

@@ -465,7 +465,11 @@ export const $$lunasInitComponent = function (
         const lunasElm = renderItem(item, index, fullIndices);
         const domElm = _createDomElementFromLunasElement(lunasElm);
 
-        (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
+        const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
+          [mapOffset, ...fullIndices],
+          this.refMap
+        );
+        referenceMapping[offset] = domElm;
         containerElm.insertBefore(domElm, insertionPointElm);
         afterRenderHook?.(item, index, fullIndices);
       });

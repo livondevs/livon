@@ -44,7 +44,7 @@ pub fn check_html_elms(
     custom_component_blocks_info: &mut Vec<CustomComponentBlockInfo>,
     txt_node_renderer: &mut Vec<ManualRendererForTextNode>,
     ctx_cats: &mut ContextCategories,
-    if_blk_ctx: &Vec<String>,
+    ctx: &Vec<String>,
     element_location: &Vec<usize>,
     count_of_siblings: usize,
     txt_node_to_be_deleted: bool,
@@ -52,29 +52,11 @@ pub fn check_html_elms(
     let node_id = node.uuid.clone();
     match &mut node.content {
         NodeContent::Element(element) => {
-            let mut ctx_array = if_blk_ctx.clone();
+            let mut ctx_array = ctx.clone();
             if !component_names.contains(&element.tag_name) {
-                for (key, action_value) in &element.attributes.clone() {
-                    // if attrs.name starts with "@"
-                    if key.starts_with("@") {
-                        let action_name = &key[1..];
-                        set_id_for_needed_elm(
-                            element,
-                            needed_ids,
-                            &node_id,
-                            &ctx_array,
-                            element_location,
-                        );
-                        if let Some(value) = &&action_value {
-                            actions_and_targets.push(ActionAndTarget {
-                                action_name: action_name.to_string(),
-                                action: EventTarget::new(value.to_string(), varibale_names),
-                                target: node_id.clone(),
-                                ctx: ctx_array.clone(),
-                            })
-                        }
-                        element.attributes.remove(key);
-                    } else if key == ":if" {
+                let x = element.clone().attributes_to_array();
+                for (key, action_value) in &x {
+                    if key == ":if" {
                         // TODO: Add error message for unwrap below
                         let condition = action_value.clone().unwrap();
                         let ctx_under_if = {
@@ -144,7 +126,7 @@ pub fn check_html_elms(
                             ));
                         }
 
-                        let ctx_under_if = {
+                        let ctx_under_for = {
                             let mut ctx = ctx_array.clone();
                             ctx.push(node.uuid.clone());
                             ctx
@@ -161,7 +143,7 @@ pub fn check_html_elms(
                                     item_collection: items_collection.to_string(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
-                                    ctx_under_for: ctx_under_if,
+                                    ctx_under_for,
                                     elm_loc: element_location.clone(),
                                 },
                             ),
@@ -271,6 +253,24 @@ pub fn check_html_elms(
                         };
 
                         reactive_attr_info.reactive_attr.push(reactive_attr);
+                    } else if key.starts_with("@") {
+                        let action_name = &key[1..];
+                        set_id_for_needed_elm(
+                            element,
+                            needed_ids,
+                            &node_id,
+                            &ctx_array,
+                            element_location,
+                        );
+                        if let Some(value) = &&action_value {
+                            actions_and_targets.push(ActionAndTarget {
+                                action_name: action_name.to_string(),
+                                action: EventTarget::new(value.to_string(), varibale_names),
+                                target: node_id.clone(),
+                                ctx: ctx_array.clone(),
+                            })
+                        }
+                        element.attributes.remove(key);
                     }
                 }
 
@@ -390,7 +390,7 @@ pub fn check_html_elms(
                                     needed_ids,
                                     node_id,
                                     // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &if_blk_ctx,
+                                    &ctx,
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -458,8 +458,7 @@ pub fn check_html_elms(
                                     },
                                     needed_ids,
                                     node_id,
-                                    // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &if_blk_ctx,
+                                    &remove_statement.ctx_over_for,
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -518,7 +517,7 @@ pub fn check_html_elms(
                                     needed_ids,
                                     node_id,
                                     // TODO: 親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &if_blk_ctx,
+                                    &ctx,
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -586,7 +585,7 @@ pub fn check_html_elms(
                                     needed_ids,
                                     node_id,
                                     // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &if_blk_ctx,
+                                    &ctx,
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -633,7 +632,7 @@ pub fn check_html_elms(
                         SetIdToParentForChildReactiveText {
                             text: text.clone(),
                             depenent_vars: dep_vars,
-                            ctx: if_blk_ctx.clone(),
+                            ctx: ctx.clone(),
                             elm_loc: element_location.clone(),
                         },
                     ),
@@ -643,7 +642,7 @@ pub fn check_html_elms(
                     target_uuid: parent_uuid.unwrap().clone(),
                     manipulations: HtmlManipulation::RemoveChildTextNode(RemoveChildTextNode {
                         depenent_vars: dep_vars,
-                        ctx: if_blk_ctx.clone(),
+                        ctx: ctx.clone(),
                         elm_loc: element_location.clone(),
                         child_uuid: node_id,
                         content: text.clone(),
