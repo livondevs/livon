@@ -303,7 +303,8 @@ export const $$lunasInitComponent = function (
         if (this.valUpdateMap & depBit) {
           const shouldRender = condition();
           const rendered = !!this.ifBlockStates[name];
-          if (shouldRender && !rendered) {
+          const parentRendered = ifCtx.every((ctx) => this.ifBlockStates[ctx]);
+          if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
           } else if (!shouldRender && rendered) {
             const [locationArray, offset] = getNestedArrayAndItem(
