@@ -41,7 +41,7 @@ pub fn gen_render_if_blk_func(
         }
         let initial_ref_node_ids_len = ref_node_ids.len();
         let if_blk_elm_loc = match under_for {
-            true => format!("[{}, index]", ref_node_ids.len()),
+            true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
             false => ref_node_ids.len().to_string(),
         };
         let create_internal_element_statement = match &if_block.node.content {
@@ -106,7 +106,7 @@ pub fn gen_render_if_blk_func(
             .to_string();
         let parent_if_blk_id_idx = match under_for {
             // TODO: 重要 nestに対応せよ。
-            true => format!("[{}, index]", parent_if_blk_id_idx_num),
+            true => format!("[{}, ...$$lunasForIndices]", parent_if_blk_id_idx_num),
             false => parent_if_blk_id_idx_num.to_string(),
         };
         let idx_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
@@ -141,7 +141,7 @@ pub fn gen_render_if_blk_func(
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
             Some(idx) => match under_for {
-                true => format!(r#", [{}, index]"#, idx),
+                true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
                 false => format!(r#", {}"#, idx),
             },
             None => "".to_string(),

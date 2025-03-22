@@ -223,6 +223,8 @@ pub fn generate_js_from_blocks(
         &mut ref_node_ids,
         &ctx_cats,
         &if_blocks_info,
+        &for_blocks_info,
+        None,
     );
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
@@ -368,7 +370,7 @@ pub fn gen_ref_getter_from_needed_ids(
         }
     } else {
         format!(
-            ", [{}, index]",
+            ", [{}, ...$$lunasForIndices]",
             ref_node_ids_count + node_creation_method_count
         )
     };
@@ -400,9 +402,8 @@ pub fn create_event_listener(
             .iter()
             .position(|id| id == &action_and_target.target)
             .unwrap();
-        // TODO: ネストIFに対応する、重要
         let reference_string = match under_for {
-            true => format!("[{}, index]", reference_node_idx),
+            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
             false => reference_node_idx.to_string(),
         };
         result.push(format!(
@@ -617,7 +618,7 @@ pub fn gen_create_anchor_statements(
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
                         let reference_node_idx = reference_node_idx.to_string();
                         match under_for {
-                            true => format!("[{}, index]", reference_node_idx),
+                            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
                             false => reference_node_idx,
                         }
                     }
@@ -630,7 +631,7 @@ pub fn gen_create_anchor_statements(
                         .unwrap()
                         .to_string();
                     match under_for {
-                        true => format!("[{}, index]", parent_node_idx),
+                        true => format!("[{}, ...$$lunasForIndices]", parent_node_idx),
                         false => parent_node_idx,
                     }
                 };
@@ -709,7 +710,7 @@ pub fn gen_render_custom_component_statements(
                         .unwrap()
                         .to_string();
                     match under_for {
-                        true => format!("[{}, index]", anchor_idx),
+                        true => format!("[{}, ...$$lunasForIndices]", anchor_idx),
                         false => anchor_idx.to_string(),
                     }
                 }
@@ -717,9 +718,8 @@ pub fn gen_render_custom_component_statements(
                     Some(anchor_id) => {
                         let reference_node_idx =
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
-                        // reference_node_idx.to_string()
                         match under_for {
-                            true => format!("[{}, index]", reference_node_idx),
+                            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
                             false => reference_node_idx.to_string(),
                         }
                     }
@@ -733,12 +733,12 @@ pub fn gen_render_custom_component_statements(
                     .unwrap()
                     .to_string();
                 match under_for {
-                    true => format!("[{}, index]", custom_component_parent_index),
+                    true => format!("[{}, ...$$lunasForIndices]", custom_component_parent_index),
                     false => custom_component_parent_index,
                 }
             };
             let ref_idx = match under_for {
-                true => format!("[{}, index]", ref_node_ids.len()),
+                true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
                 false => ref_node_ids.len().to_string(),
             };
             render_custom_statements.push(format!(

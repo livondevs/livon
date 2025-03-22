@@ -144,17 +144,6 @@ pub fn check_html_elms(
                             ));
                         }
 
-                        // Check if the items_collection exists in the available variables
-                        if !varibale_names.contains(&items_collection.to_string())
-                            && !items_collection.contains(".")
-                        {
-                            // Allow dot notation for accessing properties, but warn about the base variable
-                            return Err(format!(
-                                "Collection '{}' in :for directive is not defined",
-                                items_collection
-                            ));
-                        }
-
                         let ctx_under_if = {
                             let mut ctx = ctx_array.clone();
                             ctx.push(node.uuid.clone());

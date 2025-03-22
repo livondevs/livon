@@ -405,16 +405,24 @@ export const $$lunasInitComponent = function (
     this: LunasComponentState,
     forBlocksConfig: [
       forBlockId: string,
-      renderItem: (item: unknown, index: number) => LunasInternalElement,
+      renderItem: (
+        item: unknown,
+        index: number,
+        indices: number[]
+      ) => LunasInternalElement,
       getDataArray: () => unknown[],
-      afterRenderHook: (item: unknown, index: number) => void,
+      afterRenderHook: (
+        item: unknown,
+        index: number,
+        indices: number[]
+      ) => void,
       updateFlag: number,
+      parentIndices: number[],
       mapInfo: [mapOffset: number, mapLength: number],
-      refIdx: [parentElementIndex: number, refElementIndex?: number],
-      context: any,
-      containerRef: string,
-      insertionPointRef: string | null,
-      additionalParams: { [key: string]: any }
+      refIdx: [
+        parentElementIndex: number | number[],
+        refElementIndex?: number | number[]
+      ]
     ][]
   ): void {
     for (const config of forBlocksConfig) {
@@ -424,35 +432,41 @@ export const $$lunasInitComponent = function (
         getDataArray,
         afterRenderHook,
         updateFlag,
+        parentIndices,
         [mapOffset, mapLength],
         [parentElementIndex, refElementIndex],
-        // TODO: Decide whether to use the following or delete it
-        // context,
-        // updateFlag,
-        // containerRef,
-        // insertionPointRef,
-        // additionalParams,
       ] = config;
 
       // 初回レンダリング
       let items = getDataArray();
       const uniqueBit = genBitOfForBlock().next().value;
 
-      const containerElm = this.refMap[parentElementIndex] as HTMLElement;
+      const containerElm = (() => {
+        const [locationArray, offset] = getNestedArrayAndItem(
+          parentElementIndex,
+          this.refMap
+        );
+        return locationArray[offset] as HTMLElement;
+      })();
 
-      const insertionPointElm =
-        refElementIndex == undefined
-          ? null
-          : (this.refMap[refElementIndex] as HTMLElement);
+      const insertionPointElm = (() => {
+        if (refElementIndex == undefined) return null;
+        const [locationArray, offset] = getNestedArrayAndItem(
+          refElementIndex,
+          this.refMap
+        );
+        return locationArray[offset] as HTMLElement;
+      })();
 
       this.refMap[mapOffset] = [] as HTMLElement[];
       items.forEach((item, index) => {
-        const lunasElm = renderItem(item, index);
+        const fullIndices = [...parentIndices, index];
+        const lunasElm = renderItem(item, index, fullIndices);
         const domElm = _createDomElementFromLunasElement(lunasElm);
 
         (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
         containerElm.insertBefore(domElm, insertionPointElm);
-        afterRenderHook?.(item, index);
+        afterRenderHook?.(item, index, fullIndices);
       });
 
       this.updateComponentFuncs[0].push(
@@ -477,11 +491,12 @@ export const $$lunasInitComponent = function (
                 delete this.cleanUps[forBlockId];
               }
               newItems.forEach((item, index) => {
-                const lunasElm = renderItem(item, index);
+                const fullIndices = [...parentIndices, index];
+                const lunasElm = renderItem(item, index, fullIndices);
                 const domElm = _createDomElementFromLunasElement(lunasElm);
                 (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
                 containerElm.insertBefore(domElm, insertionPointElm);
-                afterRenderHook && afterRenderHook(item, index);
+                afterRenderHook && afterRenderHook(item, index, fullIndices);
               });
             }
             items = newItems;
@@ -736,8 +751,12 @@ function diffDetected<T>(oldArray: T[], newArray: T[]): boolean {
 function updateForBlock(
   _forBlockId: string,
   newItems: unknown[],
-  renderItem: (item: unknown, index: number) => LunasInternalElement,
-  afterRenderHook: (item: unknown, index: number) => void,
+  renderItem: (
+    item: unknown,
+    index: number,
+    includes: number[]
+  ) => LunasInternalElement,
+  afterRenderHook: (item: unknown, index: number, includes: number[]) => void,
   containerElm: HTMLElement,
   insertionPointElm: HTMLElement | null,
   mapOffset: number,

@@ -31,10 +31,16 @@ pub fn gen_render_for_blk_func(
     ref_node_ids: &mut Vec<String>,
     ctx_categories: &ContextCategories,
     if_blocks_info: &Vec<IfBlockInfo>,
+    for_blocks_info: &Vec<ForBlockInfo>,
+    current_for_ctx: Option<&String>,
 ) -> Option<String> {
     let mut render_for = vec![];
 
     for for_block in for_block_info.iter() {
+        if !for_block.check_latest_for_ctx(ctx_categories, &current_for_ctx) {
+            continue;
+        }
+
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &for_block.node.content {
             NodeContent::Element(elm) => {
@@ -71,6 +77,7 @@ pub fn gen_render_for_blk_func(
             ref_node_ids,
             true,
         );
+
         if let Some(gen_anchor) = gen_anchor {
             post_render_statement.push(gen_anchor);
         }
@@ -107,12 +114,37 @@ pub fn gen_render_for_blk_func(
             post_render_statement.push(if_blk_gen);
         }
 
+        let parent_indices = match for_block.have_for_block_on_parent(ctx_categories) {
+            true => "$$lunasForIndices".to_string(),
+            false => "[]".to_string(),
+        };
+
+        let render_sub_for = gen_render_for_blk_func(
+            &for_blocks_info,
+            &ref_map,
+            &actions_and_targets,
+            &text_node_renderer,
+            &custom_component_blocks_info,
+            &variable_names,
+            &dep_vars_assigned_numbers,
+            &elm_and_var_relation,
+            ref_node_ids,
+            &ctx_categories,
+            &if_blocks_info,
+            &for_blocks_info,
+            Some(last_ctx_under_for),
+        );
+
+        if let Some(render_sub_for) = render_sub_for {
+            post_render_statement.push(render_sub_for);
+        }
+
         // forブロックの初期化処理（renderedNodeId用）を生成
         let for_on_create = if post_render_statement.is_empty() {
             "() => {}".to_string()
         } else {
             format!(
-                r#"({}, {}) => {{
+                r#"({}, {}, $$lunasForIndices) => {{
 {}
 }}"#,
                 for_block.item_name,
@@ -141,12 +173,18 @@ pub fn gen_render_for_blk_func(
             &ref_node_ids,
             &for_block.ctx_under_for,
         );
-        // いったん fragments は使用しないので除外
-        let parent_if_blk_id_idx = ref_node_ids
-            .iter()
-            .position(|x| x == &for_block.parent_id)
-            .unwrap()
-            .to_string();
+        let parent_if_blk_id_idx = {
+            let idx = ref_node_ids
+                .iter()
+                .position(|x| x == &for_block.parent_id)
+                .unwrap()
+                .to_string();
+            match current_for_ctx.is_some() {
+                true => format!(r#"[{}, ...$$lunasForIndices]"#, idx),
+                false => idx.to_string(),
+            }
+        };
+
         let idx_of_anchor_of_if_blk = match for_block.distance_to_next_elm > 1 {
             true => Some(
                 ref_node_ids
@@ -168,14 +206,18 @@ pub fn gen_render_for_blk_func(
         };
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
-            Some(idx) => format!(r#", {}"#, idx),
+            Some(idx) => match current_for_ctx.is_some() {
+                true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
+                false => format!(r#", {}"#, idx),
+            },
             None => "".to_string(),
         };
 
         let create_for_func_inside = format!(
             r#""{}",
-({}, {}) => {},
+({}, {}, $$lunasForIndices) => {},
 () => ({}),
+{},
 {},
 {},
 [{}, {}],
@@ -187,6 +229,7 @@ pub fn gen_render_for_blk_func(
             for_block.item_collection,
             for_on_create,
             get_combined_binary_number(dep_number),
+            parent_indices,
             initial_ref_node_ids_len,
             ref_node_ids_len_increase,
             parent_if_blk_id_idx,

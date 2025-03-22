@@ -192,6 +192,30 @@ pub struct ForBlockInfo {
     pub element_location: Vec<usize>,
 }
 
+impl ForBlockInfo {
+    pub fn check_latest_for_ctx(
+        &self,
+        ctx_categories: &ContextCategories,
+        current_for_ctx: &Option<&String>,
+    ) -> bool {
+        let ctx_over_for = &self.ctx_over_for;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for ctx in ctx_over_for.iter().rev() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx) == *current_for_ctx;
+            }
+        }
+        current_for_ctx.is_none()
+    }
+
+    pub fn have_for_block_on_parent(&self, ctx_categories: &ContextCategories) -> bool {
+        self.ctx_over_for
+            .iter()
+            .any(|item| ctx_categories.for_ctx.contains(item))
+    }
+}
+
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
     if_blocks.sort_by(|a, b| a.element_location.cmp(&b.element_location));
 }
