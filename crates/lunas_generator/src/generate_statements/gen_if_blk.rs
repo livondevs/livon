@@ -64,7 +64,10 @@ pub fn gen_render_if_blk_func(
         }
 
         let if_blk_name = match under_for {
-            true => format!("`{}-${{index}}`", if_block.target_if_blk_id),
+            true => format!(
+                " () => `{}-${{$$lunasForIndices}}`",
+                if_block.target_if_blk_id
+            ),
             false => format!("\"{}\"", if_block.target_if_blk_id),
         };
 

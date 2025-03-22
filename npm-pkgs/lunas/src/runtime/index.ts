@@ -231,7 +231,7 @@ export const $$lunasInitComponent = function (
   const createIfBlock = function (
     this: LunasComponentState,
     ifBlocks: [
-      name: string,
+      name: string | (() => string),
       lunasElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
@@ -244,7 +244,7 @@ export const $$lunasInitComponent = function (
     ][]
   ) {
     for (const [
-      name,
+      getName,
       lunasElement,
       condition,
       postRender,
@@ -255,6 +255,7 @@ export const $$lunasInitComponent = function (
       [parentElementIndex, refElementIndex],
       fragments,
     ] of ifBlocks) {
+      const name = typeof getName === "function" ? getName() : getName;
       this.ifBlocks[name] = {
         renderer: ((
           mapOffset: number | number[],
@@ -459,7 +460,6 @@ export const $$lunasInitComponent = function (
         return locationArray[offset] as HTMLElement;
       })();
 
-      this.refMap[mapOffset] = [] as HTMLElement[];
       items.forEach((item, index) => {
         const fullIndices = [...parentIndices, index];
         const lunasElm = renderItem(item, index, fullIndices);
