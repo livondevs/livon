@@ -65,7 +65,7 @@ pub fn gen_render_if_blk_func(
 
         let if_blk_name = match under_for {
             true => format!(
-                " () => `{}-${{$$lunasForIndices}}`",
+                "() => `{}-${{$$lunasForIndices}}`",
                 if_block.target_if_blk_id
             ),
             false => format!("\"{}\"", if_block.target_if_blk_id),
@@ -221,15 +221,14 @@ pub fn gen_render_if_blk_func(
             &ref_node_ids,
             &if_block.ctx_under_if,
             under_for,
+            &None,
         );
 
         let if_fragments = if let Some(fragments) = fragments {
             format!(
                 r#",
-[
-{}
-]"#,
-                create_indent(fragments.as_str())
+{}"#,
+                fragments
             )
         } else {
             "".to_string()

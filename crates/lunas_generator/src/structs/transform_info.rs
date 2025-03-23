@@ -214,6 +214,24 @@ impl ForBlockInfo {
             .iter()
             .any(|item| ctx_categories.for_ctx.contains(item))
     }
+
+    pub fn extract_if_ctx_between_latest_for(
+        &self,
+        ctx_categories: &ContextCategories,
+    ) -> Vec<String> {
+        let ctx_over_for = &self.ctx_over_for;
+        let for_ctx = ctx_categories.for_ctx.clone();
+        let mut ctx_between_latest_for = vec![];
+
+        for ctx in ctx_over_for.iter().rev() {
+            if for_ctx.contains(ctx) {
+                break;
+            }
+            ctx_between_latest_for.push(ctx.clone());
+        }
+        ctx_between_latest_for.reverse();
+        ctx_between_latest_for
+    }
 }
 
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {

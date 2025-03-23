@@ -139,7 +139,6 @@ pub fn gen_render_for_blk_func(
             post_render_statement.push(render_sub_for);
         }
 
-        // forブロックの初期化処理（renderedNodeId用）を生成
         let for_on_create = if post_render_statement.is_empty() {
             "() => {}".to_string()
         } else {
@@ -151,6 +150,11 @@ pub fn gen_render_for_blk_func(
                 for_block.item_index,
                 create_indent(post_render_statement.join("\n").as_str()),
             )
+        };
+
+        let context_if_extracted = {
+            let extracted_if_ctx = for_block.extract_if_ctx_between_latest_for(ctx_categories);
+            format!("[{}]", extracted_if_ctx.join(", "))
         };
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
@@ -167,12 +171,19 @@ pub fn gen_render_for_blk_func(
             .map(|v| v.assignment)
             .collect::<Vec<u32>>();
 
+        let fragment_args = vec![
+            for_block.item_name.clone(),
+            for_block.item_index.clone(),
+            "$$lunasForIndices".to_string(),
+        ];
+
         let fragments = create_fragments(
             &elm_and_var_relation,
             &dep_vars_assigned_numbers,
             &ref_node_ids,
             &for_block.ctx_under_for,
             true,
+            &Some(fragment_args),
         );
 
         let parent_if_blk_id_idx = {
@@ -207,6 +218,12 @@ pub fn gen_render_for_blk_func(
             },
         };
 
+        let for_fragments = if let Some(fragments) = fragments {
+            format!(",\n{}", fragments)
+        } else {
+            "".to_string()
+        };
+
         let anchor_idx = match idx_of_anchor_of_if_blk {
             Some(idx) => match current_for_ctx.is_some() {
                 true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
@@ -222,20 +239,23 @@ pub fn gen_render_for_blk_func(
 {},
 {},
 {},
+{},
 [{}, {}],
-[{}{}]"#,
+[{}{}]{}"#,
             for_block.target_for_blk_id,
             for_block.item_name,
             for_block.item_index,
             create_internal_element_statement,
             for_block.item_collection,
             for_on_create,
+            context_if_extracted, //HERE
             get_combined_binary_number(dep_number),
             parent_indices,
             initial_ref_node_ids_len,
             ref_node_ids_len_increase,
             parent_if_blk_id_idx,
             anchor_idx,
+            for_fragments,
         );
 
         let create_for_func = format!(

@@ -439,6 +439,7 @@ pub fn create_fragments_func(
         &ref_node_ids,
         &vec![],
         under_for,
+        &None,
     );
 
     if fragments_str.is_none() {
@@ -446,19 +447,20 @@ pub fn create_fragments_func(
     }
 
     Some(format!(
-        r#"$$lunasCreateFragments([
-{}
-]);"#,
-        create_indent(fragments_str.unwrap().as_str())
+        r#"
+$$lunasCreateFragments({});"#,
+        fragments_str.unwrap()
     ))
 }
 
+// TODO: 別ファイルに移動
 pub fn create_fragments(
     elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &Vec<String>,
     current_ctx: &Vec<String>,
     under_for: bool,
+    fragment_func_args: &Option<Vec<String>>,
 ) -> Option<String> {
     let mut fragments = vec![];
 
@@ -491,10 +493,17 @@ pub fn create_fragments(
                         .map(|v| v.assignment)
                         .collect::<Vec<u32>>();
 
-                    let target_node_idx = ref_node_ids
-                        .iter()
-                        .position(|id| id == &elm_and_attr_relation.elm_id)
-                        .unwrap();
+                    let target_node_idx = {
+                        let target_node_idx = ref_node_ids
+                            .iter()
+                            .position(|id| id == &elm_and_attr_relation.elm_id)
+                            .unwrap();
+
+                        match under_for {
+                            true => format!("[{}, ...$$lunasForIndices]", target_node_idx),
+                            false => target_node_idx.to_string(),
+                        }
+                    };
 
                     fragments.push(format!(
                         "[[() => {}, \"{}\"], {}, {}, {}]",
@@ -562,7 +571,24 @@ pub fn create_fragments(
     if fragments.is_empty() {
         return None;
     }
-    Some(fragments.join(",\n"))
+
+    if let Some(args_vec) = fragment_func_args {
+        let args = args_vec.iter().cloned().collect::<Vec<String>>().join(", ");
+        Some(format!(
+            r#"({}) => [
+{}
+]"#,
+            args,
+            create_indent(fragments.join(",\n").as_str())
+        ))
+    } else {
+        Some(format!(
+            r#"[
+{}
+]"#,
+            create_indent(fragments.join(",\n").as_str())
+        ))
+    }
 }
 
 pub fn gen_create_anchor_statements(
@@ -585,17 +611,26 @@ pub fn gen_create_anchor_statements(
                     Some(anchor_id) => {
                         let reference_node_idx = ref_node_ids.iter().position(|id| id == anchor_id);
                         match reference_node_idx {
-                            Some(idx) => idx.to_string(),
+                            Some(idx) => match under_for {
+                                true => format!("[{}, ...$$lunasForIndices]", idx),
+                                false => idx.to_string(),
+                            },
                             None => "null".to_string(),
                         }
                     }
                     None => "null".to_string(),
                 };
-                let parent_node_idx = ref_node_ids
-                    .iter()
-                    .position(|id| id == &txt_renderer.parent_id)
-                    .unwrap()
-                    .to_string();
+                let parent_node_idx = {
+                    let parent_node_idx = ref_node_ids
+                        .iter()
+                        .position(|id| id == &txt_renderer.parent_id)
+                        .unwrap()
+                        .to_string();
+                    match under_for {
+                        true => format!("[{}, ...$$lunasForIndices]", parent_node_idx),
+                        false => parent_node_idx,
+                    }
+                };
                 let create_anchor_statement = format!(
                     "[1, {}, {}, `{}`],",
                     &parent_node_idx,
@@ -663,7 +698,23 @@ pub fn gen_create_anchor_statements(
         }
     }
 
-    let anchor_offset = if ref_node_ids_count_before_creating_anchors == 0 {
+    let anchor_offset = match under_for {
+        true => {
+            format!(
+                ", [{}, ...$$lunasForIndices]",
+                ref_node_ids_count_before_creating_anchors.to_string()
+            )
+        }
+        false => match ref_node_ids_count_before_creating_anchors == 0 {
+            true => "".to_string(),
+            false => format!(
+                ", {}",
+                ref_node_ids_count_before_creating_anchors.to_string()
+            ),
+        },
+    };
+
+    if ref_node_ids_count_before_creating_anchors == 0 {
         "".to_string()
     } else {
         format!(

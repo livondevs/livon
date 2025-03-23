@@ -52,6 +52,12 @@ type LunasInternalElement = {
 
 type NestedArray<T> = (T | NestedArray<T>)[];
 
+type FragmentFunc = (
+  item?: unknown,
+  index?: number,
+  indices?: number[]
+) => Fragment[];
+
 class valueObj<T> {
   dependencies: { [key: symbol]: [LunasComponentState, number] } = {};
   constructor(
@@ -237,7 +243,7 @@ export const $$lunasInitComponent = function (
       lunasElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
-      additionalCtx: string[],
+      ifCtx: string[],
       forCtx: string[],
       depBit: number,
       mapInfo: [mapOffset: number | number[], mapLength: number],
@@ -253,7 +259,7 @@ export const $$lunasInitComponent = function (
       lunasElement,
       condition,
       postRender,
-      ifCtx,
+      ifCtxUnderFor,
       forCtx,
       depBit,
       [mapOffset, mapLength],
@@ -285,7 +291,7 @@ export const $$lunasInitComponent = function (
             }
           });
         }).bind(this, mapOffset, mapLength),
-        context: ifCtx,
+        context: ifCtxUnderFor,
         condition,
       };
 
@@ -293,7 +299,9 @@ export const $$lunasInitComponent = function (
         if (this.valUpdateMap & depBit) {
           const shouldRender = condition();
           const rendered = !!this.ifBlockStates[name];
-          const parentRendered = ifCtx.every((ctx) => this.ifBlockStates[ctx]);
+          const parentRendered = ifCtxUnderFor.every(
+            (ctx) => this.ifBlockStates[ctx]
+          );
           if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
           } else if (!shouldRender && rendered) {
@@ -328,17 +336,18 @@ export const $$lunasInitComponent = function (
         });
       }
 
-      if (fragments?.length) {
-        const newCtx = [...ifCtx, name].filter((item) =>
-          Object.keys(this.ifBlocks).includes(item)
-        );
-        createFragments(fragments, newCtx);
+      if (fragments) {
+        // FIXME: Confirm if the following commented-out code can be removed
+        // const newCtx = [...ifCtx, name].filter((item) =>
+        //   Object.keys(this.ifBlocks).includes(item)
+        // );
+        createFragments(fragments, [...ifCtxUnderFor, name]);
       }
 
-      if (ifCtx.length === 0) {
+      if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
-        const parentBlockName = ifCtx[ifCtx.length - 1];
+        const parentBlockName = ifCtxUnderFor[ifCtxUnderFor.length - 1];
         if (this.ifBlockStates[parentBlockName] && condition()) {
           this.ifBlocks[name].renderer();
         }
@@ -393,13 +402,15 @@ export const $$lunasInitComponent = function (
         index: number,
         indices: number[]
       ) => void,
+      ifCtxUnderFor: string[],
       updateFlag: number,
       parentIndices: number[],
       mapInfo: [mapOffset: number, mapLength: number],
       refIdx: [
         parentElementIndex: number | number[],
         refElementIndex?: number | number[]
-      ]
+      ],
+      fragment?: FragmentFunc
     ][]
   ): void {
     for (const config of forBlocksConfig) {
@@ -408,10 +419,12 @@ export const $$lunasInitComponent = function (
         renderItem,
         getDataArray,
         afterRenderHook,
+        ifCtxUnderFor,
         updateFlag,
         parentIndices,
         [mapOffset, mapLength],
         [parentElementIndex, refElementIndex],
+        fragmentFunc,
       ] = config;
 
       // Initial rendering
@@ -435,6 +448,10 @@ export const $$lunasInitComponent = function (
         setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
         containerElm.insertBefore(domElm, insertionPointElm);
         afterRenderHook?.(item, index, fullIndices);
+        if (fragmentFunc) {
+          const fragments = fragmentFunc(item, index, fullIndices);
+          createFragments(fragments, ifCtxUnderFor);
+        }
       });
 
       this.updateComponentFuncs[0].push(
@@ -482,12 +499,15 @@ export const $$lunasInitComponent = function (
       anchor?: number | number[],
       text?: string
     ][],
-    _offset: number = 0
+    _assignmentLocation: number[] | number = 0
   ) {
-    let offset = _offset;
+    let assignmentLocation =
+      typeof _assignmentLocation === "number"
+        ? [_assignmentLocation]
+        : _assignmentLocation;
     for (const [amount, parentIdx, anchorIdx, text] of args) {
       for (let i = 0; i < amount; i++) {
-        const empty = document.createTextNode(text ?? " ");
+        const txtNode = document.createTextNode(text ?? " ");
         const parentElm = getNestedArrayValue(
           this.refMap,
           parentIdx
@@ -496,10 +516,10 @@ export const $$lunasInitComponent = function (
           this.refMap,
           anchorIdx
         ) as HTMLElement;
-        parentElm.insertBefore(empty, anchorElm);
-        this.refMap[offset + i] = empty;
+        parentElm.insertBefore(txtNode, anchorElm);
+        setNestedArrayValue(this.refMap, assignmentLocation, txtNode);
+        assignmentLocation[0]++;
       }
-      offset += amount;
     }
   }.bind(this);
 
@@ -510,10 +530,11 @@ export const $$lunasInitComponent = function (
   ) {
     for (const [
       [textContent, attributeName],
-      nodeIdx,
+      _nodeIdx,
       depBit,
       fragmentType,
     ] of fragments) {
+      const nodeIdx = typeof _nodeIdx === "number" ? [_nodeIdx] : _nodeIdx;
       this.updateComponentFuncs[1].push(
         (() => {
           if (ifCtx?.length) {
@@ -527,7 +548,6 @@ export const $$lunasInitComponent = function (
               return;
             }
           }
-
           const valueUpdated = (this.valUpdateMap & depBit) !== 0;
           if (!valueUpdated) {
             return;
