@@ -220,6 +220,7 @@ pub fn gen_render_if_blk_func(
             &dep_vars_assigned_numbers,
             &ref_node_ids,
             &if_block.ctx_under_if,
+            under_for,
         );
 
         let if_fragments = if let Some(fragments) = fragments {

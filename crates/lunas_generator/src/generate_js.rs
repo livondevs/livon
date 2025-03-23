@@ -191,7 +191,7 @@ pub fn generate_js_from_blocks(
         after_mount_code_array.push(code);
     }
 
-    let fragments = create_fragments_func(&elm_and_var_relation, &variables, &ref_node_ids);
+    let fragments = create_fragments_func(&elm_and_var_relation, &variables, &ref_node_ids, false);
 
     if let Some(fragments) = fragments {
         after_mount_code_array.push(fragments);
@@ -431,12 +431,14 @@ pub fn create_fragments_func(
     elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
     variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &Vec<String>,
+    under_for: bool,
 ) -> Option<String> {
     let fragments_str = create_fragments(
         elm_and_variable_relations,
         variable_name_and_assigned_numbers,
         &ref_node_ids,
         &vec![],
+        under_for,
     );
 
     if fragments_str.is_none() {
@@ -456,6 +458,7 @@ pub fn create_fragments(
     variable_name_and_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     ref_node_ids: &Vec<String>,
     current_ctx: &Vec<String>,
+    under_for: bool,
 ) -> Option<String> {
     let mut fragments = vec![];
 
@@ -538,10 +541,18 @@ pub fn create_fragments(
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 
+                let target_node_index = {
+                    let idx = ref_node_ids.iter().position(|id| id == &target_id).unwrap();
+                    match under_for {
+                        true => format!("[{}, ...$$lunasForIndices]", idx),
+                        false => idx.to_string(),
+                    }
+                };
+
                 fragments.push(format!(
                     "[[() => `{}`], {}, {}, {}]",
                     content,
-                    ref_node_ids.iter().position(|id| id == &target_id).unwrap(),
+                    target_node_index,
                     combined_number,
                     "1" // FragmentType.TEXT
                 ));

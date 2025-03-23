@@ -167,12 +167,14 @@ pub fn gen_render_for_blk_func(
             .map(|v| v.assignment)
             .collect::<Vec<u32>>();
 
-        let _fragments = create_fragments(
+        let fragments = create_fragments(
             &elm_and_var_relation,
             &dep_vars_assigned_numbers,
             &ref_node_ids,
             &for_block.ctx_under_for,
+            true,
         );
+
         let parent_if_blk_id_idx = {
             let idx = ref_node_ids
                 .iter()

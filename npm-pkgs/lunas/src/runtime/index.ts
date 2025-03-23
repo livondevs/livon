@@ -532,7 +532,7 @@ export const $$lunasInitComponent = function (
           if (!valueUpdated) {
             return;
           }
-          const target = this.refMap[nodeIdx] as HTMLElement;
+          const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
           if (fragmentType === FragmentType.ATTRIBUTE) {
             $$lunasReplaceAttr(
               attributeName!,
@@ -679,7 +679,7 @@ const _shouldRender = (
 
 type Fragment = [
   content: [textContent: () => string, attributeName?: string],
-  nodeIdx: number,
+  nodeIdx: number[] | number,
   depBit: number,
   fragmentType: FragmentType
 ];
