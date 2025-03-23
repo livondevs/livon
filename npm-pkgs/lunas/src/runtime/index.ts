@@ -50,6 +50,8 @@ type LunasInternalElement = {
   topElmAttr: { [key: string]: string };
 };
 
+type NestedArray<T> = (T | NestedArray<T>)[];
+
 class valueObj<T> {
   dependencies: { [key: symbol]: [LunasComponentState, number] } = {};
   constructor(
@@ -239,7 +241,10 @@ export const $$lunasInitComponent = function (
       forCtx: string[],
       depBit: number,
       mapInfo: [mapOffset: number | number[], mapLength: number],
-      refIdx: [parentElementIndex: number, refElementIndex?: number],
+      refIdx: [
+        parentElementIndex: number | number[],
+        refElementIndex?: number | number[]
+      ],
       fragment?: Fragment[]
     ][]
   ) {
@@ -264,29 +269,13 @@ export const $$lunasInitComponent = function (
           const componentElm = _createDomElementFromLunasElement(
             lunasElement()
           );
-          const [parentLocationArray, parentOffset] = getNestedArrayAndItem(
-            parentElementIndex,
-            this.refMap
-          );
-          const parentElement = parentLocationArray[
-            parentOffset
-          ] as HTMLElement;
-          const refElement = (() => {
-            if (refElementIndex == undefined) {
-              return null;
-            }
-            const [refLocationArray, refOffset] = getNestedArrayAndItem(
-              refElementIndex,
-              this.refMap
-            );
-            return refLocationArray[refOffset] as HTMLElement;
-          })();
-          parentElement!.insertBefore(componentElm, refElement);
-          const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
-            mapOffset,
-            this.refMap
-          );
-          referenceMapping[offset] = componentElm;
+          const parentElement = getNestedArrayValue(
+            this.refMap,
+            parentElementIndex
+          ) as HTMLElement;
+          const refElement = getNestedArrayValue(this.refMap, refElementIndex);
+          parentElement!.insertBefore(componentElm, refElement ?? null);
+          setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
           this.ifBlockStates[name] = true;
           this.blkUpdateMap[name] = true;
@@ -308,24 +297,18 @@ export const $$lunasInitComponent = function (
           if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
           } else if (!shouldRender && rendered) {
-            const [locationArray, offset] = getNestedArrayAndItem(
-              mapOffset,
-              this.refMap
-            );
-            const ifBlkElm = locationArray[offset] as HTMLElement;
+            const ifBlkElm = getNestedArrayValue(
+              this.refMap,
+              mapOffset
+            ) as HTMLElement;
             ifBlkElm.remove();
-
             if (typeof mapOffset === "number") {
               this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
             } else {
               for (let i = 0; i < mapLength; i++) {
                 const copiedMapOffset = [...mapOffset];
                 copiedMapOffset[0] += i;
-                const [locationArray, offset] = getNestedArrayAndItem(
-                  copiedMapOffset,
-                  this.refMap
-                );
-                locationArray[offset] = undefined;
+                setNestedArrayValue(this.refMap, copiedMapOffset, undefined);
               }
             }
 
@@ -373,19 +356,14 @@ export const $$lunasInitComponent = function (
     this: LunasComponentState,
     ids: string[],
     preserveId: number,
-    offsetLocation: number | number[] = 0
+    refLocation: number | number[] = 0
   ): void {
-    // TODO: 以下の関数をutilに移す
     ids.forEach(
       function (this: LunasComponentState, id: string, index: number) {
-        const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
-          offsetLocation,
-          this.refMap,
-          index
-        );
         const e = document.getElementById(id)!;
         (2 ** index) & preserveId && e.removeAttribute("id");
-        referenceMapping[offset] = e;
+        const newRefLocation = addNumberToArrayInitial(refLocation, index);
+        setNestedArrayValue(this.refMap, newRefLocation, e);
       }.bind(this)
     );
   }.bind(this);
@@ -395,11 +373,7 @@ export const $$lunasInitComponent = function (
     args: [number | number[], string, EventListener][]
   ) {
     for (const [elmIdx, evName, evFunc] of args) {
-      const [locationArray, offset] = getNestedArrayAndItem(
-        elmIdx,
-        this.refMap
-      );
-      const target = locationArray[offset] as HTMLElement;
+      const target = getNestedArrayValue(this.refMap, elmIdx) as HTMLElement;
       target.addEventListener(evName, evFunc);
     }
   }.bind(this);
@@ -440,37 +414,25 @@ export const $$lunasInitComponent = function (
         [parentElementIndex, refElementIndex],
       ] = config;
 
-      // 初回レンダリング
+      // Initial rendering
       let items = getDataArray();
       const uniqueBit = genBitOfForBlock().next().value;
 
-      const containerElm = (() => {
-        const [locationArray, offset] = getNestedArrayAndItem(
-          parentElementIndex,
-          this.refMap
-        );
-        return locationArray[offset] as HTMLElement;
-      })();
+      const containerElm = getNestedArrayValue(
+        this.refMap,
+        parentElementIndex
+      ) as HTMLElement;
 
-      const insertionPointElm = (() => {
-        if (refElementIndex == undefined) return null;
-        const [locationArray, offset] = getNestedArrayAndItem(
-          refElementIndex,
-          this.refMap
-        );
-        return locationArray[offset] as HTMLElement;
-      })();
+      const insertionPointElm = getNestedArrayValue(
+        this.refMap,
+        refElementIndex
+      ) as HTMLElement;
 
       items.forEach((item, index) => {
         const fullIndices = [...parentIndices, index];
         const lunasElm = renderItem(item, index, fullIndices);
         const domElm = _createDomElementFromLunasElement(lunasElm);
-
-        const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
-          [mapOffset, ...fullIndices],
-          this.refMap
-        );
-        referenceMapping[offset] = domElm;
+        setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
         containerElm.insertBefore(domElm, insertionPointElm);
         afterRenderHook?.(item, index, fullIndices);
       });
@@ -526,22 +488,15 @@ export const $$lunasInitComponent = function (
     for (const [amount, parentIdx, anchorIdx, text] of args) {
       for (let i = 0; i < amount; i++) {
         const empty = document.createTextNode(text ?? " ");
-        const parent = (() => {
-          const [locationArray, offset] = getNestedArrayAndItem(
-            parentIdx,
-            this.refMap
-          );
-          return locationArray[offset] as HTMLElement;
-        })();
-        const anchor = (() => {
-          if (anchorIdx == undefined) return null;
-          const [locationArray, offset] = getNestedArrayAndItem(
-            anchorIdx,
-            this.refMap
-          );
-          return locationArray[offset] as HTMLElement;
-        })();
-        parent.insertBefore(empty, anchor);
+        const parentElm = getNestedArrayValue(
+          this.refMap,
+          parentIdx
+        ) as HTMLElement;
+        const anchorElm = getNestedArrayValue(
+          this.refMap,
+          anchorIdx
+        ) as HTMLElement;
+        parentElm.insertBefore(empty, anchorElm);
         this.refMap[offset + i] = empty;
       }
       offset += amount;
@@ -599,25 +554,19 @@ export const $$lunasInitComponent = function (
     anchorIdx: number | number[] | null,
     refIdx: number | number[]
   ) {
-    const [parentLocationArray, parentOffset] =
-      obtainNestedArrayPositionAndReset(parentIdx, this.refMap);
-    const parentElement = parentLocationArray[parentOffset] as HTMLElement;
-    const anchorElement = (() => {
-      if (anchorIdx == undefined) {
-        return null;
-      }
-      const [anchorLocationArray, anchorOffset] =
-        obtainNestedArrayPositionAndReset(anchorIdx, this.refMap);
-      return anchorLocationArray[anchorOffset] as HTMLElement;
-    })();
-    const [referenceMapping, offset] = obtainNestedArrayPositionAndReset(
-      refIdx,
-      this.refMap
-    );
-    referenceMapping[offset] = componentExport.insert(
+    const parentElement = getNestedArrayValue(
+      this.refMap,
+      parentIdx
+    ) as HTMLElement;
+    const anchorElement = getNestedArrayValue(
+      this.refMap,
+      anchorIdx
+    ) as HTMLElement;
+    const componentElm = componentExport.insert(
       parentElement,
       anchorElement
     ).componentElm;
+    setNestedArrayValue(this.refMap, refIdx, componentElm);
   }.bind(this);
 
   const lunasMountComponent = function (
@@ -781,49 +730,54 @@ function updateForBlock(
   }
 }
 
-// TODO: Currently, getNestedArrayAndItem and its caller are combined for processing,
-// but consider whether it is better to handle everything within a function.
-function splitArrayAndOffset(
-  location: number[] | number
-): [arr: number[], offset: number] {
-  if (typeof location === "number") {
-    return [[], location];
-  }
-  return [location.slice(0, -1), location[location.length - 1]];
-}
-
-function getNestedArrayAndItem<T>(
-  location: number[] | number,
-  array: T[]
-): [arr: T[], offset: number] {
-  const [arr, finalLoc] = splitArrayAndOffset(location);
-  return [
-    arr.reduce((acc, idx) => {
-      return acc[idx] as T[];
-    }, array),
-    finalLoc,
-  ];
-}
-
-type NestedArray<T> = (T | NestedArray<T>)[];
-
-function obtainNestedArrayPositionAndReset<T>(
-  location: number[] | number,
-  array: NestedArray<T>,
-  offset: number = 0
-): [arr: NestedArray<T>, offset: number] {
-  // Update return type to NestedArray<T>
-  let [arr, finalLoc] = splitArrayAndOffset(location);
-  if (arr.length === 0 && offset !== 0) {
-    finalLoc += offset;
-  } else if (arr.length !== 0 && offset !== 0) {
-    arr[0] += offset;
-  }
-  const finalArray = arr.reduce((acc, idx) => {
-    if (!acc[idx]) {
-      acc[idx] = [] as NestedArray<T>; // Update type to NestedArray<T>
+function setNestedArrayValue<T>(
+  arr: NestedArray<T>,
+  location: number | number[],
+  value: T
+): void {
+  const path = numberOrNumberArrayToNumberArray(location);
+  let current: any = arr;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (current[key] === undefined) {
+      current[key] = [];
     }
-    return acc[idx] as NestedArray<T>;
-  }, array);
-  return [finalArray as NestedArray<T>, finalLoc];
+    current = current[key];
+  }
+  current[path[path.length - 1]] = value;
+}
+
+function getNestedArrayValue<T>(
+  arr: NestedArray<T>,
+  location: number | number[] | null | undefined
+): T | null {
+  if (location == null) return null;
+  const path = numberOrNumberArrayToNumberArray(location);
+  let current: any = arr;
+  for (const key of path) {
+    if (!Array.isArray(current) || current[key] == null) {
+      return null;
+    }
+    current = current[key];
+  }
+  return current as T;
+}
+
+function numberOrNumberArrayToNumberArray(
+  location: number | number[]
+): number[] {
+  return typeof location === "number" ? [location] : location;
+}
+
+function addNumberToArrayInitial(
+  arr: number[] | number,
+  num: number
+): number[] {
+  if (typeof arr === "number") {
+    return [arr + num];
+  } else {
+    const copy = [...arr];
+    copy[0] += num;
+    return copy;
+  }
 }
