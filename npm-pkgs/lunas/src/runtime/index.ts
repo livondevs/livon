@@ -337,10 +337,11 @@ export const $$lunasInitComponent = function (
       this.updateComponentFuncs[0].push(updateFunc);
 
       if (forCtx.length) {
-        const latest = forCtx[forCtx.length - 1];
-        (this.cleanUps[latest] ??= []).push(() => {
-          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
-          this.updateComponentFuncs[0].splice(idx, 1);
+        forCtx.forEach((ctx) => {
+          (this.cleanUps[ctx] ??= []).push(() => {
+            const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+            this.updateComponentFuncs[0].splice(idx, 1);
+          });
         });
       }
 
