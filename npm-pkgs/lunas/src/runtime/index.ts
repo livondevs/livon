@@ -328,11 +328,13 @@ export const $$lunasInitComponent = function (
       this.updateComponentFuncs[0].push(updateFunc);
 
       if (forCtx.length) {
-        forCtx.forEach((ctx) => {
-          (this.cleanUps[ctx] ??= []).push(() => {
-            const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
-            this.updateComponentFuncs[0].splice(idx, 1);
-          });
+        forCtx.forEach((ctxOfForParent) => {
+          // this.cleanUps[ctx]?.forEach((f) => f());
+          // (this.cleanUps[ctxOfForParent] ??= []).push(() => {
+          //   updateFunc();
+          //   const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+          //   this.updateComponentFuncs[0].splice(idx, 1);
+          // });
         });
       }
 
@@ -341,7 +343,11 @@ export const $$lunasInitComponent = function (
         // const newCtx = [...ifCtx, name].filter((item) =>
         //   Object.keys(this.ifBlocks).includes(item)
         // );
-        createFragments(fragments, [...ifCtxUnderFor, name]);
+        createFragments(
+          fragments,
+          [...ifCtxUnderFor, name],
+          forCtx[forCtx.length - 1]
+        );
       }
 
       if (ifCtxUnderFor.length === 0) {
@@ -450,7 +456,7 @@ export const $$lunasInitComponent = function (
         afterRenderHook?.(item, index, fullIndices);
         if (fragmentFunc) {
           const fragments = fragmentFunc(item, index, fullIndices);
-          createFragments(fragments, ifCtxUnderFor);
+          createFragments(fragments, ifCtxUnderFor, forBlockId);
         }
       });
 
@@ -526,7 +532,8 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
-    ifCtx?: string[]
+    ifCtx?: string[],
+    latestForName?: string
   ) {
     for (const [
       [textContent, attributeName],
@@ -535,39 +542,48 @@ export const $$lunasInitComponent = function (
       fragmentType,
     ] of fragments) {
       const nodeIdx = typeof _nodeIdx === "number" ? [_nodeIdx] : _nodeIdx;
-      this.updateComponentFuncs[1].push(
-        (() => {
-          if (ifCtx?.length) {
-            const blockRendered = ifCtx.every(
-              (ctxName) => this.ifBlockStates[ctxName]
-            );
-            const blockAlreadyUpdated = ifCtx.every(
-              (ctxName) => this.blkUpdateMap[ctxName]
-            );
-            if (!blockRendered || blockAlreadyUpdated) {
-              return;
-            }
-          }
-          const valueUpdated = (this.valUpdateMap & depBit) !== 0;
-          if (!valueUpdated) {
+      const fragmentUpdateFunc = (() => {
+        if (ifCtx?.length) {
+          const blockRendered = ifCtx.every(
+            (ctxName) => this.ifBlockStates[ctxName]
+          );
+          const blockAlreadyUpdated = ifCtx.every(
+            (ctxName) => this.blkUpdateMap[ctxName]
+          );
+          if (!blockRendered || blockAlreadyUpdated) {
             return;
           }
-          const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
-          if (fragmentType === FragmentType.ATTRIBUTE) {
-            $$lunasReplaceAttr(
-              attributeName!,
-              textContent(),
-              target as HTMLElement
-            );
-          } else {
-            $$lunasReplaceText(textContent(), target);
-          }
-        }).bind(this)
-      );
+        }
+        const valueUpdated = (this.valUpdateMap & depBit) !== 0;
+        if (!valueUpdated) {
+          return;
+        }
+        const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
+        if (fragmentType === FragmentType.ATTRIBUTE) {
+          $$lunasReplaceAttr(
+            attributeName!,
+            textContent(),
+            target as HTMLElement
+          );
+        } else {
+          $$lunasReplaceText(textContent(), target);
+        }
+      }).bind(this);
+      this.updateComponentFuncs[1].push(fragmentUpdateFunc);
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
+          this.updateComponentFuncs[1].splice(idx, 1);
+        }).bind(this);
+        if (!this.cleanUps[latestForName]) {
+          this.cleanUps[latestForName] = [];
+        }
+        this.cleanUps[latestForName].push(cleanUpFunc);
+      }
     }
   }.bind(this);
 
-  const lunasInsertComopnent = function (
+  const lunasInsertComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
     parentIdx: number | number[],
@@ -611,7 +627,7 @@ export const $$lunasInitComponent = function (
     $$lunasInsertTextNodes: insertTextNodes,
     $$lunasAddEvListener: addEvListener,
     $$lunasCreateFragments: createFragments,
-    $$lunasInsertComponent: lunasInsertComopnent,
+    $$lunasInsertComponent: lunasInsertComponent,
     $$lunasMountComponent: lunasMountComponent,
     $$lunasComponentReturn: {
       mount,
