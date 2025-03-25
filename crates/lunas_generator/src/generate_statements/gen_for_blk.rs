@@ -157,6 +157,23 @@ pub fn gen_render_for_blk_func(
             format!("[{}]", extracted_if_ctx.join(", "))
         };
 
+        let parent_for_array = {
+            let for_context_before_current_for = for_block
+                .ctx_over_for
+                .iter()
+                .filter(|x| ctx_categories.for_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>();
+            format!(
+                r#"[{}]"#,
+                for_context_before_current_for
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        };
+
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
@@ -232,10 +249,12 @@ pub fn gen_render_for_blk_func(
             None => "".to_string(),
         };
 
+        // TODO: Add comments to the generated code to clarify what each argument represents
         let create_for_func_inside = format!(
             r#""{}",
 ({}, {}, $$lunasForIndices) => {},
 () => ({}),
+{},
 {},
 {},
 {},
@@ -248,7 +267,8 @@ pub fn gen_render_for_blk_func(
             create_internal_element_statement,
             for_block.item_collection,
             for_on_create,
-            context_if_extracted, //HERE
+            context_if_extracted,
+            parent_for_array,
             get_combined_binary_number(dep_number),
             parent_indices,
             initial_ref_node_ids_len,

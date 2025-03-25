@@ -175,22 +175,12 @@ pub fn gen_render_if_blk_func(
         };
 
         let parent_for_array = {
-            let for_context_before_current_for = if under_for {
-                let latest_for_ctx_idx = if_block.get_latest_for_ctx_idx(ctx_categories);
-                if let Some(latest_for_ctx_idx) = latest_for_ctx_idx {
-                    if_block
-                        .ctx_over_if
-                        .iter()
-                        .take(latest_for_ctx_idx + 1)
-                        .filter(|x| ctx_categories.for_ctx.iter().any(|f| f == *x))
-                        .map(|x| x.to_string())
-                        .collect()
-                } else {
-                    vec![]
-                }
-            } else {
-                vec![]
-            };
+            let for_context_before_current_for = if_block
+                .ctx_over_if
+                .iter()
+                .filter(|x| ctx_categories.for_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>();
             format!(
                 r#"[{}]"#,
                 for_context_before_current_for
