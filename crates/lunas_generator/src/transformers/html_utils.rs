@@ -241,10 +241,6 @@ pub fn check_html_elms(
                             append_v_to_vars_in_html(&mut raw_attr_value, varibale_names);
 
                         element.attributes.remove(key);
-                        element.attributes.insert(
-                            raw_attr_name.to_string(),
-                            Some(format!("${{{}}}", raw_attr_value)),
-                        );
 
                         let reactive_attr = ReactiveAttr {
                             attribute_key: raw_attr_name.to_string(),
