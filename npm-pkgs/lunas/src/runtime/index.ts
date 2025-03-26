@@ -285,6 +285,13 @@ export const $$lunasInitComponent = function (
           parentElement!.insertBefore(componentElm, refElement ?? null);
           setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
+          if (fragments) {
+            createFragments(
+              fragments,
+              [...ifCtxUnderFor, name],
+              forCtx[forCtx.length - 1]
+            );
+          }
           this.ifBlockStates[name] = true;
           this.blkUpdateMap[name] = true;
           Object.values(this.ifBlocks).forEach((blk) => {
@@ -328,18 +335,6 @@ export const $$lunasInitComponent = function (
       }).bind(this);
 
       this.updateComponentFuncs[0].push(updateFunc);
-
-      if (fragments) {
-        // FIXME: Confirm if the following commented-out code can be removed
-        // const newCtx = [...ifCtx, name].filter((item) =>
-        //   Object.keys(this.ifBlocks).includes(item)
-        // );
-        createFragments(
-          fragments,
-          [...ifCtxUnderFor, name],
-          forCtx[forCtx.length - 1]
-        );
-      }
 
       if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
