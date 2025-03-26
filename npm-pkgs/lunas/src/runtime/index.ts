@@ -13,7 +13,6 @@ export type LunasComponentState = {
   valUpdateMap: number;
   internalElement: LunasInternalElement;
   currentVarBit: number;
-  currentForBlkBit: number;
   ifBlocks: {
     [key: string]: {
       renderer: () => void;
@@ -109,7 +108,6 @@ export const $$lunasInitComponent = function (
   this.valUpdateMap = 0;
   this.blkUpdateMap = {};
   this.currentVarBit = 0;
-  this.currentForBlkBit = 0; // TODO: Delete this
   this.isMounted = false;
   this.ifBlocks = {};
   this.ifBlockStates = {};
@@ -127,17 +125,6 @@ export const $$lunasInitComponent = function (
       } else {
         this.currentVarBit <<= 1;
         yield this.currentVarBit;
-      }
-    }
-  }.bind(this);
-  const genBitOfForBlock = function* (this: LunasComponentState) {
-    while (true) {
-      if (this.currentForBlkBit === 0) {
-        this.currentForBlkBit = 1;
-        yield this.currentForBlkBit;
-      } else {
-        this.currentForBlkBit <<= 1;
-        yield this.currentForBlkBit;
       }
     }
   }.bind(this);
@@ -423,32 +410,31 @@ export const $$lunasInitComponent = function (
 
       this.forBlocks[forBlockId] = { cleanUp: [], childs: forCtx };
 
-      // Initial rendering
       let items = getDataArray();
-      const uniqueBit = genBitOfForBlock().next().value;
+      const renderForBlock = (() => {
+        const containerElm = getNestedArrayValue(
+          this.refMap,
+          parentElementIndex
+        ) as HTMLElement;
 
-      const containerElm = getNestedArrayValue(
-        this.refMap,
-        parentElementIndex
-      ) as HTMLElement;
-
-      const insertionPointElm = getNestedArrayValue(
-        this.refMap,
-        refElementIndex
-      ) as HTMLElement;
-
-      items.forEach((item, index) => {
-        const fullIndices = [...parentIndices, index];
-        const lunasElm = renderItem(item, index, fullIndices);
-        const domElm = _createDomElementFromLunasElement(lunasElm);
-        setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
-        containerElm.insertBefore(domElm, insertionPointElm);
-        afterRenderHook?.(item, index, fullIndices);
-        if (fragmentFunc) {
-          const fragments = fragmentFunc(item, index, fullIndices);
-          createFragments(fragments, ifCtxUnderFor, forBlockId);
-        }
-      });
+        const insertionPointElm = getNestedArrayValue(
+          this.refMap,
+          refElementIndex
+        ) as HTMLElement;
+        items.forEach((item, index) => {
+          const fullIndices = [...parentIndices, index];
+          const lunasElm = renderItem(item, index, fullIndices);
+          const domElm = _createDomElementFromLunasElement(lunasElm);
+          setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
+          containerElm.insertBefore(domElm, insertionPointElm);
+          afterRenderHook?.(item, index, fullIndices);
+          if (fragmentFunc) {
+            const fragments = fragmentFunc(item, index, fullIndices);
+            createFragments(fragments, ifCtxUnderFor, forBlockId);
+          }
+        });
+      }).bind(this);
+      renderForBlock();
 
       this.updateComponentFuncs[0].push(
         (() => {
@@ -456,17 +442,15 @@ export const $$lunasInitComponent = function (
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
             if (diffDetected(items, newItems)) {
-              updateForBlock(
-                forBlockId,
-                newItems,
-                renderItem,
-                afterRenderHook,
-                containerElm,
-                insertionPointElm,
-                mapOffset,
-                this.refMap,
-                uniqueBit
-              );
+              const refArr = this.refMap[mapOffset] as RefMapItem[];
+              // Iterate in reverse order to prevent index shift issues when removing elements
+              for (let i = refArr.length - 1; i >= 0; i--) {
+                const item = refArr[i];
+                if (item instanceof HTMLElement) {
+                  item.remove();
+                  refArr.splice(i, 1);
+                }
+              }
               if (this.forBlocks[forBlockId]) {
                 const { cleanUp, childs } = this.forBlocks[forBlockId];
                 cleanUp.forEach((f) => f());
@@ -478,18 +462,7 @@ export const $$lunasInitComponent = function (
                 });
                 this.forBlocks[forBlockId].cleanUp = [];
               }
-              newItems.forEach((item, index) => {
-                const fullIndices = [...parentIndices, index];
-                const lunasElm = renderItem(item, index, fullIndices);
-                const domElm = _createDomElementFromLunasElement(lunasElm);
-                (this.refMap[mapOffset]! as HTMLElement[]).push(domElm);
-                containerElm.insertBefore(domElm, insertionPointElm);
-                afterRenderHook && afterRenderHook(item, index, fullIndices);
-                if (fragmentFunc) {
-                  const fragments = fragmentFunc(item, index, fullIndices);
-                  createFragments(fragments, ifCtxUnderFor, forBlockId);
-                }
-              });
+              renderForBlock();
             }
             items = newItems;
           }
@@ -734,34 +707,6 @@ function diffDetected<T>(oldArray: T[], newArray: T[]): boolean {
   // );
   // FIXME: This is a temporary implementation
   return true;
-}
-
-// TODO: The initial rendering and the update process have almost the same logic, so it should be unified.
-function updateForBlock(
-  _forBlockId: string,
-  newItems: unknown[],
-  renderItem: (
-    item: unknown,
-    index: number,
-    includes: number[]
-  ) => LunasInternalElement,
-  afterRenderHook: (item: unknown, index: number, includes: number[]) => void,
-  containerElm: HTMLElement,
-  insertionPointElm: HTMLElement | null,
-  mapOffset: number,
-  refMap: RefMap,
-  _forBlkBit: number
-): void {
-  if (!containerElm) return;
-  const refArr = refMap[mapOffset] as RefMapItem[];
-  // Iterate in reverse order to prevent index shift issues when removing elements
-  for (let i = refArr.length - 1; i >= 0; i--) {
-    const item = refArr[i];
-    if (item instanceof HTMLElement) {
-      item.remove();
-      refArr.splice(i, 1);
-    }
-  }
 }
 
 function setNestedArrayValue<T>(
