@@ -203,7 +203,7 @@ pub fn gen_render_for_blk_func(
             &Some(fragment_args),
         );
 
-        let parent_if_blk_id_idx = {
+        let parent_for_blk_id_idx = {
             let idx = ref_node_ids
                 .iter()
                 .position(|x| x == &for_block.parent_id)
@@ -273,7 +273,7 @@ pub fn gen_render_for_blk_func(
             parent_indices,
             initial_ref_node_ids_len,
             ref_node_ids_len_increase,
-            parent_if_blk_id_idx,
+            parent_for_blk_id_idx,
             anchor_idx,
             for_fragments,
         );
