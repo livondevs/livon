@@ -662,15 +662,11 @@ fn set_id_for_needed_elm(
     ctx: &Vec<String>,
     elm_loc: &Vec<usize>,
 ) -> String {
-    // If a reference to the element already exists in refMap as NodeCreationMethod, return only the element UUID without setting an ID
-    let node_creation_methods = ref_maps.iter().filter_map(|x| match x {
-        RefMap::NodeCreationMethod(inner) => Some(inner),
-        _ => None,
-    });
-    for method in node_creation_methods {
-        if method.node_id == *node_id {
-            return method.node_id.clone();
-        }
+    // If the attribute contains $$$conditional$$$, skip this process.
+    // This is because when $$$conditional$$$ is present, the element is manually created as a Node,
+    // allowing a reference to the element to be obtained there.
+    if element.attributes.contains_key("$$$conditional$$$") {
+        return "".to_string();
     }
 
     let id_based_methods = ref_maps
