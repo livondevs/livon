@@ -543,6 +543,16 @@ export const $$lunasInitComponent = function (
           $$lunasReplaceText(textContent(), target);
         }
       }).bind(this);
+      if (fragmentType === FragmentType.ATTRIBUTE) {
+        // Because the determination of the arribute types depends on dynamic values,
+        // it is necessary to update the attributes after the initial rendering
+        const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
+        $$lunasReplaceAttr(
+          attributeName!,
+          textContent(),
+          target as HTMLElement
+        );
+      }
       this.updateComponentFuncs[1].push(fragmentUpdateFunc);
       if (latestForName) {
         const cleanUpFunc = (() => {
@@ -635,6 +645,14 @@ export function $$lunasReplaceAttr(
   content: any,
   elm: HTMLElement
 ) {
+  if (typeof content === "boolean") {
+    if (content) {
+      elm.setAttribute(key, "");
+    } else if (elm.hasAttribute(key)) {
+      elm.removeAttribute(key);
+    }
+    return;
+  }
   if (content === undefined && elm.hasAttribute(key)) {
     elm.removeAttribute(key);
     return;
