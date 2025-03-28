@@ -1,4 +1,7 @@
-use crate::structs::{js_utils::JsSearchParent, transform_info::{AddStringToPosition, TransformInfo}};
+use crate::structs::{
+    js_utils::JsSearchParent,
+    transform_info::{AddStringToPosition, TransformInfo},
+};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
 use std::{env, sync::Mutex};

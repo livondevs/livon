@@ -5,6 +5,8 @@ use crate::{
     transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
 };
 
+use super::ctx::ContextCategories;
+
 #[derive(Debug, Clone)]
 pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
@@ -45,14 +47,43 @@ pub struct ActionAndTarget {
     pub ctx: Vec<String>,
 }
 
-// FIXME: 命名
 #[derive(Debug)]
-pub struct NeededIdName {
+pub enum RefMap {
+    NodeCreationMethod(NodeCreationMethod),
+    IdBasedElementAccess(IdBasedElementAccess),
+}
+
+#[derive(Debug)]
+pub struct NodeCreationMethod {
+    pub node_id: String,
+    pub ctx: Vec<String>,
+    pub elm_loc: Vec<usize>,
+}
+
+#[derive(Debug)]
+pub struct IdBasedElementAccess {
     pub id_name: String,
     pub to_delete: bool,
     pub node_id: String,
     pub ctx: Vec<String>,
     pub elm_loc: Vec<usize>,
+}
+
+impl RefMap {
+    pub fn elm_loc(&self) -> &Vec<usize> {
+        match self {
+            RefMap::NodeCreationMethod(node_creation_method) => &node_creation_method.elm_loc,
+            RefMap::IdBasedElementAccess(id_based_element_access) => {
+                &id_based_element_access.elm_loc
+            }
+        }
+    }
+    pub fn ctx(&self) -> &Vec<String> {
+        match self {
+            RefMap::NodeCreationMethod(node_creation_method) => &node_creation_method.ctx,
+            RefMap::IdBasedElementAccess(id_based_element_access) => &id_based_element_access.ctx,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -111,6 +142,96 @@ pub struct IfBlockInfo {
     pub ctx_over_if: Vec<String>,
     pub if_blk_id: String,
     pub element_location: Vec<usize>,
+}
+
+impl IfBlockInfo {
+    pub fn check_latest_for_ctx(
+        &self,
+        ctx_categories: &ContextCategories,
+        current_for_ctx: &Option<&String>,
+    ) -> bool {
+        let ctx_under_if = &self.ctx_under_if;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for ctx in ctx_under_if.iter().rev() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx) == *current_for_ctx;
+            }
+        }
+        current_for_ctx.is_none()
+    }
+
+    pub fn get_latest_for_ctx_idx(&self, ctx_categories: &ContextCategories) -> Option<usize> {
+        let ctx_under_if = &self.ctx_under_if;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for (idx, ctx) in ctx_under_if.iter().rev().enumerate() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx_under_if.len() - 1 - idx);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForBlockInfo {
+    pub parent_id: String,
+    pub target_for_blk_id: String,
+    pub distance_to_next_elm: u64,
+    pub target_anchor_id: Option<String>,
+    pub node: Node,
+    pub ref_text_node_id: Option<String>,
+    pub item_name: String,
+    pub item_index: String,
+    pub item_collection: String,
+    pub dep_vars: Vec<String>,
+    pub ctx_under_for: Vec<String>,
+    pub ctx_over_for: Vec<String>,
+    pub for_blk_id: String,
+    pub element_location: Vec<usize>,
+}
+
+impl ForBlockInfo {
+    pub fn check_latest_for_ctx(
+        &self,
+        ctx_categories: &ContextCategories,
+        current_for_ctx: &Option<&String>,
+    ) -> bool {
+        let ctx_over_for = &self.ctx_over_for;
+        let for_ctx = ctx_categories.for_ctx.clone();
+
+        for ctx in ctx_over_for.iter().rev() {
+            if for_ctx.contains(ctx) {
+                return Some(ctx) == *current_for_ctx;
+            }
+        }
+        current_for_ctx.is_none()
+    }
+
+    pub fn have_for_block_on_parent(&self, ctx_categories: &ContextCategories) -> bool {
+        self.ctx_over_for
+            .iter()
+            .any(|item| ctx_categories.for_ctx.contains(item))
+    }
+
+    pub fn extract_if_ctx_between_latest_for(
+        &self,
+        ctx_categories: &ContextCategories,
+    ) -> Vec<String> {
+        let ctx_over_for = &self.ctx_over_for;
+        let for_ctx = ctx_categories.for_ctx.clone();
+        let mut ctx_between_latest_for = vec![];
+
+        for ctx in ctx_over_for.iter().rev() {
+            if for_ctx.contains(ctx) {
+                break;
+            }
+            ctx_between_latest_for.push(ctx.clone());
+        }
+        ctx_between_latest_for.reverse();
+        ctx_between_latest_for
+    }
 }
 
 pub fn sort_if_blocks(if_blocks: &mut Vec<IfBlockInfo>) {
@@ -204,6 +325,7 @@ pub struct ManualRendererForTextNode {
 pub enum TextNodeRenderer {
     ManualRenderer(ManualRendererForTextNode),
     IfBlockRenderer(IfBlockInfo),
+    ForBlockRenderer(ForBlockInfo),
     CustomComponentRenderer(CustomComponentBlockInfo),
 }
 
@@ -212,6 +334,7 @@ impl TextNodeRenderer {
         match self {
             TextNodeRenderer::ManualRenderer(renderer) => &renderer.element_location,
             TextNodeRenderer::IfBlockRenderer(renderer) => &renderer.element_location,
+            TextNodeRenderer::ForBlockRenderer(renderer) => &renderer.element_location,
             TextNodeRenderer::CustomComponentRenderer(renderer) => &renderer.element_location,
         }
     }
@@ -237,6 +360,15 @@ impl TextNodeRenderer {
                         .custom_component_block_id
                         .clone(),
                     custom_component_block_info.parent_id.clone(),
+                );
+            }
+            TextNodeRenderer::ForBlockRenderer(for_block_info) => {
+                return (
+                    for_block_info.distance_to_next_elm,
+                    for_block_info.ctx_over_for.clone(),
+                    for_block_info.target_anchor_id.clone(),
+                    for_block_info.for_blk_id.clone(),
+                    for_block_info.parent_id.clone(),
                 );
             }
             TextNodeRenderer::ManualRenderer(_) => {
@@ -285,12 +417,16 @@ impl TextNodeRendererGroup {
 
     pub fn new(
         if_blk: &Vec<IfBlockInfo>,
+        for_blk: &Vec<ForBlockInfo>,
         text_node_renderer: &Vec<ManualRendererForTextNode>,
         custom_component_block: &Vec<CustomComponentBlockInfo>,
     ) -> Self {
         let mut renderers: Vec<TextNodeRenderer> = vec![];
         for if_blk in if_blk {
             renderers.push(TextNodeRenderer::IfBlockRenderer(if_blk.clone()));
+        }
+        for for_block in for_blk {
+            renderers.push(TextNodeRenderer::ForBlockRenderer(for_block.clone()));
         }
         for txt_node_renderer in text_node_renderer {
             renderers.push(TextNodeRenderer::ManualRenderer(txt_node_renderer.clone()));

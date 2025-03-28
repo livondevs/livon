@@ -9,6 +9,7 @@ pub struct HtmlManipulator {
 #[derive(Debug, Clone)]
 pub enum HtmlManipulation {
     RemoveChildForIfStatement(RemoveChildForIfStatement),
+    RemoveChildForForStatement(RemoveChildForRepeatStatement),
     RemoveChildForCustomComponent(RemoveChildForCustomComponent),
     SetIdForReactiveContent(SetIdToParentForChildReactiveText),
     RemoveChildTextNode(RemoveChildTextNode),
@@ -23,6 +24,18 @@ pub struct RemoveChildForIfStatement {
     // TODO:ctxとlocをHtmlManipulatorに入れるか検討する
     pub ctx_under_if: Vec<String>,
     pub ctx_over_if: Vec<String>,
+    pub elm_loc: Vec<usize>,
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoveChildForRepeatStatement {
+    pub child_uuid: String,
+    pub item_name: String,
+    pub item_index: String,
+    pub item_collection: String,
+    pub block_id: String,
+    pub ctx_under_for: Vec<String>,
+    pub ctx_over_for: Vec<String>,
     pub elm_loc: Vec<usize>,
 }
 
