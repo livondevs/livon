@@ -13,12 +13,13 @@ pub fn gen_reference_getter(
         true => vec![],
         false => ctx.unwrap().clone(), // Clone the Vec<String> to avoid borrowing issues
     };
+
     let refs_for_current_context = ref_maps
         .iter()
         .filter(|needed_elm| needed_elm.ctx() == &ctx)
         .collect::<Vec<&RefMap>>();
 
-    for ref_obj in refs_for_current_context.iter() {
+    for ref_obj in &refs_for_current_context {
         match ref_obj {
             RefMap::NodeCreationMethod(node_creation_method) => {
                 ref_node_ids.push(node_creation_method.node_id.clone())
@@ -29,13 +30,9 @@ pub fn gen_reference_getter(
         }
     }
 
-    // TODO: Use format! to improve code readability
     let node_creation_method_count = refs_for_current_context
         .iter()
-        .filter(|id| match id {
-            RefMap::NodeCreationMethod(_) => true,
-            _ => false,
-        })
+        .filter(|id| matches!(id, RefMap::NodeCreationMethod(_)))
         .count();
 
     let id_based_elements = refs_for_current_context
@@ -50,22 +47,22 @@ pub fn gen_reference_getter(
         return None;
     }
 
-    let mut ref_getter_str = String::from("$$lunasGetElmRefs([");
-    ref_getter_str.push_str(
-        &id_based_elements
-            .iter()
-            .map(|id| format!("\"{}\"", id.id_name))
-            .collect::<Vec<String>>()
-            .join(", "),
-    );
+    let id_names_str = id_based_elements
+        .iter()
+        .map(|id| format!("\"{}\"", id.id_name))
+        .collect::<Vec<String>>()
+        .join(", ");
+
     let delete_id_bool_map = id_based_elements
         .iter()
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
+
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-    let offset = if !is_under_for {
+
+    let offset_str = if !is_under_for {
         if ref_node_ids_count + node_creation_method_count == 0 {
-            "".to_string()
+            String::new()
         } else {
             format!(", {}", ref_node_ids_count + node_creation_method_count)
         }
@@ -75,10 +72,11 @@ pub fn gen_reference_getter(
             ref_node_ids_count + node_creation_method_count
         )
     };
-    ref_getter_str.push_str(&format!(
-        "], {map}{offset});",
-        map = delete_id_map,
-        offset = offset.as_str()
-    ));
+
+    let ref_getter_str = format!(
+        "$$lunasGetElmRefs([{}], {}{});",
+        id_names_str, delete_id_map, offset_str
+    );
+
     Some(ref_getter_str)
 }
