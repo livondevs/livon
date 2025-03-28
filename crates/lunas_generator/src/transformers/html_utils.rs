@@ -85,13 +85,13 @@ pub fn check_html_elms(
                             .insert("$$$conditional$$$".to_string(), None);
                         ctx_array.push(node.uuid.clone());
                     } else if key == ":for" {
-                        let for_statemtnt = parse_for_statement(&action_value.clone().unwrap())?;
+                        let for_statement = parse_for_statement(&action_value.clone().unwrap())?;
                         let (item_name, item_index) = {
                             (
-                                for_statemtnt
+                                for_statement
                                     .item_value
                                     .unwrap_or("$$lunasForItem".to_string()),
-                                for_statemtnt
+                                for_statement
                                     .item_index
                                     .unwrap_or("$$lunasForIndex".to_string()),
                             )
@@ -111,7 +111,7 @@ pub fn check_html_elms(
                                     child_uuid: node.uuid.clone(),
                                     item_name,
                                     item_index,
-                                    item_collection: for_statemtnt.iter_array.clone(),
+                                    item_collection: for_statement.iter_array.clone(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
                                     ctx_under_for,

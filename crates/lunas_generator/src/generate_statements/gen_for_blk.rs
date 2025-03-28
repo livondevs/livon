@@ -215,7 +215,7 @@ pub fn gen_render_for_blk_func(
             }
         };
 
-        let idx_of_anchor_of_if_blk = match for_block.distance_to_next_elm > 1 {
+        let idx_of_anchor_of_for_blk = match for_block.distance_to_next_elm > 1 {
             true => Some(
                 ref_node_ids
                     .iter()
@@ -241,7 +241,7 @@ pub fn gen_render_for_blk_func(
             "".to_string()
         };
 
-        let anchor_idx = match idx_of_anchor_of_if_blk {
+        let anchor_idx = match idx_of_anchor_of_for_blk {
             Some(idx) => match current_for_ctx.is_some() {
                 true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
                 false => format!(r#", {}"#, idx),
