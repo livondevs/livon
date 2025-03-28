@@ -360,8 +360,7 @@ pub fn check_html_elms(
                                     },
                                     needed_ids,
                                     node_id,
-                                    // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &ctx,
+                                    &ctx, // ctx of parent of if block
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -487,8 +486,7 @@ pub fn check_html_elms(
                                     },
                                     needed_ids,
                                     node_id,
-                                    // TODO: 親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &ctx,
+                                    &ctx, // ctx of parent of custom component
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);
@@ -555,8 +553,7 @@ pub fn check_html_elms(
                                     },
                                     needed_ids,
                                     node_id,
-                                    // TODO: ifブロックの親のctxを指定しているが、その旨が明示的ではないので、明示的にする
-                                    &ctx,
+                                    &ctx, // ctx of parent of text node
                                     {
                                         let mut new_element_location = element_location.clone();
                                         new_element_location.push(idx_of_ref as usize);

@@ -175,7 +175,7 @@ pub fn generate_js_from_blocks(
     // Generate AfterMount
     let mut after_mount_code_array = vec![];
     let ref_getter_expression =
-        gen_ref_getter_from_needed_ids(&ref_map, &None, &mut ref_node_ids, &ctx_cats);
+        gen_ref_getter_from_needed_ids(&ref_map, &None, &mut ref_node_ids, false);
     if let Some(ref_getter_expression) = ref_getter_expression {
         after_mount_code_array.push(ref_getter_expression);
     }
@@ -303,7 +303,7 @@ pub fn gen_ref_getter_from_needed_ids(
     ref_maps: &Vec<RefMap>,
     ctx: &Option<&Vec<String>>,
     ref_node_ids: &mut Vec<String>,
-    ctx_cats: &ContextCategories,
+    is_under_for: bool,
 ) -> Option<String> {
     let ref_node_ids_count = ref_node_ids.len();
     let ctx = match ctx.is_none() {
@@ -360,9 +360,7 @@ pub fn gen_ref_getter_from_needed_ids(
         .map(|id| id.to_delete)
         .collect::<Vec<bool>>();
     let delete_id_map = gen_binary_map_from_bool(delete_id_bool_map);
-    // TODO: 超重要、2重forに対応する
-    let is_under_for_clause = ctx_cats.is_under_for_clause(&ctx);
-    let offset = if !is_under_for_clause {
+    let offset = if !is_under_for {
         if ref_node_ids_count + node_creation_method_count == 0 {
             "".to_string()
         } else {

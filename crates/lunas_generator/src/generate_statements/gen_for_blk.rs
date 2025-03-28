@@ -55,7 +55,7 @@ pub fn gen_render_for_blk_func(
             ref_map,
             &Some(&for_block.ctx_under_for),
             ref_node_ids,
-            ctx_categories,
+            true,
         );
         if let Some(ref_getter) = ref_getter_str {
             post_render_statement.push(ref_getter);
@@ -93,7 +93,6 @@ pub fn gen_render_for_blk_func(
             post_render_statement.extend(render_child_component);
         }
 
-        // ctx_under_forの最後の要素
         let last_ctx_under_for = for_block.ctx_under_for.last().unwrap();
         let if_blk_gen = gen_render_if_blk_func(
             &if_blocks_info,

@@ -57,7 +57,7 @@ pub fn gen_render_if_blk_func(
             needed_ids,
             &Some(&if_block.ctx_under_if),
             ref_node_ids,
-            ctx_categories,
+            under_for,
         );
         if let Some(ref_getter) = ref_getter_str {
             post_render_statement.push(ref_getter);
@@ -108,7 +108,6 @@ pub fn gen_render_if_blk_func(
             .unwrap()
             .to_string();
         let parent_if_blk_id_idx = match under_for {
-            // TODO: 重要 nestに対応せよ。
             true => format!("[{}, ...$$lunasForIndices]", parent_if_blk_id_idx_num),
             false => parent_if_blk_id_idx_num.to_string(),
         };
