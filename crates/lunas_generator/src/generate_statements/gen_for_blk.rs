@@ -1,9 +1,5 @@
 use crate::{
-    generate_js::{
-        create_event_listener, create_fragments, gen_create_anchor_statements,
-        gen_ref_getter_from_needed_ids, gen_render_custom_component_statements,
-        get_combined_binary_number,
-    },
+    generate_js::get_combined_binary_number,
     orig_html_struct::structs::NodeContent,
     structs::{
         ctx::ContextCategories,
@@ -16,7 +12,14 @@ use crate::{
     transformers::html_utils::create_lunas_internal_component_statement,
 };
 
-use super::{gen_if_blk::gen_render_if_blk_func, utils::create_indent};
+use super::{
+    gen_create_anchors::gen_create_anchor_statements,
+    gen_create_event_listener::generate_create_event_listener,
+    gen_create_fragments::gen_create_fragments,
+    gen_custom_component::gen_render_custom_component_statements,
+    gen_if_blk::gen_render_if_blk_func, gen_reference_getter::gen_reference_getter,
+    utils::create_indent,
+};
 
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_for_blk_func(
@@ -51,17 +54,13 @@ pub fn gen_render_for_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        let ref_getter_str = gen_ref_getter_from_needed_ids(
-            ref_map,
-            &Some(&for_block.ctx_under_for),
-            ref_node_ids,
-            true,
-        );
+        let ref_getter_str =
+            gen_reference_getter(ref_map, &Some(&for_block.ctx_under_for), ref_node_ids, true);
         if let Some(ref_getter) = ref_getter_str {
             post_render_statement.push(ref_getter);
         }
 
-        let ev_listener_code = create_event_listener(
+        let ev_listener_code = generate_create_event_listener(
             actions_and_targets,
             &for_block.ctx_under_for,
             &ref_node_ids,
@@ -193,7 +192,7 @@ pub fn gen_render_for_blk_func(
             "$$lunasForIndices".to_string(),
         ];
 
-        let fragments = create_fragments(
+        let fragments = gen_create_fragments(
             &elm_and_var_relation,
             &dep_vars_assigned_numbers,
             &ref_node_ids,

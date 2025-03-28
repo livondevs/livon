@@ -1,9 +1,5 @@
 use crate::{
-    generate_js::{
-        create_event_listener, create_fragments, gen_create_anchor_statements,
-        gen_ref_getter_from_needed_ids, gen_render_custom_component_statements,
-        get_combined_binary_number,
-    },
+    generate_js::get_combined_binary_number,
     orig_html_struct::structs::NodeContent,
     structs::{
         ctx::ContextCategories,
@@ -16,7 +12,13 @@ use crate::{
     transformers::html_utils::create_lunas_internal_component_statement,
 };
 
-use super::utils::create_indent;
+use super::{
+    gen_create_anchors::gen_create_anchor_statements,
+    gen_create_event_listener::generate_create_event_listener,
+    gen_create_fragments::gen_create_fragments,
+    gen_custom_component::gen_render_custom_component_statements,
+    gen_reference_getter::gen_reference_getter, utils::create_indent,
+};
 
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_if_blk_func(
@@ -53,7 +55,7 @@ pub fn gen_render_if_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        let ref_getter_str = gen_ref_getter_from_needed_ids(
+        let ref_getter_str = gen_reference_getter(
             needed_ids,
             &Some(&if_block.ctx_under_if),
             ref_node_ids,
@@ -71,7 +73,7 @@ pub fn gen_render_if_blk_func(
             false => format!("\"{}\"", if_block.target_if_blk_id),
         };
 
-        let ev_listener_code = create_event_listener(
+        let ev_listener_code = generate_create_event_listener(
             actions_and_targets,
             &if_block.ctx_under_if,
             &ref_node_ids,
@@ -204,7 +206,7 @@ pub fn gen_render_if_blk_func(
             .map(|v| v.assignment)
             .collect::<Vec<u32>>();
 
-        let fragments = create_fragments(
+        let fragments = gen_create_fragments(
             &elm_and_var_relation,
             &dep_vars_assigned_numbers,
             &ref_node_ids,
