@@ -1,3 +1,4 @@
+use lunas_parser::parse_for_statement;
 use nanoid::nanoid;
 
 use crate::{
@@ -84,47 +85,17 @@ pub fn check_html_elms(
                             .insert("$$$conditional$$$".to_string(), None);
                         ctx_array.push(node.uuid.clone());
                     } else if key == ":for" {
-                        // TODO: Add error message for unwrap below
-                        let condition = action_value.clone().unwrap();
-                        // TODO: (P1) implement parser for 'for of'
-                        // Pattern1 :for="item of items"
-                        // Pattern2 :for="(item) of items"
-                        // Pattern3 :for="(item, index) of items"
-                        let parts: Vec<&str> = condition.split(" of ").collect();
-                        if parts.len() != 2 {
-                            return Err(format!(
-                                "Invalid format for :for directive. Expected 'item of items', got '{}'",
-                                condition
-                            ));
-                        }
-                        let item_part = parts[0].trim();
-                        let items_collection = parts[1].trim();
-
-                        let (item_name, index_name) = if item_part.starts_with('(')
-                            && item_part.ends_with(')')
-                        {
-                            let inner_parts: Vec<&str> = item_part[1..item_part.len() - 1]
-                                .split(',')
-                                .map(|s| s.trim())
-                                .collect();
-                            match inner_parts.len() {
-                                1 => (inner_parts[0], Some("index")),
-                                2 => (inner_parts[0], Some(inner_parts[1])),
-                                _ => return Err(format!(
-                                    "Invalid format for :for directive. Expected '(item, index) of items', got '{}'",
-                                    condition
-                                )),
-                            }
-                        } else {
-                            (item_part, Some("index"))
+                        let for_statemtnt = parse_for_statement(&action_value.clone().unwrap())?;
+                        let (item_name, item_index) = {
+                            (
+                                for_statemtnt
+                                    .item_value
+                                    .unwrap_or("$$lunasForItem".to_string()),
+                                for_statemtnt
+                                    .item_index
+                                    .unwrap_or("$$lunasForIndex".to_string()),
+                            )
                         };
-
-                        // Validate item_name is a valid variable name
-                        if item_name.is_empty() {
-                            return Err(format!(
-                                "Item variable name cannot be empty in :for directive"
-                            ));
-                        }
 
                         let ctx_under_for = {
                             let mut ctx = ctx_array.clone();
@@ -138,9 +109,9 @@ pub fn check_html_elms(
                             manipulations: HtmlManipulation::RemoveChildForForStatement(
                                 RemoveChildForRepeatStatement {
                                     child_uuid: node.uuid.clone(),
-                                    item_name: item_name.to_string(),
-                                    item_index: index_name.unwrap().to_string(),
-                                    item_collection: items_collection.to_string(),
+                                    item_name,
+                                    item_index,
+                                    item_collection: for_statemtnt.iter_array.clone(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
                                     ctx_under_for,

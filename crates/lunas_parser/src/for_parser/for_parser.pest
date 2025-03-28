@@ -1,0 +1,22 @@
+WHITESPACE        = _{ " " | "\t" }
+NEWLINE           = _{ "\r\n" | "\n" }
+ws                = _{ WHITESPACE* }
+
+for_stmt          = { declaration? ~ ws ~ pattern ~ ws ~ operator ~ ws ~ rhs }
+
+declaration       = { "var" | "let" | "const" }
+
+pattern           = { array_destructure | object_destructure | identifier }
+
+array_destructure = { "[" ~ ws ~ identifier ~ ws ~ "," ~ ws ~ identifier ~ ws ~ "]" }
+object_destructure= { "{" ~ ws ~ identifier ~ ws ~ "," ~ ws ~ identifier ~ ws ~ "}" }
+
+identifier        = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
+operator          = { "of" | "in" }
+
+rhs               = { object_entries | method_entries | plain }
+
+object_entries    = { "Object" ~ "." ~ "entries" ~ "(" ~ ws ~ identifier ~ ws ~ ")" }
+method_entries    = { identifier ~ "." ~ "entries" ~ "(" ~ ws ~ ")" }
+plain             = { identifier }
