@@ -188,9 +188,18 @@ pub fn search_json(
         {
             if let Some(object) = obj.get("object") {
                 if let Some(property) = obj.get("property") {
-                    let is_target_property = if let Value::Object(property) = property {
+                    let is_target_property_router = if let Value::Object(property) = property {
                         if let Some(Value::String(property_value)) = property.get("value") {
                             property_value == "router"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    let is_target_property_after_mount = if let Value::Object(property) = property {
+                        if let Some(Value::String(property_value)) = property.get("value") {
+                            property_value == "afterMount"
                         } else {
                             false
                         }
@@ -206,7 +215,7 @@ pub fn search_json(
                     } else {
                         false
                     };
-                    if is_target_object && is_target_property {
+                    if is_target_object && is_target_property_router {
                         if let Some(Value::Object(span)) = obj.get("span") {
                             let start = span["start"].as_u64().unwrap() as u32;
                             let end = span["end"].as_u64().unwrap() as u32;
@@ -215,6 +224,20 @@ pub fn search_json(
                                     start_position: start - 1,
                                     end_position: end - 1,
                                     string: "$$lunasRouter".to_string(),
+                                })],
+                                vec![],
+                                vec![],
+                            );
+                        }
+                    } else if is_target_object && is_target_property_after_mount {
+                        if let Some(Value::Object(span)) = obj.get("span") {
+                            let start = span["start"].as_u64().unwrap() as u32;
+                            let end = span["end"].as_u64().unwrap() as u32;
+                            return (
+                                vec![TransformInfo::ReplaceText(ReplaceText {
+                                    start_position: start - 1,
+                                    end_position: end - 1,
+                                    string: "$$lunasAfterMount".to_string(),
                                 })],
                                 vec![],
                                 vec![],
