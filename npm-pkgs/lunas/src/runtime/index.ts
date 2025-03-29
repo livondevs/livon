@@ -29,6 +29,7 @@ export type LunasComponentState = {
   resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __lunas_update: (() => void) | undefined;
+  __lunas_apply_enhancement: () => void;
   __lunas_after_mount: () => void;
   // __lunas_init: () => void;
   // __lunas_destroy: () => void;
@@ -116,6 +117,7 @@ export const $$lunasInitComponent = function (
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
   this.forBlocks = {};
+  this.__lunas_after_mount = () => {};
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -155,6 +157,13 @@ export const $$lunasInitComponent = function (
     };
   }.bind(this);
 
+  const applyEnhancement = function (
+    this: LunasComponentState,
+    enhancementFunc: () => void
+  ) {
+    this.__lunas_apply_enhancement = enhancementFunc;
+  }.bind(this);
+
   const setAfterMount = function (
     this: LunasComponentState,
     afterMount: () => void
@@ -175,6 +184,7 @@ export const $$lunasInitComponent = function (
       this.internalElement.topElmTag
     }>`;
     this.componentElm = elm.firstElementChild as HTMLElement;
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     _updateComponent(() => {});
@@ -189,6 +199,7 @@ export const $$lunasInitComponent = function (
     if (this.isMounted) throw new Error("Component is already mounted");
     this.componentElm = _createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     return this;
@@ -599,6 +610,7 @@ export const $$lunasInitComponent = function (
 
   return {
     $$lunasSetComponentElement: componentElementSetter,
+    $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
