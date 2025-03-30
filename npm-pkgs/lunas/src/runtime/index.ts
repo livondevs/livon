@@ -435,14 +435,14 @@ export const $$lunasInitComponent = function (
       }).bind(this);
       renderForBlock(getDataArray());
 
-      let oldItems: null | unknown[] = null;
+      let oldItems = getDataArray();
 
       this.updateComponentFuncs[0].push(
         (() => {
           if (this.valUpdateMap & updateFlag) {
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
-            if (oldItems === null || diffDetected(oldItems, newItems)) {
+            if (diffDetected(oldItems, newItems)) {
               const refArr = this.refMap[mapOffset] as RefMapItem[];
               // Iterate in reverse order to prevent index shift issues when removing elements
               for (let i = refArr.length - 1; i >= 0; i--) {
