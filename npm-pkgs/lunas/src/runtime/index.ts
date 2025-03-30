@@ -367,8 +367,14 @@ export const $$lunasInitComponent = function (
       if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
-        const parentBlockName = ifCtxUnderFor[ifCtxUnderFor.length - 1];
-        if (this.ifBlockStates[parentBlockName] && condition()) {
+        const parentBlockName = indices
+          ? `${ifCtxUnderFor[ifCtxUnderFor.length - 1]}-${indices}`
+          : ifCtxUnderFor[ifCtxUnderFor.length - 1];
+        if (
+          this.ifBlockStates[parentBlockName] &&
+          condition() &&
+          !this.ifBlockStates[name]
+        ) {
           this.ifBlocks[name].renderer();
         }
       }
