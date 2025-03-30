@@ -755,12 +755,18 @@ export function $$lunasReplaceAttr(
       elm.removeAttribute(key);
     }
     return;
+  } else if (typeof content === "object") {
+    const attrStr = Object.keys(content)
+      .filter((k) => content[k])
+      .join(" ");
+    elm.setAttribute(key, attrStr);
+  } else {
+    if (content === undefined && elm.hasAttribute(key)) {
+      elm.removeAttribute(key);
+      return;
+    }
+    (elm as any)[key] = String(content);
   }
-  if (content === undefined && elm.hasAttribute(key)) {
-    elm.removeAttribute(key);
-    return;
-  }
-  (elm as any)[key] = String(content);
 }
 
 export function $$createLunasElement(
