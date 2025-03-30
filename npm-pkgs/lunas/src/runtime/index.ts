@@ -427,7 +427,10 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
 
-      this.forBlocks[forBlockId] = { cleanUp: [], childs: forCtx };
+      this.forBlocks[forBlockId] = { cleanUp: [], childs: [] };
+      forCtx.forEach((ctx) => {
+        this.forBlocks[ctx].childs.push(forBlockId);
+      });
 
       const renderForBlock = ((items: unknown[]) => {
         const containerElm = getNestedArrayValue(
