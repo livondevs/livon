@@ -649,13 +649,17 @@ export const $$lunasInitComponent = function (
     );
     setNestedArrayValue(this.refMap, refIdx, componentElm);
     if (latestCtx) {
-      const blockName = indices ? `${latestCtx}-${indices}` : latestCtx;
-      if (this.forBlocks[blockName]) {
-        this.forBlocks[blockName].cleanUp.push(() => {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
           componentExport.__unmount();
         });
-      } else if (this.ifBlocks[blockName]) {
-        this.ifBlocks[blockName].cleanup.push(() => {
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
           componentExport.__unmount();
         });
       }
@@ -665,12 +669,33 @@ export const $$lunasInitComponent = function (
   const lunasMountComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
-    parentIdx: number,
-    refIdx: number
+    parentIdx: number | number[],
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
-    this.refMap[refIdx] = componentExport.mount(
-      this.refMap[parentIdx] as HTMLElement
-    ).componentElm;
+    const parentElement = getNestedArrayValue(
+      this.refMap,
+      parentIdx
+    ) as HTMLElement;
+    const { componentElm } = componentExport.mount(parentElement);
+    setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   return {
