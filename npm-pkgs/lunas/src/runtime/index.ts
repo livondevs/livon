@@ -17,7 +17,10 @@ export type LunasComponentState = {
     [key: string]: {
       renderer: () => void;
       context: string[];
+      forBlk: string | null;
       condition: () => boolean;
+      cleanup: (() => void)[];
+      childs: string[];
     };
   };
   ifBlockStates: Record<string, boolean>;
@@ -118,6 +121,7 @@ export const $$lunasInitComponent = function (
   this.updateComponentFuncs = [[], []];
   this.forBlocks = {};
   this.__lunas_after_mount = () => {};
+  this.__lunas_destroy = () => {};
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -260,7 +264,8 @@ export const $$lunasInitComponent = function (
         refElementIndex?: number | number[]
       ],
       fragment?: Fragment[]
-    ][]
+    ][],
+    indices?: number[]
   ) {
     for (const [
       getName,
@@ -306,16 +311,26 @@ export const $$lunasInitComponent = function (
             }
           });
         }).bind(this, mapOffset, mapLength),
-        context: ifCtxUnderFor,
+        context: ifCtxUnderFor.map((ctx) =>
+          indices ? `${ctx}-${indices}` : ctx
+        ),
         condition,
+        forBlk: forCtx.length ? forCtx[forCtx.length - 1] : null,
+        cleanup: [],
+        childs: [],
       };
+
+      ifCtxUnderFor.forEach((ctx) => {
+        const parentBlockName = indices ? `${ctx}-${indices}` : ctx;
+        this.ifBlocks[parentBlockName].childs.push(name);
+      });
 
       const updateFunc = (() => {
         if (this.valUpdateMap & depBit) {
           const shouldRender = condition();
           const rendered = !!this.ifBlockStates[name];
           const parentRendered = ifCtxUnderFor.every(
-            (ctx) => this.ifBlockStates[ctx]
+            (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
           );
           if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
@@ -336,6 +351,13 @@ export const $$lunasInitComponent = function (
             }
 
             delete this.ifBlockStates[name];
+
+            [name, ...this.ifBlocks[name].childs].forEach((child) => {
+              if (this.ifBlocks[child]) {
+                this.ifBlocks[child].cleanup.forEach((f) => f());
+                this.ifBlocks[child].cleanup = [];
+              }
+            });
           }
         }
       }).bind(this);
@@ -592,7 +614,9 @@ export const $$lunasInitComponent = function (
     componentExport: LunasModuleExports,
     parentIdx: number | number[],
     anchorIdx: number | number[] | null,
-    refIdx: number | number[]
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
     const parentElement = getNestedArrayValue(
       this.refMap,
@@ -607,6 +631,18 @@ export const $$lunasInitComponent = function (
       anchorElement
     );
     setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const blockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[blockName]) {
+        this.forBlocks[blockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[blockName]) {
+        this.ifBlocks[blockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   const lunasMountComponent = function (

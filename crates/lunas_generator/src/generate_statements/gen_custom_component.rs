@@ -61,13 +61,23 @@ pub fn gen_render_custom_component_statements(
                 true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
                 false => ref_node_ids.len().to_string(),
             };
+            let latest_ctx = match custom_component_block.ctx.last() {
+                Some(ctx) => format!(r#""{}""#, ctx),
+                None => "null".to_string(),
+            };
+            let indices = match under_for {
+                true => format!("$$lunasForIndices"),
+                false => "null".to_string(),
+            };
             render_custom_statements.push(format!(
-                "$$lunasInsertComponent({}({}), {}, {}, {});",
+                "$$lunasInsertComponent({}({}), {}, {}, {}, {}, {});",
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),
                 parent_idx,
                 anchor,
-                ref_idx
+                ref_idx,
+                latest_ctx,
+                indices
             ));
             ref_node_ids.push(format!(
                 "{}-component",

@@ -263,10 +263,16 @@ pub fn gen_render_if_blk_func(
         return None;
     }
 
+    let indices = match under_for {
+        true => format!(", $$lunasForIndices"),
+        false => "".to_string(),
+    };
+
     Some(format!(
         r#"$$lunasCreateIfBlock([
 {}
-]);"#,
-        create_indent(render_if.join(",\n").as_str())
+]{});"#,
+        create_indent(render_if.join(",\n").as_str()),
+        indices
     ))
 }
