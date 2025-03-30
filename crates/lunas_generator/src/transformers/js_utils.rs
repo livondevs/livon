@@ -206,6 +206,16 @@ pub fn search_json(
                     } else {
                         false
                     };
+                    let is_target_property_after_unmount = if let Value::Object(property) = property
+                    {
+                        if let Some(Value::String(property_value)) = property.get("value") {
+                            property_value == "afterUnmount"
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
                     let is_target_object = if let Value::Object(object) = object {
                         if let Some(Value::String(object_value)) = object.get("value") {
                             object_value == "Lunas"
@@ -238,6 +248,20 @@ pub fn search_json(
                                     start_position: start - 1,
                                     end_position: end - 1,
                                     string: "$$lunasAfterMount".to_string(),
+                                })],
+                                vec![],
+                                vec![],
+                            );
+                        }
+                    } else if is_target_object && is_target_property_after_unmount {
+                        if let Some(Value::Object(span)) = obj.get("span") {
+                            let start = span["start"].as_u64().unwrap() as u32;
+                            let end = span["end"].as_u64().unwrap() as u32;
+                            return (
+                                vec![TransformInfo::ReplaceText(ReplaceText {
+                                    start_position: start - 1,
+                                    end_position: end - 1,
+                                    string: "$$lunasAfterUnmount".to_string(),
                                 })],
                                 vec![],
                                 vec![],

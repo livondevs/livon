@@ -31,8 +31,8 @@ export type LunasComponentState = {
   __lunas_update: (() => void) | undefined;
   __lunas_apply_enhancement: () => void;
   __lunas_after_mount: () => void;
+  __lunas_destroy: () => void;
   // __lunas_init: () => void;
-  // __lunas_destroy: () => void;
   // __lunas_update_component: () => void;
   // __lunas_update_component_end: () => void;
   // __lunas_update_component_start: () => void;
@@ -171,6 +171,13 @@ export const $$lunasInitComponent = function (
     this.__lunas_after_mount = afterMount;
   }.bind(this);
 
+  const setAfterUnmount = function (
+    this: LunasComponentState,
+    afterUnmount: () => void
+  ) {
+    this.__lunas_destroy = afterUnmount;
+  }.bind(this);
+
   const mount = function (
     this: LunasComponentState,
     elm: HTMLElement
@@ -210,6 +217,7 @@ export const $$lunasInitComponent = function (
     this.componentElm!.remove();
     this.isMounted = false;
     this.resetDependecies.forEach((r) => r());
+    this.__lunas_destroy();
   }.bind(this);
 
   const _updateComponent = function (
@@ -590,10 +598,10 @@ export const $$lunasInitComponent = function (
       this.refMap,
       anchorIdx
     ) as HTMLElement;
-    const componentElm = componentExport.insert(
+    const { componentElm } = componentExport.insert(
       parentElement,
       anchorElement
-    ).componentElm;
+    );
     setNestedArrayValue(this.refMap, refIdx, componentElm);
   }.bind(this);
 
@@ -612,6 +620,7 @@ export const $$lunasInitComponent = function (
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
+    $$lunasAfterUnmount: setAfterUnmount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
     $$lunasCreateForBlock: createForBlock,

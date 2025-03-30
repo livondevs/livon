@@ -4,6 +4,7 @@ declare global {
   interface Lunas {
     router: Router;
     afterMount: (callback: () => void) => void;
+    afterUnmount: (callback: () => void) => void;
   }
 
   var Lunas: Lunas;
