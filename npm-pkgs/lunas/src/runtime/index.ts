@@ -372,6 +372,17 @@ export const $$lunasInitComponent = function (
           this.ifBlocks[name].renderer();
         }
       }
+
+      if (this.forBlocks[forCtx[forCtx.length - 1]]) {
+        this.forBlocks[forCtx[forCtx.length - 1]].cleanUp.push(() => {
+          [name, ...this.ifBlocks[name].childs].forEach((child) => {
+            if (this.ifBlocks[child]) {
+              this.ifBlocks[child].cleanup.forEach((f) => f());
+              this.ifBlocks[child].cleanup = [];
+            }
+          });
+        });
+      }
     }
     this.blkUpdateMap = {};
   }.bind(this);
