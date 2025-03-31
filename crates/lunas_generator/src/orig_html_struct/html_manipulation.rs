@@ -20,6 +20,7 @@ pub struct RemoveChildForIfStatement {
     // FIXME: child_uuid is exactly the same as block_id
     pub child_uuid: String,
     pub condition: String,
+    pub original_condition: Option<String>,
     pub block_id: String,
     // TODO:ctxとlocをHtmlManipulatorに入れるか検討する
     pub ctx_under_if: Vec<String>,

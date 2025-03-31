@@ -80,6 +80,10 @@ impl Element {
                     0
                 } else if key.starts_with(":if") {
                     1
+                } else if key.starts_with(":elseif") {
+                    1
+                } else if key.starts_with(":else") {
+                    2
                 } else if key.starts_with("::") {
                     2
                 } else if key.starts_with(":") {

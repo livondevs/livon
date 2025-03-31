@@ -57,9 +57,51 @@ pub fn check_html_elms(
             if !component_names.contains(&element.tag_name) {
                 let x = element.clone().attributes_to_array();
                 for (key, action_value) in &x {
-                    if key == ":if" {
-                        // TODO: Add error message for unwrap below
-                        let condition = action_value.clone().unwrap();
+                    if key == ":if" || key == ":elseif" || key == ":else" {
+                        let condition = if key == ":if" {
+                            action_value.clone().unwrap()
+                        } else {
+                            let element_location_of_parent = {
+                                let mut new_element_location = element_location.clone();
+                                new_element_location.pop();
+                                new_element_location
+                            };
+
+                            let other_conditions = html_manipulators
+                                .iter()
+                                .filter_map(|manip| {
+                                    if let HtmlManipulation::RemoveChildForIfStatement(stmt) =
+                                        &manip.manipulations
+                                    {
+                                        if stmt.elm_loc.starts_with(&element_location_of_parent)
+                                            && stmt.elm_loc.len()
+                                                == element_location_of_parent.len() + 1
+                                        {
+                                            if let Some(original_condition) =
+                                                &stmt.original_condition
+                                            {
+                                                return Some(format!("!({})", original_condition));
+                                            }
+                                        }
+                                    }
+                                    None
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" && ");
+
+                            if other_conditions.is_empty() {
+                                return Err(format!(
+                                    r#"No matching :if statement found for "{}""#,
+                                    key
+                                ));
+                            }
+
+                            if key == ":elseif" {
+                                format!("{} && {}", other_conditions, action_value.clone().unwrap())
+                            } else {
+                                format!("{}", other_conditions)
+                            }
+                        };
                         let ctx_under_if = {
                             let mut ctx = ctx_array.clone();
                             ctx.push(node.uuid.clone());
@@ -72,6 +114,7 @@ pub fn check_html_elms(
                                 RemoveChildForIfStatement {
                                     child_uuid: node.uuid.clone(),
                                     condition: condition.clone(),
+                                    original_condition: action_value.clone(),
                                     block_id: node_id.clone(),
                                     ctx_over_if: ctx_array.clone(),
                                     ctx_under_if,
