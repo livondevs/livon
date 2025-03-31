@@ -17,7 +17,10 @@ export type LunasComponentState = {
     [key: string]: {
       renderer: () => void;
       context: string[];
+      forBlk: string | null;
       condition: () => boolean;
+      cleanup: (() => void)[];
+      childs: string[];
     };
   };
   ifBlockStates: Record<string, boolean>;
@@ -29,9 +32,10 @@ export type LunasComponentState = {
   resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
   __lunas_update: (() => void) | undefined;
+  __lunas_apply_enhancement: () => void;
   __lunas_after_mount: () => void;
+  __lunas_destroy: () => void;
   // __lunas_init: () => void;
-  // __lunas_destroy: () => void;
   // __lunas_update_component: () => void;
   // __lunas_update_component_end: () => void;
   // __lunas_update_component_start: () => void;
@@ -116,6 +120,8 @@ export const $$lunasInitComponent = function (
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
   this.forBlocks = {};
+  this.__lunas_after_mount = () => {};
+  this.__lunas_destroy = () => {};
 
   const genBitOfVariables = function* (this: LunasComponentState) {
     while (true) {
@@ -155,11 +161,25 @@ export const $$lunasInitComponent = function (
     };
   }.bind(this);
 
+  const applyEnhancement = function (
+    this: LunasComponentState,
+    enhancementFunc: () => void
+  ) {
+    this.__lunas_apply_enhancement = enhancementFunc;
+  }.bind(this);
+
   const setAfterMount = function (
     this: LunasComponentState,
     afterMount: () => void
   ) {
     this.__lunas_after_mount = afterMount;
+  }.bind(this);
+
+  const setAfterUnmount = function (
+    this: LunasComponentState,
+    afterUnmount: () => void
+  ) {
+    this.__lunas_destroy = afterUnmount;
   }.bind(this);
 
   const mount = function (
@@ -175,6 +195,7 @@ export const $$lunasInitComponent = function (
       this.internalElement.topElmTag
     }>`;
     this.componentElm = elm.firstElementChild as HTMLElement;
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     _updateComponent(() => {});
@@ -189,6 +210,7 @@ export const $$lunasInitComponent = function (
     if (this.isMounted) throw new Error("Component is already mounted");
     this.componentElm = _createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     return this;
@@ -199,6 +221,7 @@ export const $$lunasInitComponent = function (
     this.componentElm!.remove();
     this.isMounted = false;
     this.resetDependecies.forEach((r) => r());
+    this.__lunas_destroy();
   }.bind(this);
 
   const _updateComponent = function (
@@ -241,7 +264,8 @@ export const $$lunasInitComponent = function (
         refElementIndex?: number | number[]
       ],
       fragment?: Fragment[]
-    ][]
+    ][],
+    indices?: number[]
   ) {
     for (const [
       getName,
@@ -287,16 +311,26 @@ export const $$lunasInitComponent = function (
             }
           });
         }).bind(this, mapOffset, mapLength),
-        context: ifCtxUnderFor,
+        context: ifCtxUnderFor.map((ctx) =>
+          indices ? `${ctx}-${indices}` : ctx
+        ),
         condition,
+        forBlk: forCtx.length ? forCtx[forCtx.length - 1] : null,
+        cleanup: [],
+        childs: [],
       };
+
+      ifCtxUnderFor.forEach((ctx) => {
+        const parentBlockName = indices ? `${ctx}-${indices}` : ctx;
+        this.ifBlocks[parentBlockName].childs.push(name);
+      });
 
       const updateFunc = (() => {
         if (this.valUpdateMap & depBit) {
           const shouldRender = condition();
           const rendered = !!this.ifBlockStates[name];
           const parentRendered = ifCtxUnderFor.every(
-            (ctx) => this.ifBlockStates[ctx]
+            (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
           );
           if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
@@ -317,6 +351,13 @@ export const $$lunasInitComponent = function (
             }
 
             delete this.ifBlockStates[name];
+
+            [name, ...this.ifBlocks[name].childs].forEach((child) => {
+              if (this.ifBlocks[child]) {
+                this.ifBlocks[child].cleanup.forEach((f) => f());
+                this.ifBlocks[child].cleanup = [];
+              }
+            });
           }
         }
       }).bind(this);
@@ -326,10 +367,27 @@ export const $$lunasInitComponent = function (
       if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
-        const parentBlockName = ifCtxUnderFor[ifCtxUnderFor.length - 1];
-        if (this.ifBlockStates[parentBlockName] && condition()) {
+        const parentBlockName = indices
+          ? `${ifCtxUnderFor[ifCtxUnderFor.length - 1]}-${indices}`
+          : ifCtxUnderFor[ifCtxUnderFor.length - 1];
+        if (
+          this.ifBlockStates[parentBlockName] &&
+          condition() &&
+          !this.ifBlockStates[name]
+        ) {
           this.ifBlocks[name].renderer();
         }
+      }
+
+      if (this.forBlocks[forCtx[forCtx.length - 1]]) {
+        this.forBlocks[forCtx[forCtx.length - 1]].cleanUp.push(() => {
+          [name, ...this.ifBlocks[name].childs].forEach((child) => {
+            if (this.ifBlocks[child]) {
+              this.ifBlocks[child].cleanup.forEach((f) => f());
+              this.ifBlocks[child].cleanup = [];
+            }
+          });
+        });
       }
     }
     this.blkUpdateMap = {};
@@ -408,10 +466,12 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
 
-      this.forBlocks[forBlockId] = { cleanUp: [], childs: forCtx };
+      this.forBlocks[forBlockId] = { cleanUp: [], childs: [] };
+      forCtx.forEach((ctx) => {
+        this.forBlocks[ctx].childs.push(forBlockId);
+      });
 
-      let items = getDataArray();
-      const renderForBlock = (() => {
+      const renderForBlock = ((items: unknown[]) => {
         const containerElm = getNestedArrayValue(
           this.refMap,
           parentElementIndex
@@ -434,14 +494,16 @@ export const $$lunasInitComponent = function (
           }
         });
       }).bind(this);
-      renderForBlock();
+      renderForBlock(getDataArray());
+
+      let oldItems = getDataArray();
 
       this.updateComponentFuncs[0].push(
         (() => {
           if (this.valUpdateMap & updateFlag) {
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
-            if (diffDetected(items, newItems)) {
+            if (diffDetected(oldItems, newItems)) {
               const refArr = this.refMap[mapOffset] as RefMapItem[];
               // Iterate in reverse order to prevent index shift issues when removing elements
               for (let i = refArr.length - 1; i >= 0; i--) {
@@ -462,9 +524,9 @@ export const $$lunasInitComponent = function (
                 });
                 this.forBlocks[forBlockId].cleanUp = [];
               }
-              renderForBlock();
+              renderForBlock(newItems);
             }
-            items = newItems;
+            oldItems = newItems;
           }
         }).bind(this)
       );
@@ -569,7 +631,9 @@ export const $$lunasInitComponent = function (
     componentExport: LunasModuleExports,
     parentIdx: number | number[],
     anchorIdx: number | number[] | null,
-    refIdx: number | number[]
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
     const parentElement = getNestedArrayValue(
       this.refMap,
@@ -579,27 +643,66 @@ export const $$lunasInitComponent = function (
       this.refMap,
       anchorIdx
     ) as HTMLElement;
-    const componentElm = componentExport.insert(
+    const { componentElm } = componentExport.insert(
       parentElement,
       anchorElement
-    ).componentElm;
+    );
     setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   const lunasMountComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
-    parentIdx: number,
-    refIdx: number
+    parentIdx: number | number[],
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
-    this.refMap[refIdx] = componentExport.mount(
-      this.refMap[parentIdx] as HTMLElement
-    ).componentElm;
+    const parentElement = getNestedArrayValue(
+      this.refMap,
+      parentIdx
+    ) as HTMLElement;
+    const { componentElm } = componentExport.mount(parentElement);
+    setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   return {
     $$lunasSetComponentElement: componentElementSetter,
+    $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
+    $$lunasAfterUnmount: setAfterUnmount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
     $$lunasCreateForBlock: createForBlock,
@@ -652,12 +755,18 @@ export function $$lunasReplaceAttr(
       elm.removeAttribute(key);
     }
     return;
+  } else if (typeof content === "object") {
+    const attrStr = Object.keys(content)
+      .filter((k) => content[k])
+      .join(" ");
+    elm.setAttribute(key, attrStr);
+  } else {
+    if (content === undefined && elm.hasAttribute(key)) {
+      elm.removeAttribute(key);
+      return;
+    }
+    (elm as any)[key] = String(content);
   }
-  if (content === undefined && elm.hasAttribute(key)) {
-    elm.removeAttribute(key);
-    return;
-  }
-  (elm as any)[key] = String(content);
 }
 
 export function $$createLunasElement(
