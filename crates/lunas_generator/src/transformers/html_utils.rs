@@ -13,6 +13,7 @@ use crate::{
     },
     structs::{
         ctx::ContextCategories,
+        js_analyze::JsFunctionDeps,
         transform_info::{
             ActionAndTarget, ComponentArgs, CustomComponentBlockInfo, EventBindingStatement,
             EventTarget, ForBlockInfo, IdBasedElementAccess, IfBlockInfo,
@@ -33,6 +34,7 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 pub fn check_html_elms(
     varibale_names: &Vec<String>,
     component_names: &Vec<String>,
+    func_deps: &Vec<JsFunctionDeps>,
     node: &mut Node,
     // TODO: needed_idsからリネーム
     needed_ids: &mut Vec<RefMap>,
@@ -251,8 +253,11 @@ pub fn check_html_elms(
 
                         let mut raw_attr_value = raw_attr_value.unwrap();
 
-                        let (raw_attr_value, used_vars) =
-                            append_v_to_vars_in_html(&mut raw_attr_value, varibale_names);
+                        let (raw_attr_value, used_vars) = append_v_to_vars_in_html(
+                            &mut raw_attr_value,
+                            varibale_names,
+                            func_deps,
+                        );
 
                         element.attributes.remove(key);
 
@@ -275,7 +280,11 @@ pub fn check_html_elms(
                         if let Some(value) = &&action_value {
                             actions_and_targets.push(ActionAndTarget {
                                 action_name: action_name.to_string(),
-                                action: EventTarget::new(value.to_string(), varibale_names),
+                                action: EventTarget::new(
+                                    value.to_string(),
+                                    varibale_names,
+                                    func_deps,
+                                ),
                                 target: node_id.clone(),
                                 ctx: ctx_array.clone(),
                             })
@@ -326,6 +335,7 @@ pub fn check_html_elms(
                 check_html_elms(
                     varibale_names,
                     component_names,
+                    func_deps,
                     child_node,
                     needed_ids,
                     elm_and_var_relation,
@@ -417,6 +427,7 @@ pub fn check_html_elms(
                             let (cond, dep_vars) = append_v_to_vars_in_html(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
+                                func_deps,
                             );
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
@@ -485,6 +496,7 @@ pub fn check_html_elms(
                             let (item_collection, dep_vars) = append_v_to_vars_in_html(
                                 &remove_statement.item_collection.as_str(),
                                 &varibale_names,
+                                func_deps,
                             );
                             for_blocks_info.push(ForBlockInfo {
                                 parent_id: node_id.clone(),
@@ -631,7 +643,7 @@ pub fn check_html_elms(
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names);
+            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names, func_deps);
             if dep_vars.len() > 0 && count_of_siblings <= 1 {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
@@ -739,6 +751,7 @@ fn create_space_for_ref_map(
 fn replace_text_with_reactive_value(
     code: &mut String,
     variables: &Vec<String>,
+    func_deps: &Vec<JsFunctionDeps>,
 ) -> (Vec<String>, u32) {
     let mut count_of_bindings = 0;
 
@@ -759,7 +772,7 @@ fn replace_text_with_reactive_value(
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables);
+            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables, func_deps);
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 
@@ -814,6 +827,7 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec![],
         );
         assert_eq!(code, "$$lunasEscapeHtml(count2.v+count.v)");
     }
@@ -825,6 +839,7 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec![],
         );
         assert_eq!(code, "$$lunasEscapeHtml( count2.v + count.v )");
     }
@@ -833,7 +848,7 @@ mod tests {
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
         let mut code = code.to_string();
-        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()]);
+        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![]);
         assert_eq!(
             code,
             "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"
