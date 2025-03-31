@@ -263,6 +263,7 @@ pub fn search_json(
                                 })],
                                 vec![],
                                 vec![],
+                                vec![],
                             );
                         }
                     } else if is_target_object && is_target_property_after_unmount {
@@ -275,6 +276,7 @@ pub fn search_json(
                                     end_position: end - 1,
                                     string: "$$lunasAfterUnmount".to_string(),
                                 })],
+                                vec![],
                                 vec![],
                                 vec![],
                             );
