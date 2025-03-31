@@ -410,8 +410,7 @@ export const $$lunasInitComponent = function (
 
       this.forBlocks[forBlockId] = { cleanUp: [], childs: forCtx };
 
-      let items = getDataArray();
-      const renderForBlock = (() => {
+      const renderForBlock = ((items: unknown[]) => {
         const containerElm = getNestedArrayValue(
           this.refMap,
           parentElementIndex
@@ -434,14 +433,16 @@ export const $$lunasInitComponent = function (
           }
         });
       }).bind(this);
-      renderForBlock();
+      renderForBlock(getDataArray());
+
+      let oldItems = getDataArray();
 
       this.updateComponentFuncs[0].push(
         (() => {
           if (this.valUpdateMap & updateFlag) {
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
-            if (diffDetected(items, newItems)) {
+            if (diffDetected(oldItems, newItems)) {
               const refArr = this.refMap[mapOffset] as RefMapItem[];
               // Iterate in reverse order to prevent index shift issues when removing elements
               for (let i = refArr.length - 1; i >= 0; i--) {
@@ -462,9 +463,9 @@ export const $$lunasInitComponent = function (
                 });
                 this.forBlocks[forBlockId].cleanUp = [];
               }
-              renderForBlock();
+              renderForBlock(newItems);
             }
-            items = newItems;
+            oldItems = newItems;
           }
         }).bind(this)
       );
