@@ -2,7 +2,7 @@ pub fn gen_binary_map_from_bool(bools: Vec<bool>) -> u32 {
     let mut result = 0;
     for (i, &value) in bools.iter().enumerate() {
         if value {
-            result |= 1 << (bools.len() - i - 1);
+            result |= 2u32.pow(i as u32);
         }
     }
     result
