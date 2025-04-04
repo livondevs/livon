@@ -1,11 +1,27 @@
-pub fn gen_binary_map_from_bool(bools: Vec<bool>) -> u32 {
-    let mut result = 0;
-    for (i, &value) in bools.iter().enumerate() {
-        if value {
-            result |= 1 << (bools.len() - i - 1);
+use crate::js_utils::array::vec_str_to_array;
+
+pub fn gen_binary_map_from_bool(bools: Vec<bool>) -> String {
+    if bools.len() <= 31 {
+        let mut result = 0u128;
+        for (i, &value) in bools.iter().enumerate() {
+            if value {
+                result |= 2u128.pow(i as u32);
+            }
         }
+        result.to_string()
+    } else {
+        let mut result = vec![];
+        for chunk in bools.chunks(31) {
+            let mut chunk_result = 0u128;
+            for (i, &value) in chunk.iter().enumerate() {
+                if value {
+                    chunk_result |= 2u128.pow(i as u32);
+                }
+            }
+            result.push(chunk_result.to_string());
+        }
+        vec_str_to_array(result)
     }
-    result
 }
 
 // TODO: インデントの種類を入力によって変えられるようにする

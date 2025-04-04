@@ -401,13 +401,16 @@ export const $$lunasInitComponent = function (
   const getElmRefs = function (
     this: LunasComponentState,
     ids: string[],
-    preserveId: number,
+    preserveId: number | number[],
     refLocation: number | number[] = 0
   ): void {
+    const boolMap = bitMapToBoolArr(preserveId);
     ids.forEach(
       function (this: LunasComponentState, id: string, index: number) {
         const e = document.getElementById(id)!;
-        (2 ** index) & preserveId && e.removeAttribute("id");
+        if (boolMap[index]) {
+          e.removeAttribute("id");
+        }
         const newRefLocation = addNumberToArrayInitial(refLocation, index);
         setNestedArrayValue(this.refMap, newRefLocation, e);
       }.bind(this)
@@ -885,5 +888,15 @@ function addNumberToArrayInitial(
     const copy = [...arr];
     copy[0] += num;
     return copy;
+  }
+}
+
+function bitMapToBoolArr(bitMap: number | number[]): boolean[] {
+  if (typeof bitMap === "number") {
+    return Array.from({ length: 31 }, (_, i) => (bitMap & (1 << i)) !== 0);
+  } else {
+    return bitMap
+      .map((v) => bitMapToBoolArr(v))
+      .reduce((acc, val) => acc.concat(val), []);
   }
 }
