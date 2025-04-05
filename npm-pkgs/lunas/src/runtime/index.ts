@@ -902,13 +902,9 @@ function bitAnd(_a: number | number[], _b: number | number[]): boolean {
   const a = fillArrayWithZero(_a, length);
   const b = fillArrayWithZero(_b, length);
 
-  const result = a.reduce((acc, val, i) => {
+  return a.reduce((acc, val, i) => {
     return acc || (val & b[i]) !== 0;
   }, false);
-  if (result) {
-    console.log("bit comparison end", _a, _b);
-  }
-  return result;
 }
 
 // A function to perform bitwise "|=" operation on number[] and number[]
