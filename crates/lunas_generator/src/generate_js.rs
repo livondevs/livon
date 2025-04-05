@@ -1,4 +1,5 @@
 use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
+use num_bigint::BigUint;
 
 use crate::{
     consts::ROUTER_VIEW,
@@ -333,10 +334,10 @@ $$lunasCreateFragments({});"#,
 /// let result = get_combined_binary_number(numbers);
 /// assert_eq!(result, 0b0111);
 /// ```
-pub fn get_combined_binary_number(numbers: Vec<u128>) -> u128 {
-    let mut result = 0;
-    for (_, &value) in numbers.iter().enumerate() {
-        result |= value;
+pub fn get_combined_binary_number(numbers: Vec<BigUint>) -> BigUint {
+    let mut result = BigUint::ZERO;
+    for value in &numbers {
+        result |= value.clone();
     }
     result
 }

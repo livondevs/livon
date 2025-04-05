@@ -1,3 +1,5 @@
+use num_bigint::BigUint;
+
 use crate::{
     generate_js::get_combined_binary_number,
     structs::{
@@ -43,8 +45,8 @@ pub fn gen_create_fragments(
                                 .collect::<Vec<bool>>()
                                 .contains(&true)
                         })
-                        .map(|v| v.assignment)
-                        .collect::<Vec<u128>>();
+                        .map(|v| v.assignment.clone())
+                        .collect::<Vec<BigUint>>();
 
                     let target_node_idx = {
                         let target_node_idx = ref_node_ids
@@ -98,8 +100,8 @@ pub fn gen_create_fragments(
                             .collect::<Vec<bool>>()
                             .contains(&true)
                     })
-                    .map(|v| v.assignment)
-                    .collect::<Vec<u128>>();
+                    .map(|v| v.assignment.clone())
+                    .collect::<Vec<BigUint>>();
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 

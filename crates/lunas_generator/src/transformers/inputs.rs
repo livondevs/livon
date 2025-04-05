@@ -1,4 +1,5 @@
 use lunas_parser::PropsInput;
+use num_bigint::BigUint;
 
 use crate::structs::transform_info::VariableNameAndAssignedNumber;
 
@@ -9,7 +10,7 @@ pub fn generate_input_variable_decl(
     for (i, input) in inputs.iter().enumerate() {
         variables.push(VariableNameAndAssignedNumber {
             name: input.variable_name.clone(),
-            assignment: 2u128.pow(i as u32),
+            assignment: BigUint::from(2u32).pow(i as u32),
         });
     }
     let prop_name = inputs

@@ -1,3 +1,5 @@
+use num_bigint::BigUint;
+
 use crate::{
     generate_js::get_combined_binary_number,
     orig_html_struct::structs::NodeContent,
@@ -183,8 +185,8 @@ pub fn gen_render_for_blk_func(
                     .collect::<Vec<bool>>()
                     .contains(&true)
             })
-            .map(|v| v.assignment)
-            .collect::<Vec<u128>>();
+            .map(|v| v.assignment.clone())
+            .collect::<Vec<BigUint>>();
 
         let fragment_args = vec![
             for_block.item_name.clone(),
