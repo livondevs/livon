@@ -92,7 +92,7 @@ pub fn generate_js_from_blocks(
 
     let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
 
-    let (variable_names, imports_in_script, js_output) =
+    let (variable_names, imports_in_script, js_output, js_func_deps) =
         analyze_js(blocks, inputs.len() as u32, &mut variables);
 
     let mut codes = vec![js_output];
@@ -126,6 +126,7 @@ pub fn generate_js_from_blocks(
     check_html_elms(
         &variable_names,
         &component_names,
+        &js_func_deps,
         &mut new_node,
         &mut ref_map,
         &mut elm_and_var_relation,

@@ -1,3 +1,4 @@
+mod ast_analyzer;
 mod consts;
 mod generate_js;
 mod generate_statements;
