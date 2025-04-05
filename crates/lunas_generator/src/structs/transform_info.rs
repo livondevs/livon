@@ -20,6 +20,7 @@ pub enum TransformInfo {
 pub struct AddStringToPosition {
     pub position: u32,
     pub string: String,
+    pub sort_order: u32,
 }
 
 #[derive(Debug, Clone)]

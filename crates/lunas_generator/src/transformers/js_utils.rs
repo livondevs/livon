@@ -44,6 +44,19 @@ pub fn analyze_js(
 
         positions.extend(position_result);
         imports.extend(import_result);
+        positions.sort_by(|a, b| {
+            let a = match a {
+                TransformInfo::AddStringToPosition(a) => a.sort_order,
+                TransformInfo::RemoveStatement(_) => 0,
+                TransformInfo::ReplaceText(_) => 0,
+            };
+            let b = match b {
+                TransformInfo::AddStringToPosition(b) => b.sort_order,
+                TransformInfo::RemoveStatement(_) => 0,
+                TransformInfo::ReplaceText(_) => 0,
+            };
+            a.cmp(&b)
+        });
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
         (variable_names, imports, output, functions_and_deps)
     } else {
@@ -107,12 +120,14 @@ fn find_variable_declarations(
                                     AddStringToPosition {
                                         position: (start.as_u64().unwrap() - 1) as u32,
                                         string: "$$lunasReactive(".to_string(),
+                                        sort_order: 1,
                                     },
                                 ));
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
                                         string: format!(")"),
+                                        sort_order: 1,
                                     },
                                 ));
                             }
@@ -162,6 +177,7 @@ pub fn search_json(
                                     vec![TransformInfo::AddStringToPosition(AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
                                         string: ".v".to_string(),
+                                        sort_order: 0,
                                     })],
                                     vec![],
                                     vec![variable_name.clone()],
