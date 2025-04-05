@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use num_bigint::BigUint;
+
 use crate::{
     orig_html_struct::structs::Node,
     transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
@@ -36,7 +38,7 @@ pub struct ReplaceText {
 #[derive(Debug)]
 pub struct VariableNameAndAssignedNumber {
     pub name: String,
-    pub assignment: u32,
+    pub assignment: BigUint,
 }
 
 #[derive(Debug)]

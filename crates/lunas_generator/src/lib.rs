@@ -2,6 +2,7 @@ mod ast_analyzer;
 mod consts;
 mod generate_js;
 mod generate_statements;
+mod js_utils;
 mod orig_html_struct;
 mod structs;
 mod transformers;
