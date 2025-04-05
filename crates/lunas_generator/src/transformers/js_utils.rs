@@ -3,11 +3,15 @@ use std::vec;
 use lunas_parser::DetailedBlock;
 use serde_json::Value;
 
-use crate::structs::{
-    js_utils::JsSearchParent,
-    transform_info::{
-        AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo,
-        VariableNameAndAssignedNumber,
+use crate::{
+    ast_analyzer::function_analyzer::analyze_ast,
+    structs::{
+        js_analyze::{JsFunctionDeps, Tidy},
+        js_utils::JsSearchParent,
+        transform_info::{
+            AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo,
+            VariableNameAndAssignedNumber,
+        },
     },
 };
 
@@ -17,7 +21,7 @@ pub fn analyze_js(
     blocks: &DetailedBlock,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
-) -> (Vec<String>, Vec<String>, String) {
+) -> (Vec<String>, Vec<String>, String, Vec<JsFunctionDeps>) {
     if let Some(js_block) = &blocks.detailed_language_blocks.js {
         let mut positions = vec![];
         let mut imports = vec![];
@@ -26,23 +30,27 @@ pub fn analyze_js(
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-        let (position_result, import_result, _) = search_json(
+        let (position_result, import_result, _, _) = search_json(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
             Some(&imports),
             JsSearchParent::NoneValue,
         );
+
+        let mut functions_and_deps = analyze_ast(&js_block.ast, &variable_names);
+        functions_and_deps.tidy();
+
         positions.extend(position_result);
         imports.extend(import_result);
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
-        (variable_names, imports, output)
+        (variable_names, imports, output, functions_and_deps)
     } else {
         let variable_names = variables
             .iter()
             .map(|v| v.name.clone())
             .collect::<Vec<String>>();
-        (variable_names, vec![], "".to_string())
+        (variable_names, vec![], "".to_string(), vec![])
     }
 }
 
@@ -129,13 +137,15 @@ fn power_of_two_generator(init: u32) -> impl FnMut() -> u32 {
 
 // TODO: (P5) Use mutable references for the arguments instead of returning them
 pub fn search_json(
-    json: &Value,
+    json: &serde_json::Value,
     raw_js: &String,
     variables: &Vec<String>,
     // FIXME: imports are unused
     imports: Option<&Vec<String>>,
     parent: JsSearchParent,
-) -> (vec::Vec<TransformInfo>, vec::Vec<String>, vec::Vec<String>) {
+) -> (Vec<TransformInfo>, Vec<String>, Vec<String>, Vec<String>) {
+    use serde_json::Value;
+
     if let Value::Object(obj) = json {
         if obj.contains_key("type") && obj["type"] == Value::String("Identifier".into()) {
             if (parent.clone().is_some()
@@ -154,14 +164,14 @@ pub fn search_json(
                                     })],
                                     vec![],
                                     vec![variable_name.clone()],
+                                    vec![], // 関数名はここでは対象外
                                 );
                             }
                         }
                     }
                 }
             }
-
-            return (vec![], vec![], vec![]);
+            return (vec![], vec![], vec![], vec![]);
         } else if obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
         {
@@ -181,6 +191,7 @@ pub fn search_json(
                     .skip(obj["span"]["start"].as_u64().unwrap() as usize - 1)
                     .take(trim_end as usize - obj["span"]["start"].as_u64().unwrap() as usize)
                     .collect()],
+                vec![],
                 vec![],
             );
         } else if obj.contains_key("type")
@@ -237,6 +248,7 @@ pub fn search_json(
                                 })],
                                 vec![],
                                 vec![],
+                                vec![],
                             );
                         }
                     } else if is_target_object && is_target_property_after_mount {
@@ -249,6 +261,7 @@ pub fn search_json(
                                     end_position: end - 1,
                                     string: "$$lunasAfterMount".to_string(),
                                 })],
+                                vec![],
                                 vec![],
                                 vec![],
                             );
@@ -265,17 +278,50 @@ pub fn search_json(
                                 })],
                                 vec![],
                                 vec![],
+                                vec![],
                             );
                         }
                     }
                 }
             }
+        } else if obj.contains_key("type") && obj["type"] == Value::String("CallExpression".into())
+        {
+            let mut functions_found = vec![];
+            if let Some(callee) = obj.get("callee") {
+                if let Value::Object(callee_obj) = callee {
+                    if callee_obj.get("type") == Some(&Value::String("Identifier".to_string())) {
+                        if let Some(Value::String(func_name)) = callee_obj.get("value") {
+                            functions_found.push(func_name.clone());
+                        }
+                    }
+                }
+            }
+            let mut trans_tmp = vec![];
+            let mut import_tmp = vec![];
+            let mut dep_vars_tmp = vec![];
+            let mut funcs_tmp = functions_found;
+            for (_key, value) in obj {
+                let (trans_res, import_res, dep_vars, funcs) = search_json(
+                    value,
+                    raw_js,
+                    variables,
+                    imports,
+                    JsSearchParent::MapValue(&obj),
+                );
+                trans_tmp.extend(trans_res);
+                import_tmp.extend(import_res);
+                dep_vars_tmp.extend(dep_vars);
+                funcs_tmp.extend(funcs);
+            }
+            return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
         }
+
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
+        let mut funcs_tmp = vec![];
         for (_key, value) in obj {
-            let (trans_res, import_res, dep_vars) = search_json(
+            let (trans_res, import_res, dep_vars, funcs) = search_json(
                 value,
                 raw_js,
                 variables,
@@ -285,14 +331,16 @@ pub fn search_json(
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
+            funcs_tmp.extend(funcs);
         }
-        return (trans_tmp, import_tmp, dep_vars_tmp);
+        return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
     } else if let Value::Array(arr) = json {
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
+        let mut funcs_tmp = vec![];
         for child_value in arr {
-            let (trans_res, import_res, dep_vars) = search_json(
+            let (trans_res, import_res, dep_vars, funcs) = search_json(
                 child_value,
                 raw_js,
                 variables,
@@ -302,8 +350,9 @@ pub fn search_json(
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
+            funcs_tmp.extend(funcs);
         }
-        return (trans_tmp, import_tmp, dep_vars_tmp);
+        return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
     }
-    return (vec![], vec![], vec![]);
+    return (vec![], vec![], vec![], vec![]);
 }

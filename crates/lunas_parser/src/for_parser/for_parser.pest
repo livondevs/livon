@@ -11,7 +11,7 @@ pattern           = { array_destructure | object_destructure | identifier }
 array_destructure = { "[" ~ ws ~ identifier ~ ws ~ "," ~ ws ~ identifier ~ ws ~ "]" }
 object_destructure= { "{" ~ ws ~ identifier ~ ws ~ "," ~ ws ~ identifier ~ ws ~ "}" }
 
-identifier        = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier        = @{ (ASCII_ALPHA | "$" | "_") ~ (ASCII_ALPHANUMERIC | "$" | "_")* }
 
 operator          = { "of" | "in" }
 
@@ -19,4 +19,20 @@ rhs               = { object_entries | method_entries | plain }
 
 object_entries    = { "Object" ~ "." ~ "entries" ~ "(" ~ ws ~ identifier ~ ws ~ ")" }
 method_entries    = { identifier ~ "." ~ "entries" ~ "(" ~ ws ~ ")" }
-plain             = { identifier }
+plain = { identifier ~ function_call? }
+// TODO: Extend expression to include more types
+function_call = { "(" ~ ws ~ argument_list? ~ ws ~ ")" }
+argument_list = { expression ~ (ws ~ "," ~ ws ~ expression)* }
+expression         = { prefix_expression ~ (ws ~ binary_operator ~ ws ~ prefix_expression)* }
+prefix_expression  = { string | number | boolean | null | array | object | unary_expression | identifier }
+string             = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+number             = @{ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+boolean            = { "true" | "false" }
+null               = { "null" }
+array              = { "[" ~ ws ~ (expression ~ (ws ~ "," ~ ws ~ expression)*)? ~ ws ~ "]" }
+object             = { "{" ~ ws ~ (pair ~ (ws ~ "," ~ ws ~ pair)*)? ~ ws ~ "}" }
+pair               = { string ~ ws ~ ":" ~ ws ~ expression }
+unary_operator    = { "-" | "!" }
+unary_expression   = { unary_operator ~ ws ~ expression }
+binary_expression  = _{ prefix_expression ~ (ws ~ binary_operator ~ ws ~ prefix_expression)+ }
+binary_operator    = { "+" | "-" | "*" | "/" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" }
