@@ -96,7 +96,6 @@ fn bit_num_to_array(number: BigUint) -> Vec<u32> {
 }
 
 #[cfg(test)]
-#[cfg(test)]
 mod tests {
     use super::*;
     use num_bigint::BigUint;
