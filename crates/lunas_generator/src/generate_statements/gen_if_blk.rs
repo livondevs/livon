@@ -204,7 +204,7 @@ pub fn gen_render_if_blk_func(
                     .contains(&true)
             })
             .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+            .collect::<Vec<u128>>();
 
         let fragments = gen_create_fragments(
             &elm_and_var_relation,

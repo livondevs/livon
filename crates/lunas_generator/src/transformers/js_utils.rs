@@ -126,10 +126,10 @@ fn find_variable_declarations(
     }
 }
 
-fn power_of_two_generator(init: u32) -> impl FnMut() -> u32 {
+fn power_of_two_generator(init: u32) -> impl FnMut() -> u128 {
     let mut count = init;
-    move || -> u32 {
-        let result = 2u32.pow(count);
+    move || -> u128 {
+        let result = 2u128.pow(count as u32);
         count += 1;
         result
     }

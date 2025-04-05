@@ -44,7 +44,7 @@ pub fn gen_create_fragments(
                                 .contains(&true)
                         })
                         .map(|v| v.assignment)
-                        .collect::<Vec<u32>>();
+                        .collect::<Vec<u128>>();
 
                     let target_node_idx = {
                         let target_node_idx = ref_node_ids
@@ -99,7 +99,7 @@ pub fn gen_create_fragments(
                             .contains(&true)
                     })
                     .map(|v| v.assignment)
-                    .collect::<Vec<u32>>();
+                    .collect::<Vec<u128>>();
 
                 let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
 

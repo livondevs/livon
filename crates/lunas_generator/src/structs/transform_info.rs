@@ -36,7 +36,7 @@ pub struct ReplaceText {
 #[derive(Debug)]
 pub struct VariableNameAndAssignedNumber {
     pub name: String,
-    pub assignment: u32,
+    pub assignment: u128,
 }
 
 #[derive(Debug)]

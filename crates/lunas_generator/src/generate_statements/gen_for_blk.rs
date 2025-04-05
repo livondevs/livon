@@ -184,7 +184,7 @@ pub fn gen_render_for_blk_func(
                     .contains(&true)
             })
             .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+            .collect::<Vec<u128>>();
 
         let fragment_args = vec![
             for_block.item_name.clone(),

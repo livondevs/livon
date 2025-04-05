@@ -333,7 +333,7 @@ $$lunasCreateFragments({});"#,
 /// let result = get_combined_binary_number(numbers);
 /// assert_eq!(result, 0b0111);
 /// ```
-pub fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
+pub fn get_combined_binary_number(numbers: Vec<u128>) -> u128 {
     let mut result = 0;
     for (_, &value) in numbers.iter().enumerate() {
         result |= value;
