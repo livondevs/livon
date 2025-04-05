@@ -15,6 +15,19 @@ pub fn add_or_remove_strings_to_script(
     let mut transformers = position_and_strs.clone();
     transformers.sort_by(|a, b| {
         let a = match a {
+            TransformInfo::AddStringToPosition(a) => a.sort_order,
+            TransformInfo::RemoveStatement(_) => 0,
+            TransformInfo::ReplaceText(_) => 0,
+        };
+        let b = match b {
+            TransformInfo::AddStringToPosition(b) => b.sort_order,
+            TransformInfo::RemoveStatement(_) => 0,
+            TransformInfo::ReplaceText(_) => 0,
+        };
+        a.cmp(&b)
+    });
+    transformers.sort_by(|a, b| {
+        let a = match a {
             TransformInfo::AddStringToPosition(a) => a.position,
             TransformInfo::RemoveStatement(a) => a.start_position,
             TransformInfo::ReplaceText(a) => a.start_position,
