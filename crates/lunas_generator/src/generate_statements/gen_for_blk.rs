@@ -1,7 +1,6 @@
 use num_bigint::BigUint;
 
 use crate::{
-    generate_js::get_combined_binary_number,
     orig_html_struct::structs::NodeContent,
     structs::{
         ctx::ContextCategories,
@@ -19,8 +18,9 @@ use super::{
     gen_create_event_listener::generate_create_event_listener,
     gen_create_fragments::gen_create_fragments,
     gen_custom_component::gen_render_custom_component_statements,
-    gen_if_blk::gen_render_if_blk_func, gen_reference_getter::gen_reference_getter,
-    utils::create_indent,
+    gen_if_blk::gen_render_if_blk_func,
+    gen_reference_getter::gen_reference_getter,
+    utils::{create_indent, get_combined_binary_number},
 };
 
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.

@@ -1,5 +1,4 @@
 use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
-use num_bigint::BigUint;
 
 use crate::{
     consts::ROUTER_VIEW,
@@ -324,20 +323,4 @@ pub fn create_fragments_func(
 $$lunasCreateFragments({});"#,
         fragments_str.unwrap()
     ))
-}
-
-// TODO: Review usage and make private if possible
-
-/// Returns a binary number that is the result of ORing all the numbers in the argument.
-/// ```
-/// let numbers = vec![0b0001, 0b0010, 0b0100];
-/// let result = get_combined_binary_number(numbers);
-/// assert_eq!(result, 0b0111);
-/// ```
-pub fn get_combined_binary_number(numbers: Vec<BigUint>) -> BigUint {
-    let mut result = BigUint::ZERO;
-    for value in &numbers {
-        result |= value.clone();
-    }
-    result
 }

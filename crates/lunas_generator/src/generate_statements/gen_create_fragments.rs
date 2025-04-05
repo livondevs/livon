@@ -1,13 +1,10 @@
 use num_bigint::BigUint;
 
-use crate::{
-    generate_js::get_combined_binary_number,
-    structs::{
-        transform_info::VariableNameAndAssignedNumber, transform_targets::NodeAndReactiveInfo,
-    },
+use crate::structs::{
+    transform_info::VariableNameAndAssignedNumber, transform_targets::NodeAndReactiveInfo,
 };
 
-use super::utils::create_indent;
+use super::utils::{create_indent, get_combined_binary_number};
 
 pub fn gen_create_fragments(
     elm_and_variable_relations: &Vec<NodeAndReactiveInfo>,
