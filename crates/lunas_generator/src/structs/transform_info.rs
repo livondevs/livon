@@ -5,7 +5,7 @@ use crate::{
     transformers::utils::{append_v_to_vars_in_html, convert_non_reactive_to_obj},
 };
 
-use super::ctx::ContextCategories;
+use super::{ctx::ContextCategories, js_analyze::JsFunctionDeps};
 
 #[derive(Debug, Clone)]
 pub enum TransformInfo {
@@ -114,12 +114,14 @@ impl ToString for EventTarget {
 }
 
 impl EventTarget {
-    pub fn new(content: String, variables: &Vec<String>) -> Self {
+    pub fn new(content: String, variables: &Vec<String>, func_deps: &Vec<JsFunctionDeps>) -> Self {
         // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
         if word_is_one_word(content.as_str()) {
             EventTarget::RefToFunction(content)
         } else {
-            EventTarget::Statement(append_v_to_vars_in_html(content.as_str(), &variables).0)
+            EventTarget::Statement(
+                append_v_to_vars_in_html(content.as_str(), &variables, func_deps).0,
+            )
         }
     }
 }
