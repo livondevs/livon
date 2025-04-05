@@ -484,6 +484,9 @@ export const $$lunasInitComponent = function (
           this.refMap,
           refElementIndex
         ) as HTMLElement;
+        if (!Array.isArray(items)) {
+          throw new Error(`Items should be an array but got ${typeof items}`);
+        }
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
           const lunasElm = renderItem(item, index, fullIndices);
