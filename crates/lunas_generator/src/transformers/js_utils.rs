@@ -44,19 +44,6 @@ pub fn analyze_js(
 
         positions.extend(position_result);
         imports.extend(import_result);
-        positions.sort_by(|a, b| {
-            let a = match a {
-                TransformInfo::AddStringToPosition(a) => a.sort_order,
-                TransformInfo::RemoveStatement(_) => 0,
-                TransformInfo::ReplaceText(_) => 0,
-            };
-            let b = match b {
-                TransformInfo::AddStringToPosition(b) => b.sort_order,
-                TransformInfo::RemoveStatement(_) => 0,
-                TransformInfo::ReplaceText(_) => 0,
-            };
-            a.cmp(&b)
-        });
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
         (variable_names, imports, output, functions_and_deps)
     } else {
