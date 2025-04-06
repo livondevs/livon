@@ -64,21 +64,46 @@ type FragmentFunc = (
 ) => Fragment[];
 
 class valueObj<T> {
+  private _v: T;
+  private proxy: T;
   dependencies: { [key: symbol]: [LunasComponentState, number[]] } = {};
+
   constructor(
-    private _v: T,
+    initialValue: T,
     componentObj?: LunasComponentState,
     componentSymbol?: symbol,
     symbolIndex: number[] = [0]
   ) {
+    this._v = initialValue;
+
     if (componentSymbol && componentObj) {
       this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    }
+
+    if (typeof initialValue === "object" && initialValue !== null) {
+      this.proxy = this.createProxy(initialValue);
+    } else {
+      this.proxy = initialValue;
     }
   }
 
   set v(v: T) {
     if (this._v === v) return;
     this._v = v;
+    // If the new value is an object, wrap it with a Proxy
+    if (typeof v === "object" && v !== null) {
+      this.proxy = this.createProxy(v);
+    } else {
+      this.proxy = v;
+    }
+    this.triggerUpdate();
+  }
+
+  get v() {
+    return this.proxy;
+  }
+
+  private triggerUpdate() {
     for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
       const [componentObj, symbolIndex] = this.dependencies[key];
       bitOrAssign(componentObj.valUpdateMap, symbolIndex);
@@ -89,8 +114,41 @@ class valueObj<T> {
     }
   }
 
-  get v() {
-    return this._v;
+  private createProxy(target: any): any {
+    const self = this;
+    return new Proxy(target, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        // If it is a mutation method of an array, wrap it to execute update detection
+        if (
+          Array.isArray(target) &&
+          typeof value === "function" &&
+          [
+            "push",
+            "pop",
+            "shift",
+            "unshift",
+            "splice",
+            "sort",
+            "reverse",
+          ].includes(prop.toString())
+        ) {
+          return function (...args: any[]) {
+            const result = value.apply(target, args);
+            self.triggerUpdate();
+            return result;
+          };
+        }
+        return value;
+      },
+      set(target, prop, value, receiver) {
+        const oldVal = target[prop as keyof typeof target];
+        if (oldVal === value) return true;
+        const result = Reflect.set(target, prop, value, receiver);
+        self.triggerUpdate();
+        return result;
+      },
+    });
   }
 
   addDependency(componentObj: LunasComponentState, symbolIndex: number[]) {
