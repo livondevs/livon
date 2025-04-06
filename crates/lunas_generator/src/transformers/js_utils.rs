@@ -1,6 +1,7 @@
 use std::vec;
 
 use lunas_parser::DetailedBlock;
+use num_bigint::BigUint;
 use serde_json::Value;
 
 use crate::{
@@ -43,6 +44,19 @@ pub fn analyze_js(
 
         positions.extend(position_result);
         imports.extend(import_result);
+        positions.sort_by(|a, b| {
+            let a = match a {
+                TransformInfo::AddStringToPosition(a) => a.sort_order,
+                TransformInfo::RemoveStatement(_) => 0,
+                TransformInfo::ReplaceText(_) => 0,
+            };
+            let b = match b {
+                TransformInfo::AddStringToPosition(b) => b.sort_order,
+                TransformInfo::RemoveStatement(_) => 0,
+                TransformInfo::ReplaceText(_) => 0,
+            };
+            a.cmp(&b)
+        });
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
         (variable_names, imports, output, functions_and_deps)
     } else {
@@ -106,12 +120,14 @@ fn find_variable_declarations(
                                     AddStringToPosition {
                                         position: (start.as_u64().unwrap() - 1) as u32,
                                         string: "$$lunasReactive(".to_string(),
+                                        sort_order: 1,
                                     },
                                 ));
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
                                         string: format!(")"),
+                                        sort_order: 1,
                                     },
                                 ));
                             }
@@ -126,10 +142,10 @@ fn find_variable_declarations(
     }
 }
 
-fn power_of_two_generator(init: u32) -> impl FnMut() -> u32 {
+fn power_of_two_generator(init: u32) -> impl FnMut() -> BigUint {
     let mut count = init;
-    move || -> u32 {
-        let result = 2u32.pow(count);
+    move || -> BigUint {
+        let result = BigUint::from(2u32).pow(count as u32);
         count += 1;
         result
     }
@@ -161,6 +177,7 @@ pub fn search_json(
                                     vec![TransformInfo::AddStringToPosition(AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
                                         string: ".v".to_string(),
+                                        sort_order: 0,
                                     })],
                                     vec![],
                                     vec![variable_name.clone()],

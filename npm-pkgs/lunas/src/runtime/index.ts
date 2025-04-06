@@ -10,9 +10,9 @@ export type LunasModuleExports = {
 
 export type LunasComponentState = {
   updatedFlag: boolean;
-  valUpdateMap: number;
+  valUpdateMap: number[];
   internalElement: LunasInternalElement;
-  currentVarBit: number;
+  currentVarBitGen: Generator<number[]>;
   ifBlocks: {
     [key: string]: {
       renderer: () => void;
@@ -64,12 +64,12 @@ type FragmentFunc = (
 ) => Fragment[];
 
 class valueObj<T> {
-  dependencies: { [key: symbol]: [LunasComponentState, number] } = {};
+  dependencies: { [key: symbol]: [LunasComponentState, number[]] } = {};
   constructor(
     private _v: T,
     componentObj?: LunasComponentState,
     componentSymbol?: symbol,
-    symbolIndex: number = 0
+    symbolIndex: number[] = [0]
   ) {
     if (componentSymbol && componentObj) {
       this.dependencies[componentSymbol] = [componentObj, symbolIndex];
@@ -81,7 +81,7 @@ class valueObj<T> {
     this._v = v;
     for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
       const [componentObj, symbolIndex] = this.dependencies[key];
-      componentObj.valUpdateMap |= symbolIndex;
+      bitOrAssign(componentObj.valUpdateMap, symbolIndex);
       if (!componentObj.updatedFlag && componentObj.__lunas_update) {
         Promise.resolve().then(componentObj.__lunas_update.bind(componentObj));
         componentObj.updatedFlag = true;
@@ -93,7 +93,7 @@ class valueObj<T> {
     return this._v;
   }
 
-  addDependency(componentObj: LunasComponentState, symbolIndex: number) {
+  addDependency(componentObj: LunasComponentState, symbolIndex: number[]) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
     return {
       removeDependency: () => {
@@ -109,9 +109,9 @@ export const $$lunasInitComponent = function (
   inputs: string[] = []
 ) {
   this.updatedFlag = false;
-  this.valUpdateMap = 0;
+  this.valUpdateMap = [0];
   this.blkUpdateMap = {};
-  this.currentVarBit = 0;
+  this.currentVarBitGen = bitArrayGenerator();
   this.isMounted = false;
   this.ifBlocks = {};
   this.ifBlockStates = {};
@@ -123,28 +123,16 @@ export const $$lunasInitComponent = function (
   this.__lunas_after_mount = () => {};
   this.__lunas_destroy = () => {};
 
-  const genBitOfVariables = function* (this: LunasComponentState) {
-    while (true) {
-      if (this.currentVarBit === 0) {
-        this.currentVarBit = 1;
-        yield this.currentVarBit;
-      } else {
-        this.currentVarBit <<= 1;
-        yield this.currentVarBit;
-      }
-    }
-  }.bind(this);
-
   for (const key of inputs) {
     const arg = args[key];
     if (arg instanceof valueObj) {
       const { removeDependency } = arg.addDependency(
         this,
-        genBitOfVariables().next().value
+        this.currentVarBitGen.next().value
       );
       this.resetDependecies.push(removeDependency);
     } else {
-      genBitOfVariables().next();
+      this.currentVarBitGen.next().value;
     }
   }
 
@@ -234,7 +222,7 @@ export const $$lunasInitComponent = function (
       this.updateComponentFuncs[1].forEach((f) => f());
       updateFunc.call(this);
       this.updatedFlag = false;
-      this.valUpdateMap = 0;
+      this.valUpdateMap = [0];
       this.blkUpdateMap = {};
     }).bind(this);
   }.bind(this);
@@ -244,7 +232,7 @@ export const $$lunasInitComponent = function (
       v,
       this,
       this.compSymbol,
-      genBitOfVariables().next().value
+      this.currentVarBitGen.next().value
     );
   }.bind(this);
 
@@ -257,7 +245,7 @@ export const $$lunasInitComponent = function (
       postRender: () => void,
       ifCtx: string[],
       forCtx: string[],
-      depBit: number,
+      depBit: number | number[],
       mapInfo: [mapOffset: number | number[], mapLength: number],
       refIdx: [
         parentElementIndex: number | number[],
@@ -326,7 +314,7 @@ export const $$lunasInitComponent = function (
       });
 
       const updateFunc = (() => {
-        if (this.valUpdateMap & depBit) {
+        if (bitAnd(this.valUpdateMap, depBit)) {
           const shouldRender = condition();
           const rendered = !!this.ifBlockStates[name];
           const parentRendered = ifCtxUnderFor.every(
@@ -401,13 +389,16 @@ export const $$lunasInitComponent = function (
   const getElmRefs = function (
     this: LunasComponentState,
     ids: string[],
-    preserveId: number,
+    preserveId: number | number[],
     refLocation: number | number[] = 0
   ): void {
+    const boolMap = bitMapToBoolArr(preserveId);
     ids.forEach(
       function (this: LunasComponentState, id: string, index: number) {
         const e = document.getElementById(id)!;
-        (2 ** index) & preserveId && e.removeAttribute("id");
+        if (boolMap[index]) {
+          e.removeAttribute("id");
+        }
         const newRefLocation = addNumberToArrayInitial(refLocation, index);
         setNestedArrayValue(this.refMap, newRefLocation, e);
       }.bind(this)
@@ -441,7 +432,7 @@ export const $$lunasInitComponent = function (
       ) => void,
       ifCtxUnderFor: string[],
       forCtx: string[],
-      updateFlag: number,
+      updateFlag: number | number[],
       parentIndices: number[],
       mapInfo: [mapOffset: number, mapLength: number],
       refIdx: [
@@ -481,6 +472,9 @@ export const $$lunasInitComponent = function (
           this.refMap,
           refElementIndex
         ) as HTMLElement;
+        if (!Array.isArray(items)) {
+          throw new Error(`Items should be an array but got ${typeof items}`);
+        }
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
           const lunasElm = renderItem(item, index, fullIndices);
@@ -500,7 +494,7 @@ export const $$lunasInitComponent = function (
 
       this.updateComponentFuncs[0].push(
         (() => {
-          if (this.valUpdateMap & updateFlag) {
+          if (bitAnd(this.valUpdateMap, updateFlag)) {
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
             if (diffDetected(oldItems, newItems)) {
@@ -590,7 +584,7 @@ export const $$lunasInitComponent = function (
             return;
           }
         }
-        const valueUpdated = (this.valUpdateMap & depBit) !== 0;
+        const valueUpdated = bitAnd(this.valUpdateMap, depBit);
         if (!valueUpdated) {
           return;
         }
@@ -799,22 +793,22 @@ export const $$lunasCreateNonReactive = function <T>(
   return new valueObj<T>(v);
 };
 
-const _shouldRender = (
-  blockRendering: boolean,
-  bitValue: number,
-  bitPosition: number
-): boolean => {
-  // Get the bit at the specified position (1-based index, so subtract 1)
-  const isBitSet = (bitValue & bitPosition) > 0;
+// const _shouldRender = (
+//   blockRendering: boolean,
+//   bitValue: number,
+//   bitPosition: number
+// ): boolean => {
+//   // Get the bit at the specified position (1-based index, so subtract 1)
+//   const isBitSet = (bitValue & bitPosition) > 0;
 
-  // Compare the block rendering status with the bit status
-  return blockRendering !== Boolean(isBitSet);
-};
+//   // Compare the block rendering status with the bit status
+//   return blockRendering !== Boolean(isBitSet);
+// };
 
 type Fragment = [
   content: [textContent: () => string, attributeName?: string],
   nodeIdx: number[] | number,
-  depBit: number,
+  depBit: number | number[],
   fragmentType: FragmentType
 ];
 
@@ -885,5 +879,79 @@ function addNumberToArrayInitial(
     const copy = [...arr];
     copy[0] += num;
     return copy;
+  }
+}
+
+function bitMapToBoolArr(bitMap: number | number[]): boolean[] {
+  if (typeof bitMap === "number") {
+    return Array.from({ length: 31 }, (_, i) => (bitMap & (1 << i)) !== 0);
+  } else {
+    return bitMap
+      .map((v) => bitMapToBoolArr(v))
+      .reduce((acc, val) => acc.concat(val), []);
+  }
+}
+
+// A function to perform bitwise "&" operation on number[] and number[]
+function bitAnd(_a: number | number[], _b: number | number[]): boolean {
+  const length = Math.max(
+    typeof _a === "number" ? 1 : _a.length,
+    typeof _b === "number" ? 1 : _b.length
+  );
+
+  const a = fillArrayWithZero(_a, length);
+  const b = fillArrayWithZero(_b, length);
+
+  return a.reduce((acc, val, i) => {
+    return acc || (val & b[i]) !== 0;
+  }, false);
+}
+
+// A function to perform bitwise "|=" operation on number[] and number[]
+function bitOrAssign(
+  target: number | number[],
+  source: number | number[]
+): void {
+  const length = Math.max(
+    typeof target === "number" ? 1 : target.length,
+    typeof source === "number" ? 1 : source.length
+  );
+
+  const targetArr = fillArrayWithZero(target, length);
+  const sourceArr = fillArrayWithZero(source, length);
+
+  for (let i = 0; i < length; i++) {
+    targetArr[i] |= sourceArr[i];
+  }
+
+  if (typeof target === "number") {
+    (target as any) = targetArr[0];
+  } else {
+    for (let i = 0; i < length; i++) {
+      target[i] = targetArr[i];
+    }
+  }
+}
+
+// If the lengths of the arrays do not match, add 0 to the shorter array to match the length
+function fillArrayWithZero(arr: number[] | number, length: number): number[] {
+  let array = typeof arr === "number" ? [arr] : arr;
+  while (array.length < length) {
+    array.push(0);
+  }
+  return array;
+}
+
+function* bitArrayGenerator(): Generator<number[]> {
+  const bitWidth = 31;
+  let exp = 0;
+  while (true) {
+    const digitIndex = Math.floor(exp / bitWidth);
+    const bitIndex = exp % bitWidth;
+    const out = new Array(digitIndex + 1).fill(0);
+
+    out[digitIndex] = 1 << bitIndex;
+    yield out;
+    exp++;
   }
 }

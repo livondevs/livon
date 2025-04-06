@@ -324,19 +324,3 @@ $$lunasCreateFragments({});"#,
         fragments_str.unwrap()
     ))
 }
-
-// TODO: Review usage and make private if possible
-
-/// Returns a binary number that is the result of ORing all the numbers in the argument.
-/// ```
-/// let numbers = vec![0b0001, 0b0010, 0b0100];
-/// let result = get_combined_binary_number(numbers);
-/// assert_eq!(result, 0b0111);
-/// ```
-pub fn get_combined_binary_number(numbers: Vec<u32>) -> u32 {
-    let mut result = 0;
-    for (_, &value) in numbers.iter().enumerate() {
-        result |= value;
-    }
-    result
-}
