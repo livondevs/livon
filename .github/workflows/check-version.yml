@@ -9,6 +9,7 @@ on:
 jobs:
   check-version:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -20,26 +21,50 @@ jobs:
 
       - name: Check package.json version format
         run: |
-          VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
+          VERSION=$(jq -r '.version' ./npm-pkgs/lunas/package.json)
+          echo "Detected version: $VERSION"
           if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
-            echo "Version format is correct"
+            echo "✅ Version format is correct"
           else
-            echo "Version format is incorrect" && exit 1
+            echo "❌ Version format is incorrect"
+            exit 1
           fi
-      - name: Create PR review on failure
-        if: ${{ failure() }}
+
+      - name: Delete previous bot comments
         run: |
-          NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to beta version format.
-          Please correct it."
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          COMMENTS=$(gh pr view $PR_NUMBER --json comments -q '.comments[].id')
+
+          for CID in $COMMENTS; do
+            BODY=$(gh api graphql -F id=$CID -f query='
+              query($id: ID!) {
+                node(id: $id) {
+                  ... on IssueComment {
+                    id
+                    body
+                    author {
+                      login
+                    }
+                  }
+                }
+              }' --jq '.data.node')
+
+            AUTHOR=$(echo "$BODY" | jq -r '.author.login')
+            COMMENT_BODY=$(echo "$BODY" | jq -r '.body')
+
+            if [[ "$AUTHOR" == "github-actions[bot]" && "$COMMENT_BODY" == *"adheres to the beta version format"* ]]; then
+              echo "🧹 Deleting previous bot comment ID $CID"
+              gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$CID"
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create PR review on success
-        if: ${{ success() }}
+
+      - name: Create PR review comment
         run: |
-          CURRENT_VERSION=$(npm show lunas@beta version)
-          NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format.
-          Current version in npm is '$CURRENT_VERSION'."
+          NEW_VERSION=$(jq -r '.version' ./npm-pkgs/lunas/package.json)
+          CURRENT_VERSION=$(npm show lunas@beta version || echo "N/A")
+          gh pr comment ${{ github.event.pull_request.number }} --body "✅ The version in package.json \`$NEW_VERSION\` adheres to the beta version format.  
+          📦 Current version in npm is \`$CURRENT_VERSION\`."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
