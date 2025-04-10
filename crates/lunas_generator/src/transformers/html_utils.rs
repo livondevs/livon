@@ -182,8 +182,11 @@ pub fn check_html_elms(
                             actions_and_targets.push(ActionAndTarget {
                                 action_name: "input".to_string(),
                                 action: EventTarget::EventBindingStatement(EventBindingStatement {
-                                    statement: format!("{}.v = e.target.{}", &value, &binding_attr),
-                                    arg: "e".to_string(),
+                                    statement: format!(
+                                        "{}.v = event.target.{}",
+                                        &value, &binding_attr
+                                    ),
+                                    arg: "event".to_string(),
                                 }),
                                 target: node_id.clone(),
                                 ctx: ctx_array.clone(),
