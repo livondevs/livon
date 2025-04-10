@@ -1,6 +1,6 @@
 {
   "name": "lunas",
-  "version": "0.0.1-beta.7",
+  "version": "0.0.1-beta.8",
   "description": "Lunas - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {
@@ -17,8 +17,5 @@
     "url": "https://github.com/lunas-dev/lunas/issues"
   },
   "homepage": "https://github.com/lunas-dev/lunas#readme",
-  "private": false,
-  "devDependencies": {
-    "rome": "^12.1.3"
-  }
+  "private": false
 }

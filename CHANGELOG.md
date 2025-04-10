@@ -1,6 +1,29 @@
 # Changelog
 
-## [0.0.1-beta.6](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.6...0.0.1-beta.7) (2024-7-28)
+## [0.0.1-beta.8](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.7...0.0.1-beta.8) (2025-4-11)
+
+### Features
+- **Added For block functionality** [#73] @s19514tt
+- **Updated attribute handling in $$lunasInitComponent to support dynamic updates and boolean attributes** [#76] @s19514tt
+- **Added lifecycle functions afterMount and afterUnmount** [#79] @s19514tt
+- **Implemented dynamic binding for class objects** [#80] @s19514tt
+- **Supported else-if blocks for if statements** [#81] @s19514tt
+- **Introduced Reactive Function feature** [#82] @s19514tt
+- **Added reactivity support for object changes** [#87] @s19514tt
+
+### Fixes
+- **Fixed issue where non-self-closing HTML elements were incorrectly self-closed** [#74] @s19514tt
+- **Fixed bug where templates ending with a newline were not parsed correctly** [#75] @s19514tt
+- **Fixed renderForBlock to accept items as a parameter and improved update logic** [#78] @s19514tt
+- **Fixed issue with HTML element id removal by updating the bitwise operation in gen_binary_map_from_bool** [#83] @s19514tt
+- **Fixed bit number overflow by updating implementation to use an array for combining bit numbers** [#84] @s19514tt
+- **Added sort_order to AddStringToPosition and implemented sorting in analyze_js** [#85] @s19514tt
+- **Fixed issues regarding sort_order and reactive function parser** [#86] @s19514tt
+- **Fixed event binding statement to use 'e' instead of 'event'** [#88] @s19514tt
+- **Enhanced version check workflow by improving output messages and streamlining the process** [#89] @s19514tt
+
+
+## [0.0.1-beta.7](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.6...0.0.1-beta.7) (2025-3-8)
 
 ### Features
 - Fixed the issue where multiple conditions could not be nested in an IF block. #54
