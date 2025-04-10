@@ -186,7 +186,7 @@ pub fn check_html_elms(
                                         "{}.v = event.target.{}",
                                         &value, &binding_attr
                                     ),
-                                    arg: "e".to_string(),
+                                    arg: "event".to_string(),
                                 }),
                                 target: node_id.clone(),
                                 ctx: ctx_array.clone(),
