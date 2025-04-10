@@ -64,21 +64,49 @@ type FragmentFunc = (
 ) => Fragment[];
 
 class valueObj<T> {
+  private _v: T;
+  private proxy: T;
+  // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
   dependencies: { [key: symbol]: [LunasComponentState, number[]] } = {};
+
   constructor(
-    private _v: T,
+    initialValue: T,
     componentObj?: LunasComponentState,
     componentSymbol?: symbol,
     symbolIndex: number[] = [0]
   ) {
+    this._v = initialValue;
+
     if (componentSymbol && componentObj) {
       this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    }
+
+    // If the initial value is an object (and not null), wrap it with a Proxy
+    if (typeof initialValue === "object" && initialValue !== null) {
+      this.proxy = this.createProxy(initialValue);
+    } else {
+      this.proxy = initialValue;
     }
   }
 
   set v(v: T) {
     if (this._v === v) return;
     this._v = v;
+    // If the new value is an object, wrap it with a Proxy
+    if (typeof v === "object" && v !== null) {
+      this.proxy = this.createProxy(v);
+    } else {
+      this.proxy = v;
+    }
+    this.triggerUpdate();
+  }
+
+  get v() {
+    return this.proxy;
+  }
+
+  // Triggers an update for all dependencies
+  private triggerUpdate() {
     for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
       const [componentObj, symbolIndex] = this.dependencies[key];
       bitOrAssign(componentObj.valUpdateMap, symbolIndex);
@@ -89,10 +117,58 @@ class valueObj<T> {
     }
   }
 
-  get v() {
-    return this._v;
+  // Creates a Proxy recursively to detect changes in nested objects and arrays
+  private createProxy(target: any): any {
+    const self = this;
+    // If target is not an object or is null, return it directly
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
+    return new Proxy(target, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        // Wrap array mutation methods to trigger update
+        if (
+          Array.isArray(target) &&
+          typeof value === "function" &&
+          [
+            "push",
+            "pop",
+            "shift",
+            "unshift",
+            "splice",
+            "sort",
+            "reverse",
+          ].includes(prop.toString())
+        ) {
+          return function (...args: any[]) {
+            const result = value.apply(target, args);
+            self.triggerUpdate();
+            return result;
+          };
+        }
+        // If the value is an object, return a Proxy for it (recursive wrapping)
+        if (typeof value === "object" && value !== null) {
+          return self.createProxy(value);
+        }
+        return value;
+      },
+      set(target, prop, value, receiver) {
+        const oldVal = target[prop as keyof typeof target];
+        if (oldVal === value) return true;
+        // If the new value is an object, wrap it with a Proxy before setting it
+        const newValue =
+          typeof value === "object" && value !== null
+            ? self.createProxy(value)
+            : value;
+        const result = Reflect.set(target, prop, newValue, receiver);
+        self.triggerUpdate();
+        return result;
+      },
+    });
   }
 
+  // Adds a dependency and returns a removal function
   addDependency(componentObj: LunasComponentState, symbolIndex: number[]) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
     return {
