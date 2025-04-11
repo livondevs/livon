@@ -90,7 +90,7 @@ pub fn check_html_elms(
                                 })
                                 .collect::<Vec<_>>();
 
-                            // filtered_conditionsの最後の要素のcascade_block_idを取得
+                            // Retrieve the cascade_block_id of the last element in filtered_conditions
                             let last_cascade_block_id = filtered_conditions
                                 .last()
                                 .and_then(|if_stmt| Some(if_stmt.cascade_block_id.clone()))
