@@ -60,8 +60,9 @@ pub fn check_html_elms(
                 let x = element.clone().attributes_to_array();
                 for (key, action_value) in &x {
                     if key == ":if" || key == ":elseif" || key == ":else" {
-                        let condition = if key == ":if" {
-                            action_value.clone().unwrap()
+                        let (condition, cascade_block_id) = if key == ":if" {
+                            let cascade_id = nanoid!();
+                            (action_value.clone().unwrap(), cascade_id.clone())
                         } else {
                             let element_location_of_parent = {
                                 let mut new_element_location = element_location.clone();
@@ -69,7 +70,7 @@ pub fn check_html_elms(
                                 new_element_location
                             };
 
-                            let other_conditions = html_manipulators
+                            let filtered_conditions = html_manipulators
                                 .iter()
                                 .filter_map(|manip| {
                                     if let HtmlManipulation::RemoveChildForIfStatement(stmt) =
@@ -79,14 +80,32 @@ pub fn check_html_elms(
                                             && stmt.elm_loc.len()
                                                 == element_location_of_parent.len() + 1
                                         {
-                                            if let Some(original_condition) =
-                                                &stmt.original_condition
-                                            {
-                                                return Some(format!("!({})", original_condition));
-                                            }
+                                            Some(stmt.clone())
+                                        } else {
+                                            None
                                         }
+                                    } else {
+                                        None
                                     }
-                                    None
+                                })
+                                .collect::<Vec<_>>();
+
+                            // Retrieve the cascade_block_id of the last element in filtered_conditions
+                            let last_cascade_block_id = filtered_conditions
+                                .last()
+                                .and_then(|if_stmt| Some(if_stmt.cascade_block_id.clone()))
+                                .unwrap();
+
+                            let other_conditions = filtered_conditions
+                                .iter()
+                                .filter(|if_stmt| if_stmt.cascade_block_id == last_cascade_block_id)
+                                .filter_map(|if_stmt| {
+                                    if_stmt
+                                        .original_condition
+                                        .as_ref()
+                                        .map(|original_condition| {
+                                            format!("!({})", original_condition)
+                                        })
                                 })
                                 .collect::<Vec<_>>()
                                 .join(" && ");
@@ -99,9 +118,16 @@ pub fn check_html_elms(
                             }
 
                             if key == ":elseif" {
-                                format!("{} && {}", other_conditions, action_value.clone().unwrap())
+                                (
+                                    format!(
+                                        "{} && {}",
+                                        other_conditions,
+                                        action_value.clone().unwrap()
+                                    ),
+                                    last_cascade_block_id,
+                                )
                             } else {
-                                format!("{}", other_conditions)
+                                (format!("{}", other_conditions), last_cascade_block_id)
                             }
                         };
                         let ctx_under_if = {
@@ -121,6 +147,7 @@ pub fn check_html_elms(
                                     ctx_over_if: ctx_array.clone(),
                                     ctx_under_if,
                                     elm_loc: element_location.clone(),
+                                    cascade_block_id: cascade_block_id.clone(),
                                 },
                             ),
                         });

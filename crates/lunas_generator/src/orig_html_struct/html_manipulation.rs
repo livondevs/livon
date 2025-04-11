@@ -26,6 +26,7 @@ pub struct RemoveChildForIfStatement {
     pub ctx_under_if: Vec<String>,
     pub ctx_over_if: Vec<String>,
     pub elm_loc: Vec<usize>,
+    pub cascade_block_id: String,
 }
 
 #[derive(Debug, Clone)]
