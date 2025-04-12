@@ -9,13 +9,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lunas-dev/lunas.git"
+    "url": "git+https://github.com/livondevs/livon.git"
   },
   "author": "Lunas Dev Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/lunas-dev/lunas/issues"
+    "url": "https://github.com/livondevs/livon/issues"
   },
-  "homepage": "https://github.com/lunas-dev/lunas#readme",
+  "homepage": "https://github.com/livondevs/livon#readme",
   "private": false
 }
