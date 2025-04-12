@@ -9,7 +9,7 @@ pub struct HtmlManipulator {
 #[derive(Debug, Clone)]
 pub enum HtmlManipulation {
     RemoveChildForIfStatement(RemoveChildForIfStatement),
-    RemoveChildForForStatement(RemoveChildForRepeatStatement),
+    RemoveChildForRepeatStatement(RemoveChildForRepeatStatement),
     RemoveChildForCustomComponent(RemoveChildForCustomComponent),
     SetIdForReactiveContent(SetIdToParentForChildReactiveText),
     RemoveChildTextNode(RemoveChildTextNode),
