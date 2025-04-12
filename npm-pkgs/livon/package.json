@@ -1,0 +1,21 @@
+{
+  "name": "livon",
+  "version": "0.0.1-beta.8",
+  "description": "Livon - Ultrafast and Sophisticated Web Frontend Framework",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/livondevs/livon.git"
+  },
+  "author": "Livon Dev Team",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/livondevs/livon/issues"
+  },
+  "homepage": "https://github.com/livondevs/livon#readme",
+  "private": false
+}

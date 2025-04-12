@@ -1,0 +1,18 @@
+[package]
+name = "livon_compiler"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+livon_parser = { path = "../livon_parser" }
+livon_generator = { path = "../livon_generator" }
+wasm-bindgen = "0.2.100"
+serde = "1.0.217"
+
+[features]
+playground = ["livon_generator/playground"]
