@@ -1,4 +1,4 @@
-use lunas_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
+use livon_parser::{DetailedBlock, DetailedMetaData, PropsInput, UseComponentStatement};
 
 use crate::{
     consts::ROUTER_VIEW,
@@ -17,7 +17,7 @@ use crate::{
         transform_targets::{sort_elm_and_reactive_info, NodeAndReactiveInfo},
     },
     transformers::{
-        html_utils::{check_html_elms, create_lunas_internal_component_statement},
+        html_utils::{check_html_elms, create_livon_internal_component_statement},
         imports::generate_import_string,
         inputs::generate_input_variable_decl,
         js_utils::analyze_js,
@@ -55,7 +55,7 @@ pub fn generate_js_from_blocks(
 
     #[cfg(not(feature = "playground"))]
     {
-        imports.push("import { $$lunasRouter } from \"lunas/dist/runtime/router\";".to_string());
+        imports.push("import { $$livonRouter } from \"livon/dist/runtime/router\";".to_string());
     }
 
     let using_auto_routing = blocks
@@ -68,7 +68,7 @@ pub fn generate_js_from_blocks(
 
     if using_auto_routing {
         imports.push(
-            "import { routes as $$lunasGeneratedRoutes } from \"virtual:generated-routes\";"
+            "import { routes as $$livonGeneratedRoutes } from \"virtual:generated-routes\";"
                 .to_string(),
         );
         component_names.push(ROUTER_VIEW.to_string());
@@ -84,7 +84,7 @@ pub fn generate_js_from_blocks(
     //     });
 
     let runtime_path = match runtime_path.is_none() {
-        true => "lunas/dist/runtime".to_string(),
+        true => "livon/dist/runtime".to_string(),
         false => runtime_path.unwrap(),
     };
 
@@ -158,7 +158,7 @@ pub fn generate_js_from_blocks(
     // Generate JavaScript
     let html_insert = format!(
         "{};",
-        create_lunas_internal_component_statement(&new_elm, "$$lunasSetComponentElement")
+        create_livon_internal_component_statement(&new_elm, "$$livonSetComponentElement")
     );
     codes.push(html_insert);
     match props_assignment.is_some() {
@@ -247,7 +247,7 @@ pub fn generate_js_from_blocks(
         .collect::<Vec<String>>()
         .join("\n");
     let after_mount_func_code = format!(
-        r#"$$lunasApplyEnhancement(function () {{
+        r#"$$livonApplyEnhancement(function () {{
 {}
 }});
 "#,
@@ -255,7 +255,7 @@ pub fn generate_js_from_blocks(
     );
     codes.push(after_mount_func_code);
 
-    codes.push("return $$lunasComponentReturn;".to_string());
+    codes.push("return $$livonComponentReturn;".to_string());
 
     let full_js_code = gen_full_code(runtime_path, imports, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
@@ -288,10 +288,10 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
+        r#"import {{ $$livonEscapeHtml, $$livonInitComponent, $$livonReplaceText, $$livonReplaceAttr, $$createLunasElement, $$livonCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasAfterUnmount, $$lunasApplyEnhancement, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
+    const {{ $$livonSetComponentElement, $$livonComponentReturn, $$livonAfterMount, $$livonAfterUnmount, $$livonApplyEnhancement, $$livonReactive, $$livonCreateIfBlock, $$livonCreateForBlock, $$livonInsertEmpty, $$livonGetElmRefs, $$livonAddEvListener, $$livonInsertTextNodes, $$livonCreateFragments, $$livonInsertComponent, $$livonMountComponent }} = new $$livonInitComponent(args{});
 {}
 }}
 "#,
@@ -320,7 +320,7 @@ pub fn create_fragments_func(
 
     Some(format!(
         r#"
-$$lunasCreateFragments({});"#,
+$$livonCreateFragments({});"#,
         fragments_str.unwrap()
     ))
 }

@@ -68,13 +68,13 @@ pub fn gen_reference_getter(
         }
     } else {
         format!(
-            ", [{}, ...$$lunasForIndices]",
+            ", [{}, ...$$livonForIndices]",
             ref_node_ids_count + node_creation_method_count
         )
     };
 
     let ref_getter_str = format!(
-        "$$lunasGetElmRefs([{}], {}{});",
+        "$$livonGetElmRefs([{}], {}{});",
         id_names_str, delete_id_map, offset_str
     );
 

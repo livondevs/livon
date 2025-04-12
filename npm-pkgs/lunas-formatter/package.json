@@ -1,5 +1,5 @@
 {
-  "name": "lunas-formatter",
+  "name": "livon-formatter",
   "version": "0.0.1-beta.4",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
@@ -8,7 +8,7 @@
     "build": "tsc"
   },
   "bin": {
-    "lunas-formatter": "dist/cli.js"
+    "livon-formatter": "dist/cli.js"
   },
   "keywords": [],
   "author": "s19514tt (https://github.com/s19514tt)",

@@ -3,9 +3,9 @@
 # https://doc.rust-lang.org/cargo/reference/resolver.html#resolver-versions
 resolver = "2"
 members = [
-  "lunas_generator",
-  "lunas_parser",
-  "lunas_compiler",
-  "lunas_html_parser",
-  "lunas_dev_server",
+  "livon_generator",
+  "livon_parser",
+  "livon_compiler",
+  "livon_html_parser",
+  "livon_dev_server",
 ]

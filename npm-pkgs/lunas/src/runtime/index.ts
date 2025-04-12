@@ -31,17 +31,17 @@ export type LunasComponentState = {
   compSymbol: symbol;
   resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
-  __lunas_update: (() => void) | undefined;
-  __lunas_apply_enhancement: () => void;
-  __lunas_after_mount: () => void;
-  __lunas_destroy: () => void;
-  // __lunas_init: () => void;
-  // __lunas_update_component: () => void;
-  // __lunas_update_component_end: () => void;
-  // __lunas_update_component_start: () => void;
-  // __lunas_update_end: () => void;
-  // __lunas_update_start: () => void;
-  // __lunas_init_component: () => void;
+  __livon_update: (() => void) | undefined;
+  __livon_apply_enhancement: () => void;
+  __livon_after_mount: () => void;
+  __livon_destroy: () => void;
+  // __livon_init: () => void;
+  // __livon_update_component: () => void;
+  // __livon_update_component_end: () => void;
+  // __livon_update_component_start: () => void;
+  // __livon_update_end: () => void;
+  // __livon_update_start: () => void;
+  // __livon_init_component: () => void;
   forBlocks: {
     [key: string]: { cleanUp: (() => void)[]; childs: string[] };
   };
@@ -110,8 +110,8 @@ class valueObj<T> {
     for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
       const [componentObj, symbolIndex] = this.dependencies[key];
       bitOrAssign(componentObj.valUpdateMap, symbolIndex);
-      if (!componentObj.updatedFlag && componentObj.__lunas_update) {
-        Promise.resolve().then(componentObj.__lunas_update.bind(componentObj));
+      if (!componentObj.updatedFlag && componentObj.__livon_update) {
+        Promise.resolve().then(componentObj.__livon_update.bind(componentObj));
         componentObj.updatedFlag = true;
       }
     }
@@ -179,7 +179,7 @@ class valueObj<T> {
   }
 }
 
-export const $$lunasInitComponent = function (
+export const $$livonInitComponent = function (
   this: LunasComponentState,
   args: { [key: string]: any } = {},
   inputs: string[] = []
@@ -196,8 +196,8 @@ export const $$lunasInitComponent = function (
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
   this.forBlocks = {};
-  this.__lunas_after_mount = () => {};
-  this.__lunas_destroy = () => {};
+  this.__livon_after_mount = () => {};
+  this.__livon_destroy = () => {};
 
   for (const key of inputs) {
     const arg = args[key];
@@ -229,21 +229,21 @@ export const $$lunasInitComponent = function (
     this: LunasComponentState,
     enhancementFunc: () => void
   ) {
-    this.__lunas_apply_enhancement = enhancementFunc;
+    this.__livon_apply_enhancement = enhancementFunc;
   }.bind(this);
 
   const setAfterMount = function (
     this: LunasComponentState,
     afterMount: () => void
   ) {
-    this.__lunas_after_mount = afterMount;
+    this.__livon_after_mount = afterMount;
   }.bind(this);
 
   const setAfterUnmount = function (
     this: LunasComponentState,
     afterUnmount: () => void
   ) {
-    this.__lunas_destroy = afterUnmount;
+    this.__livon_destroy = afterUnmount;
   }.bind(this);
 
   const mount = function (
@@ -259,8 +259,8 @@ export const $$lunasInitComponent = function (
       this.internalElement.topElmTag
     }>`;
     this.componentElm = elm.firstElementChild as HTMLElement;
-    this.__lunas_apply_enhancement();
-    this.__lunas_after_mount();
+    this.__livon_apply_enhancement();
+    this.__livon_after_mount();
     this.isMounted = true;
     _updateComponent(() => {});
     return this;
@@ -274,8 +274,8 @@ export const $$lunasInitComponent = function (
     if (this.isMounted) throw new Error("Component is already mounted");
     this.componentElm = _createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
-    this.__lunas_apply_enhancement();
-    this.__lunas_after_mount();
+    this.__livon_apply_enhancement();
+    this.__livon_after_mount();
     this.isMounted = true;
     return this;
   }.bind(this);
@@ -285,14 +285,14 @@ export const $$lunasInitComponent = function (
     this.componentElm!.remove();
     this.isMounted = false;
     this.resetDependecies.forEach((r) => r());
-    this.__lunas_destroy();
+    this.__livon_destroy();
   }.bind(this);
 
   const _updateComponent = function (
     this: LunasComponentState,
     updateFunc: () => void
   ) {
-    this.__lunas_update = (() => {
+    this.__livon_update = (() => {
       if (!this.updatedFlag) return;
       this.updateComponentFuncs[0].forEach((f) => f());
       this.updateComponentFuncs[1].forEach((f) => f());
@@ -316,7 +316,7 @@ export const $$lunasInitComponent = function (
     this: LunasComponentState,
     ifBlocks: [
       name: string | (() => string),
-      lunasElement: () => LunasInternalElement,
+      livonElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
       ifCtx: string[],
@@ -333,7 +333,7 @@ export const $$lunasInitComponent = function (
   ) {
     for (const [
       getName,
-      lunasElement,
+      livonElement,
       condition,
       postRender,
       ifCtxUnderFor,
@@ -350,7 +350,7 @@ export const $$lunasInitComponent = function (
           _mapLength: number | number[]
         ) => {
           const componentElm = _createDomElementFromLunasElement(
-            lunasElement()
+            livonElement()
           );
           const parentElement = getNestedArrayValue(
             this.refMap,
@@ -553,8 +553,8 @@ export const $$lunasInitComponent = function (
         }
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
-          const lunasElm = renderItem(item, index, fullIndices);
-          const domElm = _createDomElementFromLunasElement(lunasElm);
+          const livonElm = renderItem(item, index, fullIndices);
+          const domElm = _createDomElementFromLunasElement(livonElm);
           setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
           containerElm.insertBefore(domElm, insertionPointElm);
           afterRenderHook?.(item, index, fullIndices);
@@ -666,20 +666,20 @@ export const $$lunasInitComponent = function (
         }
         const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
         if (fragmentType === FragmentType.ATTRIBUTE) {
-          $$lunasReplaceAttr(
+          $$livonReplaceAttr(
             attributeName!,
             textContent(),
             target as HTMLElement
           );
         } else {
-          $$lunasReplaceText(textContent(), target);
+          $$livonReplaceText(textContent(), target);
         }
       }).bind(this);
       if (fragmentType === FragmentType.ATTRIBUTE) {
         // Because the determination of the arribute types depends on dynamic values,
         // it is necessary to update the attributes after the initial rendering
         const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
-        $$lunasReplaceAttr(
+        $$livonReplaceAttr(
           attributeName!,
           textContent(),
           target as HTMLElement
@@ -696,7 +696,7 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
-  const lunasInsertComponent = function (
+  const livonInsertComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
     parentIdx: number | number[],
@@ -736,7 +736,7 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
-  const lunasMountComponent = function (
+  const livonMountComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
     parentIdx: number | number[],
@@ -769,21 +769,21 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   return {
-    $$lunasSetComponentElement: componentElementSetter,
-    $$lunasApplyEnhancement: applyEnhancement,
-    $$lunasAfterMount: setAfterMount,
-    $$lunasAfterUnmount: setAfterUnmount,
-    $$lunasReactive: createReactive,
-    $$lunasCreateIfBlock: createIfBlock,
-    $$lunasCreateForBlock: createForBlock,
-    $$lunasRenderIfBlock: renderIfBlock,
-    $$lunasGetElmRefs: getElmRefs,
-    $$lunasInsertTextNodes: insertTextNodes,
-    $$lunasAddEvListener: addEvListener,
-    $$lunasCreateFragments: createFragments,
-    $$lunasInsertComponent: lunasInsertComponent,
-    $$lunasMountComponent: lunasMountComponent,
-    $$lunasComponentReturn: {
+    $$livonSetComponentElement: componentElementSetter,
+    $$livonApplyEnhancement: applyEnhancement,
+    $$livonAfterMount: setAfterMount,
+    $$livonAfterUnmount: setAfterUnmount,
+    $$livonReactive: createReactive,
+    $$livonCreateIfBlock: createIfBlock,
+    $$livonCreateForBlock: createForBlock,
+    $$livonRenderIfBlock: renderIfBlock,
+    $$livonGetElmRefs: getElmRefs,
+    $$livonInsertTextNodes: insertTextNodes,
+    $$livonAddEvListener: addEvListener,
+    $$livonCreateFragments: createFragments,
+    $$livonInsertComponent: livonInsertComponent,
+    $$livonMountComponent: livonMountComponent,
+    $$livonComponentReturn: {
       mount,
       insert,
       __unmount,
@@ -791,7 +791,7 @@ export const $$lunasInitComponent = function (
   };
 };
 
-export function $$lunasEscapeHtml(text: any): string {
+export function $$livonEscapeHtml(text: any): string {
   const map: { [key: string]: string } = {
     "&": "&amp;",
     "<": "&lt;",
@@ -805,15 +805,15 @@ export function $$lunasEscapeHtml(text: any): string {
   });
 }
 
-export function $$lunasReplaceText(content: any, elm: Node) {
-  elm.textContent = $$lunasEscapeHtml(content);
+export function $$livonReplaceText(content: any, elm: Node) {
+  elm.textContent = $$livonEscapeHtml(content);
 }
 
-// export function $$lunasReplaceInnerHtml(content: any, elm: HTMLElement) {
-//   elm.innerHTML = $$lunasEscapeHtml(content);
+// export function $$livonReplaceInnerHtml(content: any, elm: HTMLElement) {
+//   elm.innerHTML = $$livonEscapeHtml(content);
 // }
 
-export function $$lunasReplaceAttr(
+export function $$livonReplaceAttr(
   key: string,
   content: any,
   elm: HTMLElement
@@ -852,17 +852,17 @@ export function $$createLunasElement(
 }
 
 const _createDomElementFromLunasElement = function (
-  lunasElement: LunasInternalElement
+  livonElement: LunasInternalElement
 ): HTMLElement {
-  const componentElm = document.createElement(lunasElement.topElmTag);
-  Object.keys(lunasElement.topElmAttr).forEach((key) => {
-    componentElm.setAttribute(key, lunasElement.topElmAttr[key]);
+  const componentElm = document.createElement(livonElement.topElmTag);
+  Object.keys(livonElement.topElmAttr).forEach((key) => {
+    componentElm.setAttribute(key, livonElement.topElmAttr[key]);
   });
-  componentElm.innerHTML = lunasElement.innerHtml;
+  componentElm.innerHTML = livonElement.innerHtml;
   return componentElm;
 };
 
-export const $$lunasCreateNonReactive = function <T>(
+export const $$livonCreateNonReactive = function <T>(
   this: LunasComponentState,
   v: T
 ) {

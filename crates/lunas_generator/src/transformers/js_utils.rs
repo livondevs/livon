@@ -1,6 +1,6 @@
 use std::vec;
 
-use lunas_parser::DetailedBlock;
+use livon_parser::DetailedBlock;
 use num_bigint::BigUint;
 use serde_json::Value;
 
@@ -106,7 +106,7 @@ fn find_variable_declarations(
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (start.as_u64().unwrap() - 1) as u32,
-                                        string: "$$lunasReactive(".to_string(),
+                                        string: "$$livonReactive(".to_string(),
                                         sort_order: 1,
                                     },
                                 ));
@@ -248,7 +248,7 @@ pub fn search_json(
                                 vec![TransformInfo::ReplaceText(ReplaceText {
                                     start_position: start - 1,
                                     end_position: end - 1,
-                                    string: "$$lunasRouter".to_string(),
+                                    string: "$$livonRouter".to_string(),
                                 })],
                                 vec![],
                                 vec![],
@@ -263,7 +263,7 @@ pub fn search_json(
                                 vec![TransformInfo::ReplaceText(ReplaceText {
                                     start_position: start - 1,
                                     end_position: end - 1,
-                                    string: "$$lunasAfterMount".to_string(),
+                                    string: "$$livonAfterMount".to_string(),
                                 })],
                                 vec![],
                                 vec![],
@@ -278,7 +278,7 @@ pub fn search_json(
                                 vec![TransformInfo::ReplaceText(ReplaceText {
                                     start_position: start - 1,
                                     end_position: end - 1,
-                                    string: "$$lunasAfterUnmount".to_string(),
+                                    string: "$$livonAfterUnmount".to_string(),
                                 })],
                                 vec![],
                                 vec![],

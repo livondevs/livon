@@ -52,7 +52,7 @@ pub fn gen_create_fragments(
                             .unwrap();
 
                         match under_for {
-                            true => format!("[{}, ...$$lunasForIndices]", target_node_idx),
+                            true => format!("[{}, ...$$livonForIndices]", target_node_idx),
                             false => target_node_idx.to_string(),
                         }
                     };
@@ -105,7 +105,7 @@ pub fn gen_create_fragments(
                 let target_node_index = {
                     let idx = ref_node_ids.iter().position(|id| id == &target_id).unwrap();
                     match under_for {
-                        true => format!("[{}, ...$$lunasForIndices]", idx),
+                        true => format!("[{}, ...$$livonForIndices]", idx),
                         false => idx.to_string(),
                     }
                 };

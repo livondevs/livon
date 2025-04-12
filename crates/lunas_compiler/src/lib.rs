@@ -1,5 +1,5 @@
-use lunas_generator::lunas_compile_from_block;
-use lunas_parser::parse_lunas_file;
+use livon_generator::livon_compile_from_block;
+use livon_parser::parse_livon_file;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -27,14 +27,14 @@ impl LunasCompilerOutput {
 
 #[wasm_bindgen]
 pub fn compile(
-    lunas_code: String,
+    livon_code: String,
     runtime_path: Option<String>,
 ) -> Result<LunasCompilerOutput, String> {
-    let blocks = match parse_lunas_file(&lunas_code) {
+    let blocks = match parse_livon_file(&livon_code) {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }?;
-    let code = lunas_compile_from_block(&blocks, runtime_path)?;
+    let code = livon_compile_from_block(&blocks, runtime_path)?;
     Ok(LunasCompilerOutput {
         js: code.0,
         css: code.1,

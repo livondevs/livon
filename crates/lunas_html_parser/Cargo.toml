@@ -1,5 +1,5 @@
 [package]
-name = "lunas_html_parser"
+name = "livon_html_parser"
 version = "0.7.0"
 authors = ["Mathias Iversen <work@mathiasiversen.com>"]
 edition = "2018"

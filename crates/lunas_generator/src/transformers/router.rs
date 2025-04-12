@@ -11,24 +11,24 @@ pub fn generate_router_initialization_code(
             match router_component.distance_to_next_elm > 1 {
                 true => {
                     format!(
-                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, $$lunas{}Anchor, true);",
+                        "$$livonRouter.initialize($$livonGeneratedRoutes, $$livon{}Ref, $$livon{}Anchor, true);",
                         router_component.parent_id, router_component.custom_component_block_id
                     )
                 }
                 false => {
                     let anchor_ref_name = match &router_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                        Some(anchor_id) => format!("$$livon{}Ref", anchor_id),
                         None => "null".to_string(),
                     };
                     format!(
-                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, {}, true);",
+                        "$$livonRouter.initialize($$livonGeneratedRoutes, $$livon{}Ref, {}, true);",
                         router_component.parent_id, anchor_ref_name
                     )
                 }
             }
         } else {
             format!(
-                "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, null, false);",
+                "$$livonRouter.initialize($$livonGeneratedRoutes, $$livon{}Ref, null, false);",
                 router_component.parent_id,
             )
         }),

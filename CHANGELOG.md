@@ -4,7 +4,7 @@
 
 ### Features
 - **Added For block functionality** [#73] @s19514tt
-- **Updated attribute handling in $$lunasInitComponent to support dynamic updates and boolean attributes** [#76] @s19514tt
+- **Updated attribute handling in $$livonInitComponent to support dynamic updates and boolean attributes** [#76] @s19514tt
 - **Added lifecycle functions afterMount and afterUnmount** [#79] @s19514tt
 - **Implemented dynamic binding for class objects** [#80] @s19514tt
 - **Supported else-if blocks for if statements** [#81] @s19514tt

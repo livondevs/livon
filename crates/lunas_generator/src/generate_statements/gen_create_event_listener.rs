@@ -23,7 +23,7 @@ pub fn generate_create_event_listener(
             .position(|id| id == &action_and_target.target)
             .unwrap();
         let reference_string = match under_for {
-            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
+            true => format!("[{}, ...$$livonForIndices]", reference_node_idx),
             false => reference_node_idx.to_string(),
         };
         result.push(format!(
@@ -40,7 +40,7 @@ pub fn generate_create_event_listener(
     }
     let formatted_result = create_indent(result.join("\n").as_str());
     Some(format!(
-        r#"$$lunasAddEvListener([
+        r#"$$livonAddEvListener([
 {}
 ]);"#,
         formatted_result

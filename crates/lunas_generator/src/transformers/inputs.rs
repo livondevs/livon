@@ -1,4 +1,4 @@
-use lunas_parser::PropsInput;
+use livon_parser::PropsInput;
 use num_bigint::BigUint;
 
 use crate::structs::transform_info::VariableNameAndAssignedNumber;

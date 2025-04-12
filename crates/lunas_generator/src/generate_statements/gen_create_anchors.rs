@@ -23,7 +23,7 @@ pub fn gen_create_anchor_statements(
                         let reference_node_idx = ref_node_ids.iter().position(|id| id == anchor_id);
                         match reference_node_idx {
                             Some(idx) => match under_for {
-                                true => format!("[{}, ...$$lunasForIndices]", idx),
+                                true => format!("[{}, ...$$livonForIndices]", idx),
                                 false => idx.to_string(),
                             },
                             None => "null".to_string(),
@@ -38,7 +38,7 @@ pub fn gen_create_anchor_statements(
                         .unwrap()
                         .to_string();
                     match under_for {
-                        true => format!("[{}, ...$$lunasForIndices]", parent_node_idx),
+                        true => format!("[{}, ...$$livonForIndices]", parent_node_idx),
                         false => parent_node_idx,
                     }
                 };
@@ -75,7 +75,7 @@ pub fn gen_create_anchor_statements(
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
                         let reference_node_idx = reference_node_idx.to_string();
                         match under_for {
-                            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
+                            true => format!("[{}, ...$$livonForIndices]", reference_node_idx),
                             false => reference_node_idx,
                         }
                     }
@@ -88,7 +88,7 @@ pub fn gen_create_anchor_statements(
                         .unwrap()
                         .to_string();
                     match under_for {
-                        true => format!("[{}, ...$$lunasForIndices]", parent_node_idx),
+                        true => format!("[{}, ...$$livonForIndices]", parent_node_idx),
                         false => parent_node_idx,
                     }
                 };
@@ -112,7 +112,7 @@ pub fn gen_create_anchor_statements(
     let anchor_offset = match under_for {
         true => {
             format!(
-                ", [{}, ...$$lunasForIndices]",
+                ", [{}, ...$$livonForIndices]",
                 ref_node_ids_count_before_creating_anchors.to_string()
             )
         }
@@ -142,7 +142,7 @@ pub fn gen_create_anchor_statements(
 
     Some(
         format!(
-            r#"$$lunasInsertTextNodes([
+            r#"$$livonInsertTextNodes([
 {}
 ]{});"#,
             create_indent(create_anchor_statements.join("\n").as_str()),

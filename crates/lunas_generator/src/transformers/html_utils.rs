@@ -1,4 +1,4 @@
-use lunas_parser::parse_for_statement;
+use livon_parser::parse_for_statement;
 use nanoid::nanoid;
 
 use crate::{
@@ -162,10 +162,10 @@ pub fn check_html_elms(
                             (
                                 for_statement
                                     .item_value
-                                    .unwrap_or("$$lunasForItem".to_string()),
+                                    .unwrap_or("$$livonForItem".to_string()),
                                 for_statement
                                     .item_index
-                                    .unwrap_or("$$lunasForIndex".to_string()),
+                                    .unwrap_or("$$livonForIndex".to_string()),
                             )
                         };
 
@@ -768,12 +768,12 @@ fn create_space_for_ref_map(
 
 // FIXME:カッコが複数でも、escapeTextは各バインディングに1つだけでいい
 // 具体例:
-// 現在:${$$lunasEscapeHtml(count.v+count.v)} count ${$$lunasEscapeHtml(count)} ${$$lunasEscapeHtml( count + count )}
-// 将来的:${$$lunasEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
+// 現在:${$$livonEscapeHtml(count.v+count.v)} count ${$$livonEscapeHtml(count)} ${$$livonEscapeHtml( count + count )}
+// 将来的:${$$livonEscapeHtml(`${count.v+count.v} count ${count} ${ count + count }`)}
 
 // カッコが1つだけの場合、その部分のみをエスケープする
 // Give: <div>    ${count} </div>
-// Want: <div>    ${$$lunasEscapeHtml(count)} </div>
+// Want: <div>    ${$$livonEscapeHtml(count)} </div>
 // TODO: count_of_bindingsの返却をやめる
 fn replace_text_with_reactive_value(
     code: &mut String,
@@ -814,7 +814,7 @@ fn replace_text_with_reactive_value(
     (depending_vars, count_of_bindings)
 }
 
-pub fn create_lunas_internal_component_statement(
+pub fn create_livon_internal_component_statement(
     elm: &Element,
     generation_func_name: &str,
 ) -> String {
@@ -849,26 +849,26 @@ mod tests {
 
     #[test]
     fn exploration() {
-        let code = "$$lunasEscapeHtml(count2.v+count.v)";
+        let code = "$$livonEscapeHtml(count2.v+count.v)";
         let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
             &vec![],
         );
-        assert_eq!(code, "$$lunasEscapeHtml(count2.v+count.v)");
+        assert_eq!(code, "$$livonEscapeHtml(count2.v+count.v)");
     }
 
     #[test]
     fn exploration2() {
-        let code = "$$lunasEscapeHtml( count2.v + count.v )";
+        let code = "$$livonEscapeHtml( count2.v + count.v )";
         let mut code = code.to_string();
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
             &vec![],
         );
-        assert_eq!(code, "$$lunasEscapeHtml( count2.v + count.v )");
+        assert_eq!(code, "$$livonEscapeHtml( count2.v + count.v )");
     }
 
     #[test]
@@ -878,13 +878,13 @@ mod tests {
         replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![]);
         assert_eq!(
             code,
-            "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"
+            "${$$livonEscapeHtml(interval.v == null ? 'start' : 'clear')}"
         );
     }
 }
 
 fn escape_html(s: &str) -> String {
-    format!("$$lunasEscapeHtml({})", s)
+    format!("$$livonEscapeHtml({})", s)
 }
 
 fn find_reactive_attr_from_id<'a>(

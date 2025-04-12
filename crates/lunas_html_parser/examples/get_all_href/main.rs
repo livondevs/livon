@@ -1,4 +1,4 @@
-use lunas_html_parser::{Dom, Node, Result};
+use livon_html_parser::{Dom, Node, Result};
 
 // This example illustrates how to use the library to get all of the anchor-hrefs from a document.
 

@@ -30,7 +30,7 @@ pub fn gen_render_custom_component_statements(
                         .unwrap()
                         .to_string();
                     match under_for {
-                        true => format!("[{}, ...$$lunasForIndices]", anchor_idx),
+                        true => format!("[{}, ...$$livonForIndices]", anchor_idx),
                         false => anchor_idx.to_string(),
                     }
                 }
@@ -39,7 +39,7 @@ pub fn gen_render_custom_component_statements(
                         let reference_node_idx =
                             ref_node_ids.iter().position(|id| id == anchor_id).unwrap();
                         match under_for {
-                            true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
+                            true => format!("[{}, ...$$livonForIndices]", reference_node_idx),
                             false => reference_node_idx.to_string(),
                         }
                     }
@@ -53,12 +53,12 @@ pub fn gen_render_custom_component_statements(
                     .unwrap()
                     .to_string();
                 match under_for {
-                    true => format!("[{}, ...$$lunasForIndices]", custom_component_parent_index),
+                    true => format!("[{}, ...$$livonForIndices]", custom_component_parent_index),
                     false => custom_component_parent_index,
                 }
             };
             let ref_idx = match under_for {
-                true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
+                true => format!("[{}, ...$$livonForIndices]", ref_node_ids.len()),
                 false => ref_node_ids.len().to_string(),
             };
             let latest_ctx = match custom_component_block.ctx.last() {
@@ -66,11 +66,11 @@ pub fn gen_render_custom_component_statements(
                 None => "null".to_string(),
             };
             let indices = match under_for {
-                true => format!("$$lunasForIndices"),
+                true => format!("$$livonForIndices"),
                 false => "null".to_string(),
             };
             render_custom_statements.push(format!(
-                "$$lunasInsertComponent({}({}), {}, {}, {}, {}, {});",
+                "$$livonInsertComponent({}({}), {}, {}, {}, {}, {});",
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),
                 parent_idx,
@@ -91,12 +91,12 @@ pub fn gen_render_custom_component_statements(
                     .unwrap()
                     .to_string();
                 match under_for {
-                    true => format!("[{}, ...$$lunasForIndices]", custom_component_parent_index),
+                    true => format!("[{}, ...$$livonForIndices]", custom_component_parent_index),
                     false => custom_component_parent_index,
                 }
             };
             let ref_idx = match under_for {
-                true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
+                true => format!("[{}, ...$$livonForIndices]", ref_node_ids.len()),
                 false => ref_node_ids.len().to_string(),
             };
             let latest_ctx = match custom_component_block.ctx.last() {
@@ -104,11 +104,11 @@ pub fn gen_render_custom_component_statements(
                 None => "null".to_string(),
             };
             let indices = match under_for {
-                true => format!("$$lunasForIndices"),
+                true => format!("$$livonForIndices"),
                 false => "null".to_string(),
             };
             render_custom_statements.push(format!(
-                "$$lunasMountComponent({}({}), {}, {}, {}, {});",
+                "$$livonMountComponent({}({}), {}, {}, {}, {});",
                 custom_component_block.component_name,
                 custom_component_block.args.to_object(variable_names),
                 parent_idx,

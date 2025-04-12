@@ -1,10 +1,10 @@
 [package]
-name = "lunas_dev_server"
+name = "livon_dev_server"
 version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-lunas_compiler = { version = "0.1.0", path = "../lunas_compiler", features = [
+livon_compiler = { version = "0.1.0", path = "../livon_compiler", features = [
   "playground",
 ] }
 serde_json = "1.0.138"

@@ -10,7 +10,7 @@ use crate::{
         },
         transform_targets::NodeAndReactiveInfo,
     },
-    transformers::html_utils::create_lunas_internal_component_statement,
+    transformers::html_utils::create_livon_internal_component_statement,
 };
 
 use super::{
@@ -49,7 +49,7 @@ pub fn gen_render_for_blk_func(
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &for_block.node.content {
             NodeContent::Element(elm) => {
-                create_lunas_internal_component_statement(elm, "$$createLunasElement")
+                create_livon_internal_component_statement(elm, "$$createLunasElement")
             }
             _ => panic!(),
         };
@@ -115,7 +115,7 @@ pub fn gen_render_for_blk_func(
         }
 
         let parent_indices = match for_block.have_for_block_on_parent(ctx_categories) {
-            true => "$$lunasForIndices".to_string(),
+            true => "$$livonForIndices".to_string(),
             false => "[]".to_string(),
         };
 
@@ -143,7 +143,7 @@ pub fn gen_render_for_blk_func(
             "() => {}".to_string()
         } else {
             format!(
-                r#"({}, {}, $$lunasForIndices) => {{
+                r#"({}, {}, $$livonForIndices) => {{
 {}
 }}"#,
                 for_block.item_name,
@@ -191,7 +191,7 @@ pub fn gen_render_for_blk_func(
         let fragment_args = vec![
             for_block.item_name.clone(),
             for_block.item_index.clone(),
-            "$$lunasForIndices".to_string(),
+            "$$livonForIndices".to_string(),
         ];
 
         let fragments = gen_create_fragments(
@@ -210,7 +210,7 @@ pub fn gen_render_for_blk_func(
                 .unwrap()
                 .to_string();
             match current_for_ctx.is_some() {
-                true => format!(r#"[{}, ...$$lunasForIndices]"#, idx),
+                true => format!(r#"[{}, ...$$livonForIndices]"#, idx),
                 false => idx.to_string(),
             }
         };
@@ -243,7 +243,7 @@ pub fn gen_render_for_blk_func(
 
         let anchor_idx = match idx_of_anchor_of_for_blk {
             Some(idx) => match current_for_ctx.is_some() {
-                true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
+                true => format!(r#", [{}, ...$$livonForIndices]"#, idx),
                 false => format!(r#", {}"#, idx),
             },
             None => "".to_string(),
@@ -252,7 +252,7 @@ pub fn gen_render_for_blk_func(
         // TODO: Add comments to the generated code to clarify what each argument represents
         let create_for_func_inside = format!(
             r#""{}",
-({}, {}, $$lunasForIndices) => {},
+({}, {}, $$livonForIndices) => {},
 () => ({}),
 {},
 {},
@@ -293,7 +293,7 @@ pub fn gen_render_for_blk_func(
     }
 
     Some(format!(
-        r#"$$lunasCreateForBlock([
+        r#"$$livonCreateForBlock([
 {}
 ]);"#,
         create_indent(render_for.join(",\n").as_str())

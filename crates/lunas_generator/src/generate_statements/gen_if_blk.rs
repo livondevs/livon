@@ -10,7 +10,7 @@ use crate::{
         },
         transform_targets::NodeAndReactiveInfo,
     },
-    transformers::html_utils::create_lunas_internal_component_statement,
+    transformers::html_utils::create_livon_internal_component_statement,
 };
 
 use super::{
@@ -45,12 +45,12 @@ pub fn gen_render_if_blk_func(
         }
         let initial_ref_node_ids_len = ref_node_ids.len();
         let if_blk_elm_loc = match under_for {
-            true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
+            true => format!("[{}, ...$$livonForIndices]", ref_node_ids.len()),
             false => ref_node_ids.len().to_string(),
         };
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
-                create_lunas_internal_component_statement(elm, "$$createLunasElement")
+                create_livon_internal_component_statement(elm, "$$createLunasElement")
             }
             _ => panic!(),
         };
@@ -69,7 +69,7 @@ pub fn gen_render_if_blk_func(
 
         let if_blk_name = match under_for {
             true => format!(
-                "() => `{}-${{$$lunasForIndices}}`",
+                "() => `{}-${{$$livonForIndices}}`",
                 if_block.target_if_blk_id
             ),
             false => format!("\"{}\"", if_block.target_if_blk_id),
@@ -112,7 +112,7 @@ pub fn gen_render_if_blk_func(
             .unwrap()
             .to_string();
         let parent_if_blk_id_idx = match under_for {
-            true => format!("[{}, ...$$lunasForIndices]", parent_if_blk_id_idx_num),
+            true => format!("[{}, ...$$livonForIndices]", parent_if_blk_id_idx_num),
             false => parent_if_blk_id_idx_num.to_string(),
         };
         let idx_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
@@ -147,7 +147,7 @@ pub fn gen_render_if_blk_func(
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
             Some(idx) => match under_for {
-                true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
+                true => format!(r#", [{}, ...$$livonForIndices]"#, idx),
                 false => format!(r#", {}"#, idx),
             },
             None => "".to_string(),
@@ -266,12 +266,12 @@ pub fn gen_render_if_blk_func(
     }
 
     let indices = match under_for {
-        true => format!(", $$lunasForIndices"),
+        true => format!(", $$livonForIndices"),
         false => "".to_string(),
     };
 
     Some(format!(
-        r#"$$lunasCreateIfBlock([
+        r#"$$livonCreateIfBlock([
 {}
 ]{});"#,
         create_indent(render_if.join(",\n").as_str()),
