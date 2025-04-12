@@ -1,11 +1,11 @@
 import { Router } from "../runtime/router";
 
 declare global {
-  interface Lunas {
+  interface Livon {
     router: Router;
     afterMount: (callback: () => void) => void;
     afterUnmount: (callback: () => void) => void;
   }
 
-  var Lunas: Lunas;
+  var Livon: Livon;
 }

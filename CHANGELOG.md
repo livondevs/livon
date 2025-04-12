@@ -40,7 +40,7 @@
 
 ### Other Changes
 
-- Changed the name of the project from `Blve` to `Lunas`. #46
+- Changed the name of the project from `Blve` to `Livon`. #46
 
 ## [0.0.1-beta.5](https://github.com/livondevs/livon/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
 

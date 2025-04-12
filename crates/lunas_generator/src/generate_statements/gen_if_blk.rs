@@ -50,7 +50,7 @@ pub fn gen_render_if_blk_func(
         };
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
-                create_livon_internal_component_statement(elm, "$$createLunasElement")
+                create_livon_internal_component_statement(elm, "$$createLivonElement")
             }
             _ => panic!(),
         };

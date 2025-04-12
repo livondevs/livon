@@ -1,7 +1,7 @@
 {
   "name": "livon",
   "version": "0.0.1-beta.8",
-  "description": "Lunas - Ultrafast and Sophisticated Web Frontend Framework",
+  "description": "Livon - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -11,7 +11,7 @@
     "type": "git",
     "url": "git+https://github.com/livondevs/livon.git"
   },
-  "author": "Lunas Dev Team",
+  "author": "Livon Dev Team",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/livondevs/livon/issues"

@@ -49,7 +49,7 @@ pub fn gen_render_for_blk_func(
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &for_block.node.content {
             NodeContent::Element(elm) => {
-                create_livon_internal_component_statement(elm, "$$createLunasElement")
+                create_livon_internal_component_statement(elm, "$$createLivonElement")
             }
             _ => panic!(),
         };

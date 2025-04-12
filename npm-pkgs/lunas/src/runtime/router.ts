@@ -1,4 +1,4 @@
-import { LunasModuleExports, ComponentDeclaration } from ".";
+import { LivonModuleExports, ComponentDeclaration } from ".";
 
 export type ComponentLoader = () => Promise<{ default: ComponentDeclaration }>;
 
@@ -10,7 +10,7 @@ export type Route = {
 export class Router {
   routes: Route[];
   notFound: () => void;
-  currentComponent: LunasModuleExports | null;
+  currentComponent: LivonModuleExports | null;
   renderingTarget!: {
     parent: HTMLElement;
     anchor: HTMLElement | null;

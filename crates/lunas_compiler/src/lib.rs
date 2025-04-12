@@ -5,13 +5,13 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug)]
-pub struct LunasCompilerOutput {
+pub struct LivonCompilerOutput {
     js: String,
     css: Option<String>,
 }
 
 #[wasm_bindgen]
-impl LunasCompilerOutput {
+impl LivonCompilerOutput {
     #[wasm_bindgen(getter)]
     pub fn js(&self) -> String {
         self.js.clone()
@@ -29,13 +29,13 @@ impl LunasCompilerOutput {
 pub fn compile(
     livon_code: String,
     runtime_path: Option<String>,
-) -> Result<LunasCompilerOutput, String> {
+) -> Result<LivonCompilerOutput, String> {
     let blocks = match parse_livon_file(&livon_code) {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }?;
     let code = livon_compile_from_block(&blocks, runtime_path)?;
-    Ok(LunasCompilerOutput {
+    Ok(LivonCompilerOutput {
         js: code.0,
         css: code.1,
     })

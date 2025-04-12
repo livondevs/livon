@@ -1,17 +1,17 @@
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
-}) => LunasModuleExports;
+}) => LivonModuleExports;
 
-export type LunasModuleExports = {
-  mount: (elm: HTMLElement) => LunasComponentState;
-  insert: (elm: HTMLElement, anchor: HTMLElement | null) => LunasComponentState;
+export type LivonModuleExports = {
+  mount: (elm: HTMLElement) => LivonComponentState;
+  insert: (elm: HTMLElement, anchor: HTMLElement | null) => LivonComponentState;
   __unmount: () => void;
 };
 
-export type LunasComponentState = {
+export type LivonComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number[];
-  internalElement: LunasInternalElement;
+  internalElement: LivonInternalElement;
   currentVarBitGen: Generator<number[]>;
   ifBlocks: {
     [key: string]: {
@@ -49,7 +49,7 @@ export type LunasComponentState = {
   refMap: RefMap;
 };
 
-type LunasInternalElement = {
+type LivonInternalElement = {
   innerHtml: string;
   topElmTag: string;
   topElmAttr: { [key: string]: string };
@@ -66,12 +66,12 @@ type FragmentFunc = (
 class valueObj<T> {
   private _v: T;
   private proxy: T;
-  // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
-  dependencies: { [key: symbol]: [LunasComponentState, number[]] } = {};
+  // Dependencies map: key is a symbol, value is a tuple of [LivonComponentState, number[]]
+  dependencies: { [key: symbol]: [LivonComponentState, number[]] } = {};
 
   constructor(
     initialValue: T,
-    componentObj?: LunasComponentState,
+    componentObj?: LivonComponentState,
     componentSymbol?: symbol,
     symbolIndex: number[] = [0]
   ) {
@@ -169,7 +169,7 @@ class valueObj<T> {
   }
 
   // Adds a dependency and returns a removal function
-  addDependency(componentObj: LunasComponentState, symbolIndex: number[]) {
+  addDependency(componentObj: LivonComponentState, symbolIndex: number[]) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
     return {
       removeDependency: () => {
@@ -180,7 +180,7 @@ class valueObj<T> {
 }
 
 export const $$livonInitComponent = function (
-  this: LunasComponentState,
+  this: LivonComponentState,
   args: { [key: string]: any } = {},
   inputs: string[] = []
 ) {
@@ -213,7 +213,7 @@ export const $$livonInitComponent = function (
   }
 
   const componentElementSetter = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     innerHtml: string,
     topElmTag: string,
     topElmAttr: { [key: string]: string } = {}
@@ -226,30 +226,30 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const applyEnhancement = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     enhancementFunc: () => void
   ) {
     this.__livon_apply_enhancement = enhancementFunc;
   }.bind(this);
 
   const setAfterMount = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     afterMount: () => void
   ) {
     this.__livon_after_mount = afterMount;
   }.bind(this);
 
   const setAfterUnmount = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     afterUnmount: () => void
   ) {
     this.__livon_destroy = afterUnmount;
   }.bind(this);
 
   const mount = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     elm: HTMLElement
-  ): LunasComponentState {
+  ): LivonComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
     elm.innerHTML = `<${this.internalElement.topElmTag} ${Object.keys(
       this.internalElement.topElmAttr
@@ -267,12 +267,12 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const insert = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     elm: HTMLElement,
     anchor: HTMLElement | null
-  ): LunasComponentState {
+  ): LivonComponentState {
     if (this.isMounted) throw new Error("Component is already mounted");
-    this.componentElm = _createDomElementFromLunasElement(this.internalElement);
+    this.componentElm = _createDomElementFromLivonElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
     this.__livon_apply_enhancement();
     this.__livon_after_mount();
@@ -280,7 +280,7 @@ export const $$livonInitComponent = function (
     return this;
   }.bind(this);
 
-  const __unmount = function (this: LunasComponentState) {
+  const __unmount = function (this: LivonComponentState) {
     if (!this.isMounted) throw new Error("Component is not mounted");
     this.componentElm!.remove();
     this.isMounted = false;
@@ -289,7 +289,7 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const _updateComponent = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     updateFunc: () => void
   ) {
     this.__livon_update = (() => {
@@ -303,7 +303,7 @@ export const $$livonInitComponent = function (
     }).bind(this);
   }.bind(this);
 
-  const createReactive = function <T>(this: LunasComponentState, v: T) {
+  const createReactive = function <T>(this: LivonComponentState, v: T) {
     return new valueObj<T>(
       v,
       this,
@@ -313,10 +313,10 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const createIfBlock = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     ifBlocks: [
       name: string | (() => string),
-      livonElement: () => LunasInternalElement,
+      livonElement: () => LivonInternalElement,
       condition: () => boolean,
       postRender: () => void,
       ifCtx: string[],
@@ -349,7 +349,7 @@ export const $$livonInitComponent = function (
           mapOffset: number | number[],
           _mapLength: number | number[]
         ) => {
-          const componentElm = _createDomElementFromLunasElement(
+          const componentElm = _createDomElementFromLivonElement(
             livonElement()
           );
           const parentElement = getNestedArrayValue(
@@ -457,20 +457,20 @@ export const $$livonInitComponent = function (
     this.blkUpdateMap = {};
   }.bind(this);
 
-  const renderIfBlock = function (this: LunasComponentState, name: string) {
+  const renderIfBlock = function (this: LivonComponentState, name: string) {
     if (!this.ifBlocks[name]) return;
     this.ifBlocks[name].renderer();
   }.bind(this);
 
   const getElmRefs = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     ids: string[],
     preserveId: number | number[],
     refLocation: number | number[] = 0
   ): void {
     const boolMap = bitMapToBoolArr(preserveId);
     ids.forEach(
-      function (this: LunasComponentState, id: string, index: number) {
+      function (this: LivonComponentState, id: string, index: number) {
         const e = document.getElementById(id)!;
         if (boolMap[index]) {
           e.removeAttribute("id");
@@ -482,7 +482,7 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const addEvListener = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     args: [number | number[], string, EventListener][]
   ) {
     for (const [elmIdx, evName, evFunc] of args) {
@@ -492,14 +492,14 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const createForBlock = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     forBlocksConfig: [
       forBlockId: string,
       renderItem: (
         item: unknown,
         index: number,
         indices: number[]
-      ) => LunasInternalElement,
+      ) => LivonInternalElement,
       getDataArray: () => unknown[],
       afterRenderHook: (
         item: unknown,
@@ -554,7 +554,7 @@ export const $$livonInitComponent = function (
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
           const livonElm = renderItem(item, index, fullIndices);
-          const domElm = _createDomElementFromLunasElement(livonElm);
+          const domElm = _createDomElementFromLivonElement(livonElm);
           setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
           containerElm.insertBefore(domElm, insertionPointElm);
           afterRenderHook?.(item, index, fullIndices);
@@ -604,7 +604,7 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const insertTextNodes = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     args: [
       amount: number,
       parent: number | number[],
@@ -636,7 +636,7 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const createFragments = function (
-    this: LunasComponentState,
+    this: LivonComponentState,
     fragments: Fragment[],
     ifCtx?: string[],
     latestForName?: string
@@ -697,8 +697,8 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const livonInsertComponent = function (
-    this: LunasComponentState,
-    componentExport: LunasModuleExports,
+    this: LivonComponentState,
+    componentExport: LivonModuleExports,
     parentIdx: number | number[],
     anchorIdx: number | number[] | null,
     refIdx: number | number[],
@@ -737,8 +737,8 @@ export const $$livonInitComponent = function (
   }.bind(this);
 
   const livonMountComponent = function (
-    this: LunasComponentState,
-    componentExport: LunasModuleExports,
+    this: LivonComponentState,
+    componentExport: LivonModuleExports,
     parentIdx: number | number[],
     refIdx: number | number[],
     latestCtx: string | null,
@@ -787,7 +787,7 @@ export const $$livonInitComponent = function (
       mount,
       insert,
       __unmount,
-    } as LunasModuleExports,
+    } as LivonModuleExports,
   };
 };
 
@@ -839,11 +839,11 @@ export function $$livonReplaceAttr(
   }
 }
 
-export function $$createLunasElement(
+export function $$createLivonElement(
   innerHtml: string,
   topElmTag: string,
   topElmAttr: { [key: string]: string } = {}
-): LunasInternalElement {
+): LivonInternalElement {
   return {
     innerHtml,
     topElmTag,
@@ -851,8 +851,8 @@ export function $$createLunasElement(
   };
 }
 
-const _createDomElementFromLunasElement = function (
-  livonElement: LunasInternalElement
+const _createDomElementFromLivonElement = function (
+  livonElement: LivonInternalElement
 ): HTMLElement {
   const componentElm = document.createElement(livonElement.topElmTag);
   Object.keys(livonElement.topElmAttr).forEach((key) => {
@@ -863,7 +863,7 @@ const _createDomElementFromLunasElement = function (
 };
 
 export const $$livonCreateNonReactive = function <T>(
-  this: LunasComponentState,
+  this: LivonComponentState,
   v: T
 ) {
   return new valueObj<T>(v);

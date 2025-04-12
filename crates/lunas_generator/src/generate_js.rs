@@ -288,7 +288,7 @@ fn gen_full_code(
         .collect::<Vec<String>>()
         .join("\n");
     format!(
-        r#"import {{ $$livonEscapeHtml, $$livonInitComponent, $$livonReplaceText, $$livonReplaceAttr, $$createLunasElement, $$livonCreateNonReactive }} from "{}";{}
+        r#"import {{ $$livonEscapeHtml, $$livonInitComponent, $$livonReplaceText, $$livonReplaceAttr, $$createLivonElement, $$livonCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
     const {{ $$livonSetComponentElement, $$livonComponentReturn, $$livonAfterMount, $$livonAfterUnmount, $$livonApplyEnhancement, $$livonReactive, $$livonCreateIfBlock, $$livonCreateForBlock, $$livonInsertEmpty, $$livonGetElmRefs, $$livonAddEvListener, $$livonInsertTextNodes, $$livonCreateFragments, $$livonInsertComponent, $$livonMountComponent }} = new $$livonInitComponent(args{});
