@@ -30,41 +30,65 @@ jobs:
             exit 1
           fi
 
-      - name: Delete previous bot comments
+      - name: Delete previous bot comments (Debug Mode, fixed PR number 77)
         run: |
-          PR_NUMBER=${{ github.event.pull_request.number }}
+          # Fixed pull request number for debugging
+          PR_NUMBER=77
+          echo "Using fixed PR_NUMBER: $PR_NUMBER"
+
+          # Retrieve comment IDs
           COMMENTS=$(gh pr view $PR_NUMBER --json comments -q '.comments[].id')
+          echo "Found comment IDs: $COMMENTS"
 
           for CID in $COMMENTS; do
-            BODY=$(gh api graphql -F id=$CID -f query='
-              query($id: ID!) {
-                node(id: $id) {
-                  ... on IssueComment {
-                    id
-                    body
-                    author {
-                      login
-                    }
-                  }
-                }
+            echo "Processing comment ID: $CID"
+            BODY=$(gh api graphql -F id=$CID -f query='\
+              query($id: ID!) {\
+                node(id: $id) {\
+                  ... on IssueComment {\
+                    id\
+                    body\
+                    author {\
+                      login\
+                    }\
+                  }\
+                }\
               }' --jq '.data.node')
-
+            
+            echo "Raw BODY: $BODY"
+            
             AUTHOR=$(echo "$BODY" | jq -r '.author.login')
             COMMENT_BODY=$(echo "$BODY" | jq -r '.body')
-
-            if [[ "$AUTHOR" == "github-actions[bot]" && "$COMMENT_BODY" == *"adheres to the beta version format"* ]]; then
+            echo "Author: $AUTHOR"
+            echo "Comment body: $COMMENT_BODY"
+            
+            # Check if the comment is from github-actions[bot] and includes our identifier text for beta version format.
+            if [[ "$AUTHOR" == "github-actions[bot]" && "$COMMENT_BODY" == *"beta version format"* ]]; then
               echo "🧹 Deleting previous bot comment ID $CID"
               gh api -X DELETE "repos/${{ github.repository }}/issues/comments/$CID"
+            else
+              echo "Skipping comment ID $CID"
             fi
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create PR review comment
+      - name: Create PR review comment on failure
+        if: ${{ failure() }}
         run: |
           NEW_VERSION=$(jq -r '.version' ./npm-pkgs/lunas/package.json)
+          echo "Posting failure comment for version: $NEW_VERSION"
+          gh pr comment 77 --body "❌ The version in package.json '$NEW_VERSION' does not adhere to the beta version format. Please correct it."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create PR review comment on success
+        if: ${{ success() }}
+        run: |
           CURRENT_VERSION=$(npm show lunas@beta version || echo "N/A")
-          gh pr comment ${{ github.event.pull_request.number }} --body "✅ The version in package.json \`$NEW_VERSION\` adheres to the beta version format.  
-          📦 Current version in npm is \`$CURRENT_VERSION\`."
+          NEW_VERSION=$(jq -r '.version' ./npm-pkgs/lunas/package.json)
+          echo "Posting success comment for version: $NEW_VERSION and current version: $CURRENT_VERSION"
+          gh pr comment 77 --body "✅ The version in package.json '$NEW_VERSION' adheres to the beta version format.  
+          📦 Current version in npm is '$CURRENT_VERSION'."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
