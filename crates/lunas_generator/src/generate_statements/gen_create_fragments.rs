@@ -88,7 +88,7 @@ pub fn gen_create_fragments(
                     _ => panic!(),
                 };
 
-                let dep_vars_assined_numbers = variable_name_and_assigned_numbers
+                let dep_vars_assigned_numbers = variable_name_and_assigned_numbers
                     .iter()
                     .filter(|v| {
                         depending_variables
@@ -100,7 +100,7 @@ pub fn gen_create_fragments(
                     .map(|v| v.assignment.clone())
                     .collect::<Vec<BigUint>>();
 
-                let combined_number = get_combined_binary_number(dep_vars_assined_numbers);
+                let combined_number = get_combined_binary_number(dep_vars_assigned_numbers);
 
                 let target_node_index = {
                     let idx = ref_node_ids.iter().position(|id| id == &target_id).unwrap();

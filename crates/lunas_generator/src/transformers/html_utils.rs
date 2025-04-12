@@ -178,7 +178,7 @@ pub fn check_html_elms(
 
                         html_manipulators.push(HtmlManipulator {
                             target_uuid: parent_uuid.unwrap().clone(),
-                            manipulations: HtmlManipulation::RemoveChildForForStatement(
+                            manipulations: HtmlManipulation::RemoveChildForRepeatStatement(
                                 RemoveChildForRepeatStatement {
                                     child_uuid: node.uuid.clone(),
                                     item_name,
@@ -390,7 +390,7 @@ pub fn check_html_elms(
                         HtmlManipulation::RemoveChildForCustomComponent(b) => b.elm_loc.clone(),
                         HtmlManipulation::SetIdForReactiveContent(c) => c.elm_loc.clone(),
                         HtmlManipulation::RemoveChildTextNode(d) => d.elm_loc.clone(),
-                        HtmlManipulation::RemoveChildForForStatement(e) => e.elm_loc.clone(),
+                        HtmlManipulation::RemoveChildForRepeatStatement(e) => e.elm_loc.clone(),
                     }
                 }
                 let aloc = manip_to_ctx(a);
@@ -471,7 +471,7 @@ pub fn check_html_elms(
                                 element_location: remove_statement.elm_loc.clone(),
                             });
                         }
-                        HtmlManipulation::RemoveChildForForStatement(remove_statement) => {
+                        HtmlManipulation::RemoveChildForRepeatStatement(remove_statement) => {
                             set_id_for_needed_elm(
                                 element,
                                 needed_ids,
