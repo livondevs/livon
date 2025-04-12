@@ -1,6 +1,6 @@
 {
   "name": "livon",
-  "version": "0.0.1-beta.8",
+  "version": "0.0.1-beta.9",
   "description": "Livon - Ultrafast and Sophisticated Web Frontend Framework",
   "main": "dist/index.js",
   "scripts": {

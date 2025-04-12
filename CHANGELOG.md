@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.0.1-beta.8](https://github.com/livondevs/livon/compare/0.0.1-beta.7...0.0.1-beta.8) (2025-4-11)
+## [0.0.1-beta.9](https://github.com/livondevs/livon/compare/0.0.1-beta.8...0.0.1-beta.9) (2024-4-12)
+
+### Other Changes
+
+- Changed the name of the project from `Lunas` to `Livon`. #94
+
+## [0.0.1-beta.8](https://github.com/livondevs/livon/compare/0.0.1-beta.7...0.0.1-beta.8) (2025-4-12)
 
 ### Features
 - **Added For block functionality** [#73] @s19514tt
@@ -40,7 +46,7 @@
 
 ### Other Changes
 
-- Changed the name of the project from `Blve` to `Livon`. #46
+- Changed the name of the project from `Blve` to `Lunas`. #46
 
 ## [0.0.1-beta.5](https://github.com/livondevs/livon/compare/0.0.1-beta.4...0.0.1-beta.5) (2024-7-28)
 
