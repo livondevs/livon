@@ -1,4 +1,8 @@
-use crate::structs::{js_utils::JsSearchParent, transform_info::{AddStringToPosition, TransformInfo}};
+use crate::structs::{
+    js_analyze::JsFunctionDeps,
+    js_utils::JsSearchParent,
+    transform_info::{AddStringToPosition, TransformInfo},
+};
 use rand::{rngs::StdRng, SeedableRng};
 use serde_json::Value;
 use std::{env, sync::Mutex};
@@ -9,6 +13,19 @@ pub fn add_or_remove_strings_to_script(
     script: &String,
 ) -> String {
     let mut transformers = position_and_strs.clone();
+    transformers.sort_by(|a, b| {
+        let a = match a {
+            TransformInfo::AddStringToPosition(a) => a.sort_order,
+            TransformInfo::RemoveStatement(_) => 0,
+            TransformInfo::ReplaceText(_) => 0,
+        };
+        let b = match b {
+            TransformInfo::AddStringToPosition(b) => b.sort_order,
+            TransformInfo::RemoveStatement(_) => 0,
+            TransformInfo::ReplaceText(_) => 0,
+        };
+        a.cmp(&b)
+    });
     transformers.sort_by(|a, b| {
         let a = match a {
             TransformInfo::AddStringToPosition(a) => a.position,
@@ -99,12 +116,16 @@ fn is_testgen() -> bool {
     }
 }
 
-pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String, Vec<String>) {
+pub fn append_v_to_vars_in_html(
+    input: &str,
+    variables: &Vec<String>,
+    func_deps: &Vec<JsFunctionDeps>,
+) -> (String, Vec<String>) {
     let parsed = parse_with_swc(&input.to_string());
 
     let parsed_json = serde_json::to_value(&parsed).unwrap();
 
-    let (positions, _, depending_vars) = search_json(
+    let (positions, _, depending_vars, depending_funcs) = search_json(
         &parsed_json,
         &input.to_string(),
         &variables,
@@ -114,7 +135,27 @@ pub fn append_v_to_vars_in_html(input: &str, variables: &Vec<String>) -> (String
 
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
 
-    (modified_string, depending_vars)
+    let func_dep_vars = func_deps
+        .iter()
+        .filter_map(|func| {
+            if depending_funcs.contains(&func.name) {
+                Some(func.depending_vars.clone())
+            } else {
+                None
+            }
+        })
+        .flatten()
+        .collect::<Vec<String>>();
+
+    let all_depending_values = depending_vars
+        .iter()
+        .chain(func_dep_vars.iter())
+        .cloned()
+        .collect::<std::collections::HashSet<String>>()
+        .into_iter()
+        .collect::<Vec<String>>();
+
+    (modified_string, all_depending_values)
 }
 
 pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
@@ -153,10 +194,12 @@ pub fn find_non_reactives(json: &Value, variables: &Vec<String>) -> Vec<Transfor
                 positions.push(TransformInfo::AddStringToPosition(AddStringToPosition {
                     position: (end.as_u64().unwrap() - 1) as u32,
                     string: ")".to_string(),
+                    sort_order: 1,
                 }));
                 positions.push(TransformInfo::AddStringToPosition(AddStringToPosition {
                     position: (start.as_u64().unwrap() - 1) as u32,
                     string: "$$lunasCreateNonReactive(".to_string(),
+                    sort_order: 1,
                 }));
 
                 return positions;

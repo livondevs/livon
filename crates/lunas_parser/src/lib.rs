@@ -1,3 +1,4 @@
+mod for_parser;
 mod parse2;
 mod parser1;
 mod parsers;
@@ -11,7 +12,8 @@ pub use structs::detailed_blocks::DetailedBlock;
 pub use structs::detailed_meta_data::{DetailedMetaData, PropsInput, UseComponentStatement};
 
 pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
-    let parsed_items = match parse1(input) {
+    let new_input = format!("{}\n", input);
+    let parsed_items = match parse1(&new_input) {
         Ok(r) => {
             let (_, parsed_items) = r;
             Ok(parsed_items)
@@ -26,3 +28,5 @@ pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
 
     Ok(detailed_block)
 }
+
+pub use for_parser::for_parser::{parse_for_statement, ParsedFor};

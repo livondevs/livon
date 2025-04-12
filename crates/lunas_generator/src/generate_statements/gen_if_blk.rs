@@ -1,26 +1,31 @@
+use num_bigint::BigUint;
+
 use crate::{
-    generate_js::{
-        create_event_listener, create_fragments, gen_create_anchor_statements,
-        gen_ref_getter_from_needed_ids, gen_render_custom_component_statements,
-        get_combined_binary_number,
-    },
     orig_html_struct::structs::NodeContent,
     structs::{
+        ctx::ContextCategories,
         transform_info::{
-            ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, NeededIdName,
-            TextNodeRendererGroup, VariableNameAndAssignedNumber,
+            ActionAndTarget, CustomComponentBlockInfo, IfBlockInfo, RefMap, TextNodeRendererGroup,
+            VariableNameAndAssignedNumber,
         },
         transform_targets::NodeAndReactiveInfo,
     },
     transformers::html_utils::create_lunas_internal_component_statement,
 };
 
-use super::utils::create_indent;
+use super::{
+    gen_create_anchors::gen_create_anchor_statements,
+    gen_create_event_listener::generate_create_event_listener,
+    gen_create_fragments::gen_create_fragments,
+    gen_custom_component::gen_render_custom_component_statements,
+    gen_reference_getter::gen_reference_getter,
+    utils::{create_indent, get_combined_binary_number},
+};
 
 // TODO: Many of the following functions are similar to top-level component creation functions, such as creating refs and rendering if statements. Consider refactoring them into a single function.
 pub fn gen_render_if_blk_func(
     if_block_info: &Vec<IfBlockInfo>,
-    needed_ids: &Vec<NeededIdName>,
+    needed_ids: &Vec<RefMap>,
     actions_and_targets: &Vec<ActionAndTarget>,
     text_node_renderer: &TextNodeRendererGroup,
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
@@ -28,11 +33,21 @@ pub fn gen_render_if_blk_func(
     dep_vars_assigned_numbers: &Vec<VariableNameAndAssignedNumber>,
     elm_and_var_relation: &Vec<NodeAndReactiveInfo>,
     ref_node_ids: &mut Vec<String>,
+    ctx_categories: &ContextCategories,
+    current_for_ctx: Option<&String>,
+    under_for: bool,
 ) -> Option<String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info.iter() {
+        if !if_block.check_latest_for_ctx(ctx_categories, &current_for_ctx) {
+            continue;
+        }
         let initial_ref_node_ids_len = ref_node_ids.len();
+        let if_blk_elm_loc = match under_for {
+            true => format!("[{}, ...$$lunasForIndices]", ref_node_ids.len()),
+            false => ref_node_ids.len().to_string(),
+        };
         let create_internal_element_statement = match &if_block.node.content {
             NodeContent::Element(elm) => {
                 create_lunas_internal_component_statement(elm, "$$createLunasElement")
@@ -42,22 +57,40 @@ pub fn gen_render_if_blk_func(
 
         let mut post_render_statement: Vec<String> = Vec::new();
 
-        let ref_getter_str = gen_ref_getter_from_needed_ids(
+        let ref_getter_str = gen_reference_getter(
             needed_ids,
-            &Some(if_block),
             &Some(&if_block.ctx_under_if),
             ref_node_ids,
+            under_for,
         );
-        post_render_statement.push(ref_getter_str);
-
-        let ev_listener_code =
-            create_event_listener(actions_and_targets, &if_block.ctx_under_if, &ref_node_ids);
-        if let Some(ev_listener_code) = ev_listener_code {
-            post_render_statement.push(ev_listener_code.clone()); // `as_str()` を使って `&str` を追加
+        if let Some(ref_getter) = ref_getter_str {
+            post_render_statement.push(ref_getter);
         }
 
-        let gen_anchor =
-            gen_create_anchor_statements(&text_node_renderer, &if_block.ctx_under_if, ref_node_ids);
+        let if_blk_name = match under_for {
+            true => format!(
+                "() => `{}-${{$$lunasForIndices}}`",
+                if_block.target_if_blk_id
+            ),
+            false => format!("\"{}\"", if_block.target_if_blk_id),
+        };
+
+        let ev_listener_code = generate_create_event_listener(
+            actions_and_targets,
+            &if_block.ctx_under_if,
+            &ref_node_ids,
+            under_for,
+        );
+        if let Some(ev_listener_code) = ev_listener_code {
+            post_render_statement.push(ev_listener_code);
+        }
+
+        let gen_anchor = gen_create_anchor_statements(
+            &text_node_renderer,
+            &if_block.ctx_under_if,
+            ref_node_ids,
+            under_for,
+        );
         if let Some(gen_anchor) = gen_anchor {
             post_render_statement.push(gen_anchor);
         }
@@ -67,16 +100,21 @@ pub fn gen_render_if_blk_func(
             &if_block.ctx_under_if,
             &variable_names,
             ref_node_ids,
+            under_for,
         );
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);
         }
 
-        let parent_if_blk_id_idx = ref_node_ids
+        let parent_if_blk_id_idx_num = ref_node_ids
             .iter()
             .position(|x| x == &if_block.parent_id)
             .unwrap()
             .to_string();
+        let parent_if_blk_id_idx = match under_for {
+            true => format!("[{}, ...$$lunasForIndices]", parent_if_blk_id_idx_num),
+            false => parent_if_blk_id_idx_num.to_string(),
+        };
         let idx_of_anchor_of_if_blk = match if_block.distance_to_next_elm > 1 {
             true => Some(
                 ref_node_ids
@@ -108,20 +146,53 @@ pub fn gen_render_if_blk_func(
         };
 
         let anchor_idx = match idx_of_anchor_of_if_blk {
-            Some(idx) => format!(r#", {}"#, idx),
+            Some(idx) => match under_for {
+                true => format!(r#", [{}, ...$$lunasForIndices]"#, idx),
+                false => format!(r#", {}"#, idx),
+            },
             None => "".to_string(),
         };
 
         // array to js array string
-        let ctxjs_array = format!(
-            r#"[{}]"#,
-            if_block
+        let ctxjs_array = {
+            let mut ctx_over_if = if_block.ctx_over_if.clone();
+            if under_for {
+                let latest_for_ctx_idx = if_block.get_latest_for_ctx_idx(ctx_categories);
+                if let Some(latest_for_ctx_idx) = latest_for_ctx_idx {
+                    ctx_over_if = ctx_over_if
+                        .iter()
+                        // Get elements after latest_for_ctx_idx (excluding latest_for_ctx_idx itself)
+                        .skip(latest_for_ctx_idx + 1)
+                        .map(|x| x.to_string())
+                        .collect();
+                }
+            }
+            format!(
+                r#"[{}]"#,
+                ctx_over_if
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        };
+
+        let parent_for_array = {
+            let for_context_before_current_for = if_block
                 .ctx_over_if
                 .iter()
-                .map(|x| format!("'{}'", x))
-                .collect::<Vec<String>>()
-                .join(",")
-        );
+                .filter(|x| ctx_categories.for_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .collect::<Vec<String>>();
+            format!(
+                r#"[{}]"#,
+                for_context_before_current_for
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(",")
+            )
+        };
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
@@ -134,44 +205,46 @@ pub fn gen_render_if_blk_func(
                     .collect::<Vec<bool>>()
                     .contains(&true)
             })
-            .map(|v| v.assignment)
-            .collect::<Vec<u32>>();
+            .map(|v| v.assignment.clone())
+            .collect::<Vec<BigUint>>();
 
-        let fragments = create_fragments(
+        let fragments = gen_create_fragments(
             &elm_and_var_relation,
             &dep_vars_assigned_numbers,
             &ref_node_ids,
             &if_block.ctx_under_if,
+            under_for,
+            &None,
         );
 
         let if_fragments = if let Some(fragments) = fragments {
             format!(
                 r#",
-[
-{}
-]"#,
-                create_indent(fragments.as_str())
+{}"#,
+                fragments
             )
         } else {
             "".to_string()
         };
 
         let create_if_func_inside = format!(
-            r#""{}",
+            r#"{},
 () => ({}),
 () => ({}),
+{},
 {},
 {},
 {},
 [{}, {}],
 [{}{}]{}"#,
-            if_block.target_if_blk_id,
+            if_blk_name,
             create_internal_element_statement,
             if_block.condition,
             if_on_create,
             ctxjs_array,
+            parent_for_array,
             get_combined_binary_number(dep_number),
-            initial_ref_node_ids_len,
+            if_blk_elm_loc,
             ref_node_ids_len_increase,
             parent_if_blk_id_idx,
             anchor_idx,
@@ -192,10 +265,16 @@ pub fn gen_render_if_blk_func(
         return None;
     }
 
+    let indices = match under_for {
+        true => format!(", $$lunasForIndices"),
+        false => "".to_string(),
+    };
+
     Some(format!(
         r#"$$lunasCreateIfBlock([
 {}
-]);"#,
-        create_indent(render_if.join(",\n").as_str())
+]{});"#,
+        create_indent(render_if.join(",\n").as_str()),
+        indices
     ))
 }

@@ -70,6 +70,35 @@ impl Element {
         attributes.remove("$$$conditional$$$");
         attributes
     }
+
+    pub fn attributes_to_array(self) -> Vec<(String, Option<String>)> {
+        let mut attributes: Vec<(String, Option<String>)> = self.attributes.into_iter().collect();
+
+        attributes.sort_by(|a, b| {
+            let order = |key: &str| {
+                if key.starts_with(":for") {
+                    0
+                } else if key.starts_with(":if") {
+                    1
+                } else if key.starts_with(":elseif") {
+                    1
+                } else if key.starts_with(":else") {
+                    2
+                } else if key.starts_with("::") {
+                    2
+                } else if key.starts_with(":") {
+                    3
+                } else if key.starts_with("@") {
+                    4
+                } else {
+                    5
+                }
+            };
+            order(&a.0).cmp(&order(&b.0))
+        });
+
+        attributes
+    }
 }
 
 impl Node {
@@ -140,21 +169,30 @@ impl ToString for Element {
             }
         }
 
-        match self.children.len() == 0 {
-            true => {
-                format!("<{}{} />", self.tag_name, attribute_str)
-            }
-            false => {
-                let mut children = String::new();
-                for child in &self.children {
-                    children.push_str(&child.to_string());
-                }
-                format!(
-                    "<{}{}>{}</{}>",
-                    self.tag_name, attribute_str, children, self.tag_name
-                )
-            }
+        let mut children = String::new();
+        for child in &self.children {
+            children.push_str(&child.to_string());
         }
+        format!(
+            "<{}{}>{}</{}>",
+            self.tag_name, attribute_str, children, self.tag_name
+        )
+        // TODO: Make it a self-closing tag for certain tags
+        // match self.children.len() == 0 {
+        //     true => {
+        //         format!("<{}{} />", self.tag_name, attribute_str)
+        //     }
+        //     false => {
+        //         let mut children = String::new();
+        //         for child in &self.children {
+        //             children.push_str(&child.to_string());
+        //         }
+        //         format!(
+        //             "<{}{}>{}</{}>",
+        //             self.tag_name, attribute_str, children, self.tag_name
+        //         )
+        //     }
+        // }
     }
 }
 

@@ -2,12 +2,13 @@ name: Check package.json version
 
 on:
   pull_request:
-    types: [synchronize, opened, reopened]
+    types: [closed]
     branches:
       - beta
 
 jobs:
   check-version:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'version')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo

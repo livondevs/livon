@@ -10,37 +10,43 @@ export type LunasModuleExports = {
 
 export type LunasComponentState = {
   updatedFlag: boolean;
-  valUpdateMap: number;
-  blkRenderedMap: number;
-  blkUpdateMap: number;
+  valUpdateMap: number[];
   internalElement: LunasInternalElement;
-  currentVarBit: number;
-  currentIfBlkBit: number;
+  currentVarBitGen: Generator<number[]>;
   ifBlocks: {
     [key: string]: {
       renderer: () => void;
       context: string[];
+      forBlk: string | null;
       condition: () => boolean;
+      cleanup: (() => void)[];
+      childs: string[];
     };
   };
+  ifBlockStates: Record<string, boolean>;
+  blkUpdateMap: Record<string, boolean>;
   updateComponentFuncs: (() => void)[][];
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
   resetDependecies: (() => void)[];
   // componentElmentSetter: (innerHtml: string, topElmTag: string,topElmAttr: {[key: string]: string}) => void
-  __lunas_update: () => void;
+  __lunas_update: (() => void) | undefined;
+  __lunas_apply_enhancement: () => void;
   __lunas_after_mount: () => void;
+  __lunas_destroy: () => void;
   // __lunas_init: () => void;
-  // __lunas_destroy: () => void;
   // __lunas_update_component: () => void;
   // __lunas_update_component_end: () => void;
   // __lunas_update_component_start: () => void;
   // __lunas_update_end: () => void;
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
+  forBlocks: {
+    [key: string]: { cleanUp: (() => void)[]; childs: string[] };
+  };
 
-  refMap: (Node | undefined)[];
+  refMap: RefMap;
 };
 
 type LunasInternalElement = {
@@ -49,37 +55,121 @@ type LunasInternalElement = {
   topElmAttr: { [key: string]: string };
 };
 
+type NestedArray<T> = (T | NestedArray<T>)[];
+
+type FragmentFunc = (
+  item?: unknown,
+  index?: number,
+  indices?: number[]
+) => Fragment[];
+
 class valueObj<T> {
-  dependencies: { [key: symbol]: [LunasComponentState, number] } = {};
+  private _v: T;
+  private proxy: T;
+  // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
+  dependencies: { [key: symbol]: [LunasComponentState, number[]] } = {};
+
   constructor(
-    private _v: T,
+    initialValue: T,
     componentObj?: LunasComponentState,
     componentSymbol?: symbol,
-    symbolIndex: number = 0
+    symbolIndex: number[] = [0]
   ) {
+    this._v = initialValue;
+
     if (componentSymbol && componentObj) {
       this.dependencies[componentSymbol] = [componentObj, symbolIndex];
+    }
+
+    // If the initial value is an object (and not null), wrap it with a Proxy
+    if (typeof initialValue === "object" && initialValue !== null) {
+      this.proxy = this.createProxy(initialValue);
+    } else {
+      this.proxy = initialValue;
     }
   }
 
   set v(v: T) {
     if (this._v === v) return;
     this._v = v;
-    for (const keys of Object.getOwnPropertySymbols(this.dependencies)) {
-      const [componentObj, symbolIndex] = this.dependencies[keys];
-      componentObj.valUpdateMap |= symbolIndex;
-      if (!componentObj.updatedFlag) {
+    // If the new value is an object, wrap it with a Proxy
+    if (typeof v === "object" && v !== null) {
+      this.proxy = this.createProxy(v);
+    } else {
+      this.proxy = v;
+    }
+    this.triggerUpdate();
+  }
+
+  get v() {
+    return this.proxy;
+  }
+
+  // Triggers an update for all dependencies
+  private triggerUpdate() {
+    for (const key of Object.getOwnPropertySymbols(this.dependencies)) {
+      const [componentObj, symbolIndex] = this.dependencies[key];
+      bitOrAssign(componentObj.valUpdateMap, symbolIndex);
+      if (!componentObj.updatedFlag && componentObj.__lunas_update) {
         Promise.resolve().then(componentObj.__lunas_update.bind(componentObj));
         componentObj.updatedFlag = true;
       }
     }
   }
 
-  get v() {
-    return this._v;
+  // Creates a Proxy recursively to detect changes in nested objects and arrays
+  private createProxy(target: any): any {
+    const self = this;
+    // If target is not an object or is null, return it directly
+    if (typeof target !== "object" || target === null) {
+      return target;
+    }
+    return new Proxy(target, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        // Wrap array mutation methods to trigger update
+        if (
+          Array.isArray(target) &&
+          typeof value === "function" &&
+          [
+            "push",
+            "pop",
+            "shift",
+            "unshift",
+            "splice",
+            "sort",
+            "reverse",
+          ].includes(prop.toString())
+        ) {
+          return function (...args: any[]) {
+            const result = value.apply(target, args);
+            self.triggerUpdate();
+            return result;
+          };
+        }
+        // If the value is an object, return a Proxy for it (recursive wrapping)
+        if (typeof value === "object" && value !== null) {
+          return self.createProxy(value);
+        }
+        return value;
+      },
+      set(target, prop, value, receiver) {
+        const oldVal = target[prop as keyof typeof target];
+        if (oldVal === value) return true;
+        // If the new value is an object, wrap it with a Proxy before setting it
+        const newValue =
+          typeof value === "object" && value !== null
+            ? self.createProxy(value)
+            : value;
+        const result = Reflect.set(target, prop, newValue, receiver);
+        self.triggerUpdate();
+        return result;
+      },
+    });
   }
 
-  addDependency(componentObj: LunasComponentState, symbolIndex: number) {
+  // Adds a dependency and returns a removal function
+  addDependency(componentObj: LunasComponentState, symbolIndex: number[]) {
     this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
     return {
       removeDependency: () => {
@@ -95,54 +185,32 @@ export const $$lunasInitComponent = function (
   inputs: string[] = []
 ) {
   this.updatedFlag = false;
-  this.valUpdateMap = 0;
-  this.blkRenderedMap = 0;
-  this.blkUpdateMap = 0;
-  this.currentVarBit = 0;
-  this.currentIfBlkBit = 0;
+  this.valUpdateMap = [0];
+  this.blkUpdateMap = {};
+  this.currentVarBitGen = bitArrayGenerator();
   this.isMounted = false;
   this.ifBlocks = {};
+  this.ifBlockStates = {};
   this.compSymbol = Symbol();
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
-
-  const genBitOfVariables = function* (this: LunasComponentState) {
-    while (true) {
-      if (this.currentVarBit === 0) {
-        this.currentVarBit = 1;
-        yield this.currentVarBit;
-      } else {
-        this.currentVarBit <<= 1;
-        yield this.currentVarBit;
-      }
-    }
-  }.bind(this);
+  this.forBlocks = {};
+  this.__lunas_after_mount = () => {};
+  this.__lunas_destroy = () => {};
 
   for (const key of inputs) {
     const arg = args[key];
     if (arg instanceof valueObj) {
       const { removeDependency } = arg.addDependency(
         this,
-        genBitOfVariables().next().value
+        this.currentVarBitGen.next().value
       );
       this.resetDependecies.push(removeDependency);
     } else {
-      genBitOfVariables().next();
+      this.currentVarBitGen.next().value;
     }
   }
-
-  const genBitOfIfBlks = function* (this: LunasComponentState) {
-    while (true) {
-      if (this.currentIfBlkBit === 0) {
-        this.currentIfBlkBit = 1;
-        yield this.currentIfBlkBit;
-      } else {
-        this.currentIfBlkBit <<= 1;
-        yield this.currentIfBlkBit;
-      }
-    }
-  }.bind(this);
 
   const componentElementSetter = function (
     this: LunasComponentState,
@@ -157,11 +225,25 @@ export const $$lunasInitComponent = function (
     };
   }.bind(this);
 
+  const applyEnhancement = function (
+    this: LunasComponentState,
+    enhancementFunc: () => void
+  ) {
+    this.__lunas_apply_enhancement = enhancementFunc;
+  }.bind(this);
+
   const setAfterMount = function (
     this: LunasComponentState,
     afterMount: () => void
   ) {
     this.__lunas_after_mount = afterMount;
+  }.bind(this);
+
+  const setAfterUnmount = function (
+    this: LunasComponentState,
+    afterUnmount: () => void
+  ) {
+    this.__lunas_destroy = afterUnmount;
   }.bind(this);
 
   const mount = function (
@@ -177,6 +259,7 @@ export const $$lunasInitComponent = function (
       this.internalElement.topElmTag
     }>`;
     this.componentElm = elm.firstElementChild as HTMLElement;
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     _updateComponent(() => {});
@@ -191,6 +274,7 @@ export const $$lunasInitComponent = function (
     if (this.isMounted) throw new Error("Component is already mounted");
     this.componentElm = _createDomElementFromLunasElement(this.internalElement);
     elm.insertBefore(this.componentElm, anchor);
+    this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
     return this;
@@ -201,6 +285,7 @@ export const $$lunasInitComponent = function (
     this.componentElm!.remove();
     this.isMounted = false;
     this.resetDependecies.forEach((r) => r());
+    this.__lunas_destroy();
   }.bind(this);
 
   const _updateComponent = function (
@@ -213,8 +298,8 @@ export const $$lunasInitComponent = function (
       this.updateComponentFuncs[1].forEach((f) => f());
       updateFunc.call(this);
       this.updatedFlag = false;
-      this.valUpdateMap = 0;
-      this.blkUpdateMap = 0;
+      this.valUpdateMap = [0];
+      this.blkUpdateMap = {};
     }).bind(this);
   }.bind(this);
 
@@ -223,102 +308,153 @@ export const $$lunasInitComponent = function (
       v,
       this,
       this.compSymbol,
-      genBitOfVariables().next().value
+      this.currentVarBitGen.next().value
     );
   }.bind(this);
 
   const createIfBlock = function (
     this: LunasComponentState,
     ifBlocks: [
-      name: string,
+      name: string | (() => string),
       lunasElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
-      additionalCtx: string[],
-      depBit: number,
-      mapInfo: [mapOffset: number, mapLength: number],
-      refIdx: [parentElementIndex: number, refElementIndex?: number],
+      ifCtx: string[],
+      forCtx: string[],
+      depBit: number | number[],
+      mapInfo: [mapOffset: number | number[], mapLength: number],
+      refIdx: [
+        parentElementIndex: number | number[],
+        refElementIndex?: number | number[]
+      ],
       fragment?: Fragment[]
-    ][]
+    ][],
+    indices?: number[]
   ) {
     for (const [
-      name,
+      getName,
       lunasElement,
       condition,
       postRender,
-      ifCtx,
+      ifCtxUnderFor,
+      forCtx,
       depBit,
       [mapOffset, mapLength],
       [parentElementIndex, refElementIndex],
       fragments,
     ] of ifBlocks) {
-      const ifBlkBit = genBitOfIfBlks().next().value;
+      const name = typeof getName === "function" ? getName() : getName;
       this.ifBlocks[name] = {
-        renderer: ((mapOffset: number, _mapLength: number) => {
+        renderer: ((
+          mapOffset: number | number[],
+          _mapLength: number | number[]
+        ) => {
           const componentElm = _createDomElementFromLunasElement(
             lunasElement()
           );
-          const parentElement = this.refMap[parentElementIndex];
-          const refElement = refElementIndex
-            ? this.refMap[refElementIndex]!
-            : null;
-          parentElement!.insertBefore(componentElm, refElement);
-          this.refMap[mapOffset] = componentElm;
+          const parentElement = getNestedArrayValue(
+            this.refMap,
+            parentElementIndex
+          ) as HTMLElement;
+          const refElement = getNestedArrayValue(this.refMap, refElementIndex);
+          parentElement!.insertBefore(componentElm, refElement ?? null);
+          setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
-          (this.blkRenderedMap |= ifBlkBit), (this.blkUpdateMap |= ifBlkBit);
+          if (fragments) {
+            createFragments(
+              fragments,
+              [...ifCtxUnderFor, name],
+              forCtx[forCtx.length - 1]
+            );
+          }
+          this.ifBlockStates[name] = true;
+          this.blkUpdateMap[name] = true;
           Object.values(this.ifBlocks).forEach((blk) => {
-            if (blk.context[blk.context.length - 1] === name) {
+            if (blk.context.includes(name)) {
               blk.condition() && blk.renderer();
             }
           });
         }).bind(this, mapOffset, mapLength),
-        context: ifCtx,
+        context: ifCtxUnderFor.map((ctx) =>
+          indices ? `${ctx}-${indices}` : ctx
+        ),
         condition,
+        forBlk: forCtx.length ? forCtx[forCtx.length - 1] : null,
+        cleanup: [],
+        childs: [],
       };
 
-      this.updateComponentFuncs[0].push(
-        (() => {
-          if (this.valUpdateMap & depBit) {
-            if (_shouldRender(condition(), this.blkRenderedMap, ifBlkBit)) {
-              if (condition()) {
-                this.ifBlocks[name].renderer();
-              } else {
-                const ifBlkElm = this.refMap[mapOffset]!;
-                (ifBlkElm as HTMLElement).remove();
-                this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
-                this.blkRenderedMap ^= ifBlkBit;
+      ifCtxUnderFor.forEach((ctx) => {
+        const parentBlockName = indices ? `${ctx}-${indices}` : ctx;
+        this.ifBlocks[parentBlockName].childs.push(name);
+      });
+
+      const updateFunc = (() => {
+        if (bitAnd(this.valUpdateMap, depBit)) {
+          const shouldRender = condition();
+          const rendered = !!this.ifBlockStates[name];
+          const parentRendered = ifCtxUnderFor.every(
+            (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
+          );
+          if (shouldRender && !rendered && parentRendered) {
+            this.ifBlocks[name].renderer();
+          } else if (!shouldRender && rendered) {
+            const ifBlkElm = getNestedArrayValue(
+              this.refMap,
+              mapOffset
+            ) as HTMLElement;
+            ifBlkElm.remove();
+            if (typeof mapOffset === "number") {
+              this.refMap.fill(undefined, mapOffset, mapOffset + mapLength);
+            } else {
+              for (let i = 0; i < mapLength; i++) {
+                const copiedMapOffset = [...mapOffset];
+                copiedMapOffset[0] += i;
+                setNestedArrayValue(this.refMap, copiedMapOffset, undefined);
               }
             }
+
+            delete this.ifBlockStates[name];
+
+            [name, ...this.ifBlocks[name].childs].forEach((child) => {
+              if (this.ifBlocks[child]) {
+                this.ifBlocks[child].cleanup.forEach((f) => f());
+                this.ifBlocks[child].cleanup = [];
+              }
+            });
           }
-        }).bind(this)
-      );
-      if (fragments && fragments.length > 0) {
-        const newCtx = ifCtx.length > 0 ? [...ifCtx, name] : [name];
-        const alreadyReigsteredIfBlockNames = Object.keys(this.ifBlocks);
-        let bit = 0;
-        alreadyReigsteredIfBlockNames.forEach((name, idx) => {
-          if (newCtx.includes(name)) {
-            bit |= 2 ** idx;
-          }
-        });
-        createFragments(fragments, bit);
-      }
-      if (ifCtx.length === 0) {
+        }
+      }).bind(this);
+
+      this.updateComponentFuncs[0].push(updateFunc);
+
+      if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
-        const parentBlockName = ifCtx[ifCtx.length - 1];
-        const parentBit =
-          2 **
-          Object.keys(this.ifBlocks).findIndex(
-            (key) => key === parentBlockName
-          );
-        const alreadyRendered = (this.blkRenderedMap & parentBit) === parentBit;
-        if (alreadyRendered) {
-          condition() && this.ifBlocks[name].renderer();
+        const parentBlockName = indices
+          ? `${ifCtxUnderFor[ifCtxUnderFor.length - 1]}-${indices}`
+          : ifCtxUnderFor[ifCtxUnderFor.length - 1];
+        if (
+          this.ifBlockStates[parentBlockName] &&
+          condition() &&
+          !this.ifBlockStates[name]
+        ) {
+          this.ifBlocks[name].renderer();
         }
       }
+
+      if (this.forBlocks[forCtx[forCtx.length - 1]]) {
+        this.forBlocks[forCtx[forCtx.length - 1]].cleanUp.push(() => {
+          [name, ...this.ifBlocks[name].childs].forEach((child) => {
+            if (this.ifBlocks[child]) {
+              this.ifBlocks[child].cleanup.forEach((f) => f());
+              this.ifBlocks[child].cleanup = [];
+            }
+          });
+        });
+      }
     }
-    this.blkUpdateMap = 0;
+    this.blkUpdateMap = {};
   }.bind(this);
 
   const renderIfBlock = function (this: LunasComponentState, name: string) {
@@ -329,123 +465,323 @@ export const $$lunasInitComponent = function (
   const getElmRefs = function (
     this: LunasComponentState,
     ids: string[],
-    preserveId: number,
-    offset: number = 0
+    preserveId: number | number[],
+    refLocation: number | number[] = 0
   ): void {
+    const boolMap = bitMapToBoolArr(preserveId);
     ids.forEach(
       function (this: LunasComponentState, id: string, index: number) {
         const e = document.getElementById(id)!;
-        (2 ** index) & preserveId && e.removeAttribute("id");
-        this.refMap[offset + index] = e;
+        if (boolMap[index]) {
+          e.removeAttribute("id");
+        }
+        const newRefLocation = addNumberToArrayInitial(refLocation, index);
+        setNestedArrayValue(this.refMap, newRefLocation, e);
       }.bind(this)
     );
   }.bind(this);
 
   const addEvListener = function (
     this: LunasComponentState,
-    args: [number, string, EventListener][]
+    args: [number | number[], string, EventListener][]
   ) {
     for (const [elmIdx, evName, evFunc] of args) {
-      this.refMap[elmIdx]!.addEventListener(evName, evFunc);
+      const target = getNestedArrayValue(this.refMap, elmIdx) as HTMLElement;
+      target.addEventListener(evName, evFunc);
     }
   }.bind(this);
 
-  const insertTextNodes = function (
+  const createForBlock = function (
     this: LunasComponentState,
-    args: [amount: number, parent: number, anchor?: number, text?: string][],
-    _offset: number = 0
-  ) {
-    let offset = _offset;
-    for (const [amount, parentIdx, anchorIdx, text] of args) {
-      for (let i = 0; i < amount; i++) {
-        const empty = document.createTextNode(text ?? " ");
-        const parent = this.refMap[parentIdx]!;
-        const anchor = anchorIdx ? this.refMap[anchorIdx]! : null;
-        parent.insertBefore(empty, anchor);
-        this.refMap[offset + i] = empty;
-      }
-      offset += amount;
-    }
-  }.bind(this);
+    forBlocksConfig: [
+      forBlockId: string,
+      renderItem: (
+        item: unknown,
+        index: number,
+        indices: number[]
+      ) => LunasInternalElement,
+      getDataArray: () => unknown[],
+      afterRenderHook: (
+        item: unknown,
+        index: number,
+        indices: number[]
+      ) => void,
+      ifCtxUnderFor: string[],
+      forCtx: string[],
+      updateFlag: number | number[],
+      parentIndices: number[],
+      mapInfo: [mapOffset: number, mapLength: number],
+      refIdx: [
+        parentElementIndex: number | number[],
+        refElementIndex?: number | number[]
+      ],
+      fragment?: FragmentFunc
+    ][]
+  ): void {
+    for (const config of forBlocksConfig) {
+      const [
+        forBlockId,
+        renderItem,
+        getDataArray,
+        afterRenderHook,
+        ifCtxUnderFor,
+        forCtx,
+        updateFlag,
+        parentIndices,
+        [mapOffset, mapLength],
+        [parentElementIndex, refElementIndex],
+        fragmentFunc,
+      ] = config;
 
-  const createFragments = function (
-    this: LunasComponentState,
-    fragments: Fragment[],
-    ifCtx?: number
-  ) {
-    for (const [
-      [textContent, attributeName],
-      nodeIdx,
-      depBit,
-      fragmentType,
-    ] of fragments) {
-      this.updateComponentFuncs[1].push(
+      this.forBlocks[forBlockId] = { cleanUp: [], childs: [] };
+      forCtx.forEach((ctx) => {
+        this.forBlocks[ctx].childs.push(forBlockId);
+      });
+
+      const renderForBlock = ((items: unknown[]) => {
+        const containerElm = getNestedArrayValue(
+          this.refMap,
+          parentElementIndex
+        ) as HTMLElement;
+
+        const insertionPointElm = getNestedArrayValue(
+          this.refMap,
+          refElementIndex
+        ) as HTMLElement;
+        if (!Array.isArray(items)) {
+          throw new Error(`Items should be an array but got ${typeof items}`);
+        }
+        items.forEach((item, index) => {
+          const fullIndices = [...parentIndices, index];
+          const lunasElm = renderItem(item, index, fullIndices);
+          const domElm = _createDomElementFromLunasElement(lunasElm);
+          setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
+          containerElm.insertBefore(domElm, insertionPointElm);
+          afterRenderHook?.(item, index, fullIndices);
+          if (fragmentFunc) {
+            const fragments = fragmentFunc(item, index, fullIndices);
+            createFragments(fragments, ifCtxUnderFor, forBlockId);
+          }
+        });
+      }).bind(this);
+      renderForBlock(getDataArray());
+
+      let oldItems = getDataArray();
+
+      this.updateComponentFuncs[0].push(
         (() => {
-          if (ifCtx != undefined) {
-            const blockRendered = (this.blkRenderedMap & ifCtx) === ifCtx;
-            const blockAlreadyUpdated = (this.blkUpdateMap & ifCtx) === ifCtx;
-            if (!blockRendered) {
-              return;
+          if (bitAnd(this.valUpdateMap, updateFlag)) {
+            const newItems = getDataArray();
+            // FIXME: Improve the logic to handle updates properly
+            if (diffDetected(oldItems, newItems)) {
+              const refArr = this.refMap[mapOffset] as RefMapItem[];
+              // Iterate in reverse order to prevent index shift issues when removing elements
+              for (let i = refArr.length - 1; i >= 0; i--) {
+                const item = refArr[i];
+                if (item instanceof HTMLElement) {
+                  item.remove();
+                  refArr.splice(i, 1);
+                }
+              }
+              if (this.forBlocks[forBlockId]) {
+                const { cleanUp, childs } = this.forBlocks[forBlockId];
+                cleanUp.forEach((f) => f());
+                Array.from(childs).forEach((child) => {
+                  if (this.forBlocks[child]) {
+                    this.forBlocks[child]!.cleanUp.forEach((f) => f());
+                    this.forBlocks[child].cleanUp = [];
+                  }
+                });
+                this.forBlocks[forBlockId].cleanUp = [];
+              }
+              renderForBlock(newItems);
             }
-            if (blockAlreadyUpdated) {
-              return;
-            }
-          }
-
-          const valueUpdated = (this.valUpdateMap & depBit) !== 0;
-          if (!valueUpdated) {
-            return;
-          }
-          const target = this.refMap[nodeIdx]!;
-          if (fragmentType === FragmentType.ATTRIBUTE) {
-            $$lunasReplaceAttr(
-              attributeName!,
-              textContent(),
-              target as HTMLElement
-            );
-          } else {
-            $$lunasReplaceText(textContent(), target);
+            oldItems = newItems;
           }
         }).bind(this)
       );
     }
   }.bind(this);
 
-  const lunasInsertComopnent = function (
+  const insertTextNodes = function (
+    this: LunasComponentState,
+    args: [
+      amount: number,
+      parent: number | number[],
+      anchor?: number | number[],
+      text?: string
+    ][],
+    _assignmentLocation: number[] | number = 0
+  ) {
+    let assignmentLocation =
+      typeof _assignmentLocation === "number"
+        ? [_assignmentLocation]
+        : _assignmentLocation;
+    for (const [amount, parentIdx, anchorIdx, text] of args) {
+      for (let i = 0; i < amount; i++) {
+        const txtNode = document.createTextNode(text ?? " ");
+        const parentElm = getNestedArrayValue(
+          this.refMap,
+          parentIdx
+        ) as HTMLElement;
+        const anchorElm = getNestedArrayValue(
+          this.refMap,
+          anchorIdx
+        ) as HTMLElement;
+        parentElm.insertBefore(txtNode, anchorElm);
+        setNestedArrayValue(this.refMap, assignmentLocation, txtNode);
+        assignmentLocation[0]++;
+      }
+    }
+  }.bind(this);
+
+  const createFragments = function (
+    this: LunasComponentState,
+    fragments: Fragment[],
+    ifCtx?: string[],
+    latestForName?: string
+  ) {
+    for (const [
+      [textContent, attributeName],
+      _nodeIdx,
+      depBit,
+      fragmentType,
+    ] of fragments) {
+      const nodeIdx = typeof _nodeIdx === "number" ? [_nodeIdx] : _nodeIdx;
+      const fragmentUpdateFunc = (() => {
+        if (ifCtx?.length) {
+          const blockRendered = ifCtx.every(
+            (ctxName) => this.ifBlockStates[ctxName]
+          );
+          const blockAlreadyUpdated = ifCtx.every(
+            (ctxName) => this.blkUpdateMap[ctxName]
+          );
+          if (!blockRendered || blockAlreadyUpdated) {
+            return;
+          }
+        }
+        const valueUpdated = bitAnd(this.valUpdateMap, depBit);
+        if (!valueUpdated) {
+          return;
+        }
+        const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
+        if (fragmentType === FragmentType.ATTRIBUTE) {
+          $$lunasReplaceAttr(
+            attributeName!,
+            textContent(),
+            target as HTMLElement
+          );
+        } else {
+          $$lunasReplaceText(textContent(), target);
+        }
+      }).bind(this);
+      if (fragmentType === FragmentType.ATTRIBUTE) {
+        // Because the determination of the arribute types depends on dynamic values,
+        // it is necessary to update the attributes after the initial rendering
+        const target = getNestedArrayValue(this.refMap, nodeIdx) as Node;
+        $$lunasReplaceAttr(
+          attributeName!,
+          textContent(),
+          target as HTMLElement
+        );
+      }
+      this.updateComponentFuncs[1].push(fragmentUpdateFunc);
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
+          this.updateComponentFuncs[1].splice(idx, 1);
+        }).bind(this);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+      }
+    }
+  }.bind(this);
+
+  const lunasInsertComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
-    parentIdx: number,
-    anchorIdx: number | null,
-    refIdx: number
+    parentIdx: number | number[],
+    anchorIdx: number | number[] | null,
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
-    this.refMap[refIdx] = componentExport.insert(
-      this.refMap[parentIdx] as HTMLElement,
-      anchorIdx !== null ? (this.refMap[anchorIdx] as HTMLElement) : null
-    ).componentElm;
+    const parentElement = getNestedArrayValue(
+      this.refMap,
+      parentIdx
+    ) as HTMLElement;
+    const anchorElement = getNestedArrayValue(
+      this.refMap,
+      anchorIdx
+    ) as HTMLElement;
+    const { componentElm } = componentExport.insert(
+      parentElement,
+      anchorElement
+    );
+    setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   const lunasMountComponent = function (
     this: LunasComponentState,
     componentExport: LunasModuleExports,
-    parentIdx: number,
-    refIdx: number
+    parentIdx: number | number[],
+    refIdx: number | number[],
+    latestCtx: string | null,
+    indices: number[] | null
   ) {
-    this.refMap[refIdx] = componentExport.mount(
-      this.refMap[parentIdx] as HTMLElement
-    ).componentElm;
+    const parentElement = getNestedArrayValue(
+      this.refMap,
+      parentIdx
+    ) as HTMLElement;
+    const { componentElm } = componentExport.mount(parentElement);
+    setNestedArrayValue(this.refMap, refIdx, componentElm);
+    if (latestCtx) {
+      const forIndices = indices ? indices.slice(0, -1) : null;
+      const forBlockName = forIndices?.length
+        ? `${latestCtx}-${forIndices}`
+        : latestCtx;
+      const ifBlockName = indices ? `${latestCtx}-${indices}` : latestCtx;
+      if (this.forBlocks[forBlockName]) {
+        this.forBlocks[forBlockName].cleanUp.push(() => {
+          componentExport.__unmount();
+        });
+      } else if (this.ifBlocks[ifBlockName]) {
+        this.ifBlocks[ifBlockName].cleanup.push(() => {
+          componentExport.__unmount();
+        });
+      }
+    }
   }.bind(this);
 
   return {
     $$lunasSetComponentElement: componentElementSetter,
+    $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
+    $$lunasAfterUnmount: setAfterUnmount,
     $$lunasReactive: createReactive,
     $$lunasCreateIfBlock: createIfBlock,
+    $$lunasCreateForBlock: createForBlock,
     $$lunasRenderIfBlock: renderIfBlock,
     $$lunasGetElmRefs: getElmRefs,
     $$lunasInsertTextNodes: insertTextNodes,
     $$lunasAddEvListener: addEvListener,
     $$lunasCreateFragments: createFragments,
-    $$lunasInsertComponent: lunasInsertComopnent,
+    $$lunasInsertComponent: lunasInsertComponent,
     $$lunasMountComponent: lunasMountComponent,
     $$lunasComponentReturn: {
       mount,
@@ -482,17 +818,31 @@ export function $$lunasReplaceAttr(
   content: any,
   elm: HTMLElement
 ) {
-  if (content === undefined && elm.hasAttribute(key)) {
-    elm.removeAttribute(key);
+  if (typeof content === "boolean") {
+    if (content) {
+      elm.setAttribute(key, "");
+    } else if (elm.hasAttribute(key)) {
+      elm.removeAttribute(key);
+    }
     return;
+  } else if (typeof content === "object") {
+    const attrStr = Object.keys(content)
+      .filter((k) => content[k])
+      .join(" ");
+    elm.setAttribute(key, attrStr);
+  } else {
+    if (content === undefined && elm.hasAttribute(key)) {
+      elm.removeAttribute(key);
+      return;
+    }
+    (elm as any)[key] = String(content);
   }
-  (elm as any)[key] = String(content);
 }
 
 export function $$createLunasElement(
   innerHtml: string,
   topElmTag: string,
-  topElmAttr: { [key: string]: string }
+  topElmAttr: { [key: string]: string } = {}
 ): LunasInternalElement {
   return {
     innerHtml,
@@ -519,27 +869,165 @@ export const $$lunasCreateNonReactive = function <T>(
   return new valueObj<T>(v);
 };
 
-const _shouldRender = (
-  blockRendering: boolean,
-  bitValue: number,
-  bitPosition: number
-): boolean => {
-  // Get the bit at the specified position (1-based index, so subtract 1)
-  const isBitSet = (bitValue & bitPosition) > 0;
+// const _shouldRender = (
+//   blockRendering: boolean,
+//   bitValue: number,
+//   bitPosition: number
+// ): boolean => {
+//   // Get the bit at the specified position (1-based index, so subtract 1)
+//   const isBitSet = (bitValue & bitPosition) > 0;
 
-  // Compare the block rendering status with the bit status
-  return blockRendering !== Boolean(isBitSet);
-};
+//   // Compare the block rendering status with the bit status
+//   return blockRendering !== Boolean(isBitSet);
+// };
 
 type Fragment = [
   content: [textContent: () => string, attributeName?: string],
-  nodeIdx: number,
-  depBit: number,
+  nodeIdx: number[] | number,
+  depBit: number | number[],
   fragmentType: FragmentType
 ];
+
+type RefMapItem = Node | undefined | RefMapItem[];
+type RefMap = RefMapItem[];
 
 enum FragmentType {
   ATTRIBUTE = 0,
   TEXT = 1,
   ELEMENT = 2,
+}
+
+function diffDetected<T>(oldArray: T[], newArray: T[]): boolean {
+  // return (
+  //   oldArray.length !== newArray.length ||
+  //   oldArray.some((v, i) => v !== newArray[i])
+  // );
+  // FIXME: This is a temporary implementation
+  return true;
+}
+
+function setNestedArrayValue<T>(
+  arr: NestedArray<T>,
+  location: number | number[],
+  value: T
+): void {
+  const path = numberOrNumberArrayToNumberArray(location);
+  let current: any = arr;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (current[key] === undefined) {
+      current[key] = [];
+    }
+    current = current[key];
+  }
+  current[path[path.length - 1]] = value;
+}
+
+function getNestedArrayValue<T>(
+  arr: NestedArray<T>,
+  location: number | number[] | null | undefined
+): T | null {
+  if (location == null) return null;
+  const path = numberOrNumberArrayToNumberArray(location);
+  let current: any = arr;
+  for (const key of path) {
+    if (!Array.isArray(current) || current[key] == null) {
+      return null;
+    }
+    current = current[key];
+  }
+  return current as T;
+}
+
+function numberOrNumberArrayToNumberArray(
+  location: number | number[]
+): number[] {
+  return typeof location === "number" ? [location] : location;
+}
+
+function addNumberToArrayInitial(
+  arr: number[] | number,
+  num: number
+): number[] {
+  if (typeof arr === "number") {
+    return [arr + num];
+  } else {
+    const copy = [...arr];
+    copy[0] += num;
+    return copy;
+  }
+}
+
+function bitMapToBoolArr(bitMap: number | number[]): boolean[] {
+  if (typeof bitMap === "number") {
+    return Array.from({ length: 31 }, (_, i) => (bitMap & (1 << i)) !== 0);
+  } else {
+    return bitMap
+      .map((v) => bitMapToBoolArr(v))
+      .reduce((acc, val) => acc.concat(val), []);
+  }
+}
+
+// A function to perform bitwise "&" operation on number[] and number[]
+function bitAnd(_a: number | number[], _b: number | number[]): boolean {
+  const length = Math.max(
+    typeof _a === "number" ? 1 : _a.length,
+    typeof _b === "number" ? 1 : _b.length
+  );
+
+  const a = fillArrayWithZero(_a, length);
+  const b = fillArrayWithZero(_b, length);
+
+  return a.reduce((acc, val, i) => {
+    return acc || (val & b[i]) !== 0;
+  }, false);
+}
+
+// A function to perform bitwise "|=" operation on number[] and number[]
+function bitOrAssign(
+  target: number | number[],
+  source: number | number[]
+): void {
+  const length = Math.max(
+    typeof target === "number" ? 1 : target.length,
+    typeof source === "number" ? 1 : source.length
+  );
+
+  const targetArr = fillArrayWithZero(target, length);
+  const sourceArr = fillArrayWithZero(source, length);
+
+  for (let i = 0; i < length; i++) {
+    targetArr[i] |= sourceArr[i];
+  }
+
+  if (typeof target === "number") {
+    (target as any) = targetArr[0];
+  } else {
+    for (let i = 0; i < length; i++) {
+      target[i] = targetArr[i];
+    }
+  }
+}
+
+// If the lengths of the arrays do not match, add 0 to the shorter array to match the length
+function fillArrayWithZero(arr: number[] | number, length: number): number[] {
+  let array = typeof arr === "number" ? [arr] : arr;
+  while (array.length < length) {
+    array.push(0);
+  }
+  return array;
+}
+
+function* bitArrayGenerator(): Generator<number[]> {
+  const bitWidth = 31;
+  let exp = 0;
+  while (true) {
+    const digitIndex = Math.floor(exp / bitWidth);
+    const bitIndex = exp % bitWidth;
+    const out = new Array(digitIndex + 1).fill(0);
+
+    out[digitIndex] = 1 << bitIndex;
+    yield out;
+    exp++;
+  }
 }
