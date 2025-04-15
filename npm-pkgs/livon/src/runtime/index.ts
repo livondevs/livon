@@ -277,6 +277,7 @@ export const $$livonInitComponent = function (
     this.__livon_apply_enhancement();
     this.__livon_after_mount();
     this.isMounted = true;
+    _updateComponent(() => {});
     return this;
   }.bind(this);
 
