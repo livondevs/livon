@@ -15,14 +15,14 @@ jobs:
           node-version: "22"
       - name: Install Dependencies
         run: npm install
-        working-directory: ./npm-pkgs/livon-formatter
+        working-directory: ./npm-pkgs/lunas-formatter
       - name: Build
         run: npm run build
-        working-directory: ./npm-pkgs/livon-formatter
+        working-directory: ./npm-pkgs/lunas-formatter
       - name: Log in to npm
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish npm package
         run: |
           # Remove --tag beta before final release
           npm publish --tag beta
-        working-directory: ./npm-pkgs/livon-formatter
+        working-directory: ./npm-pkgs/lunas-formatter
