@@ -21,7 +21,7 @@ jobs:
 
       - name: Check package.json version format
         run: |
-          VERSION=$(cat ./npm-pkgs/livon/package.json | jq -r '.version')
+          VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
           if [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
             echo "Version format is correct"
           else
@@ -30,7 +30,7 @@ jobs:
       - name: Create PR review on failure
         if: ${{ failure() }}
         run: |
-          NEW_VERSION=$(cat ./npm-pkgs/livon/package.json | jq -r '.version')
+          NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
           gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to beta version format.
           Please correct it."
         env:
@@ -38,8 +38,8 @@ jobs:
       - name: Create PR review on success
         if: ${{ success() }}
         run: |
-          CURRENT_VERSION=$(npm show livon@beta version)
-          NEW_VERSION=$(cat ./npm-pkgs/livon/package.json | jq -r '.version')
+          CURRENT_VERSION=$(npm show lunas@beta version)
+          NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
           gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format.
           Current version in npm is '$CURRENT_VERSION'."
         env:
