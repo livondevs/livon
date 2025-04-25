@@ -1,0 +1,23 @@
+[package]
+name = "lunas_parser"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+swc_core = "13.2.0"
+swc = { version = "13.0.1" }
+nanoid = "0.4.0"
+nom = "7.1.3"
+serde_json = "1.0.138"
+swc_common = { version = "6.1.0", features = ["tty-emitter"] }
+swc_ecma_ast = { version = "6.1.0", features = ["serde-impl"] }
+swc_ecma_parser = "8.0.1"
+lunas_html_parser = { path = "../lunas_html_parser" }
+swc_ecma_codegen = "6.0.2"
+swc_ecma_transforms_typescript = "9.0.0"
+swc_ecma_transforms_base = "9.0.1"
+swc_ecma_visit = "6.0.0"
+pest = "2.8.0"
+pest_derive = "2.8.0"
