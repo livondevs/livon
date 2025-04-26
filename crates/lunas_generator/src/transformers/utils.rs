@@ -131,6 +131,7 @@ pub fn append_v_to_vars_in_html(
         &variables,
         None,
         JsSearchParent::ParentIsArray,
+        false,
     );
 
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());

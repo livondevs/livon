@@ -27,7 +27,8 @@ pub fn analyze_js(
         let mut positions = vec![];
         let mut imports = vec![];
         // find all variable declarations
-        let str_positions = find_variable_declarations(&js_block.ast, initial_num, variables);
+        let str_positions =
+            find_variable_declarations(&js_block.ast, initial_num, variables, false);
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
@@ -37,6 +38,7 @@ pub fn analyze_js(
             &variable_names,
             Some(&imports),
             JsSearchParent::NoneValue,
+            true,
         );
 
         let mut functions_and_deps = analyze_ast(&js_block.ast, &variable_names);
@@ -56,10 +58,11 @@ pub fn analyze_js(
 }
 
 // Finds all variable declarations in a javascript file and returns a vector of VariableNameAndAssignedNumber structs
-fn find_variable_declarations(
+pub fn find_variable_declarations(
     json: &Value,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
+    lunas_script: bool,
 ) -> vec::Vec<TransformInfo> {
     if let Some(Value::Array(body)) = json.get("body") {
         let mut str_positions = vec![];
@@ -103,13 +106,23 @@ fn find_variable_declarations(
                                     name,
                                     assignment: variable_num,
                                 });
-                                str_positions.push(TransformInfo::AddStringToPosition(
-                                    AddStringToPosition {
-                                        position: (start.as_u64().unwrap() - 1) as u32,
-                                        string: "$$lunasReactive(".to_string(),
-                                        sort_order: 1,
-                                    },
-                                ));
+                                if !lunas_script {
+                                    str_positions.push(TransformInfo::AddStringToPosition(
+                                        AddStringToPosition {
+                                            position: (start.as_u64().unwrap() - 1) as u32,
+                                            string: "$$lunasReactive(".to_string(),
+                                            sort_order: 1,
+                                        },
+                                    ));
+                                } else {
+                                    str_positions.push(TransformInfo::AddStringToPosition(
+                                        AddStringToPosition {
+                                            position: (start.as_u64().unwrap() - 1) as u32,
+                                            string: "$$lunasNonReactive(".to_string(),
+                                            sort_order: 1,
+                                        },
+                                    ));
+                                }
                                 str_positions.push(TransformInfo::AddStringToPosition(
                                     AddStringToPosition {
                                         position: (end.as_u64().unwrap() - 1) as u32,
@@ -146,6 +159,7 @@ pub fn search_json(
     // FIXME: imports are unused
     imports: Option<&Vec<String>>,
     parent: JsSearchParent,
+    delete_imports: bool,
 ) -> (Vec<TransformInfo>, Vec<String>, Vec<String>, Vec<String>) {
     use serde_json::Value;
 
@@ -176,7 +190,8 @@ pub fn search_json(
                 }
             }
             return (vec![], vec![], vec![], vec![]);
-        } else if obj.contains_key("type")
+        } else if delete_imports == true
+            && obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
         {
             let trim_end = obj["span"]["end"].as_u64().unwrap() as u32;
@@ -311,6 +326,7 @@ pub fn search_json(
                     variables,
                     imports,
                     JsSearchParent::MapValue(&obj),
+                    delete_imports,
                 );
                 trans_tmp.extend(trans_res);
                 import_tmp.extend(import_res);
@@ -331,6 +347,7 @@ pub fn search_json(
                 variables,
                 imports,
                 JsSearchParent::MapValue(&obj),
+                delete_imports,
             );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
@@ -350,6 +367,7 @@ pub fn search_json(
                 variables,
                 imports,
                 JsSearchParent::ParentIsArray,
+                delete_imports,
             );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
