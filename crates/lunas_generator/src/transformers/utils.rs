@@ -3,7 +3,7 @@ use crate::structs::{
     js_utils::JsSearchParent,
     transform_info::{AddStringToPosition, TransformInfo},
 };
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{rngs::StdRng, seq::IndexedRandom, SeedableRng};
 use serde_json::Value;
 use std::{env, sync::Mutex};
 
@@ -62,8 +62,6 @@ pub fn add_or_remove_strings_to_script(
     result.push_str(&script[last_position..]);
     return result;
 }
-
-use rand::seq::SliceRandom;
 
 use super::{js_utils::search_json, utils_swc::parse_with_swc};
 
