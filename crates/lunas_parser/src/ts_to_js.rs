@@ -73,6 +73,7 @@ pub fn transform_ts_to_js(ts_code: &str) -> Result<String, Box<dyn Error>> {
         // 2. typescript: strip TypeScript-specific syntax (type annotations, interfaces, etc.)
         let module = module.apply(typescript(
             Config {
+                verbatim_module_syntax: true,
                 no_empty_export: true,
                 import_not_used_as_values: typescript::ImportsNotUsedAsValues::Preserve,
                 ..Config::default()
