@@ -212,6 +212,20 @@ export const $$lunasInitComponent = function (
     }
   }
 
+  const setImportVars = function (this: LunasComponentState, items: unknown[]) {
+    for (const item of items) {
+      if (item instanceof valueObj) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
+      } else {
+        this.currentVarBitGen.next().value;
+      }
+    }
+  }.bind(this);
+
   const componentElementSetter = function (
     this: LunasComponentState,
     innerHtml: string,
@@ -769,6 +783,7 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   return {
+    $$lunasSetImportVars: setImportVars,
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
