@@ -22,11 +22,11 @@ pub fn generate_js_from_lunas_script_blk(
     let mut positions = vec![];
     let imports = vec![];
     // find all variable declarations
-    let str_positions = find_variable_declarations(&js_block.ast, 0, &mut variables, true);
+    let (str_positions, _) = find_variable_declarations(&js_block.ast, 0, &mut variables, true);
     // add all variable declarations to positions to add custom variable declaration function
     positions.extend(str_positions);
     let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-    let (position_result, _, _, _) = search_json(
+    let (position_result, _, _, _, _) = search_json(
         &js_block.ast,
         &js_block.raw,
         &variable_names,

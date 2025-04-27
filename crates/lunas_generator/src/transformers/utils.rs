@@ -123,7 +123,7 @@ pub fn append_v_to_vars_in_html(
 
     let parsed_json = serde_json::to_value(&parsed).unwrap();
 
-    let (positions, _, depending_vars, depending_funcs) = search_json(
+    let (positions, _, depending_vars, depending_funcs, _) = search_json(
         &parsed_json,
         &input.to_string(),
         &variables,
