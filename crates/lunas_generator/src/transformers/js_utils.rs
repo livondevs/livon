@@ -31,8 +31,15 @@ pub fn analyze_js(
             find_variable_declarations(&js_block.ast, initial_num, variables, false);
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
+        let lun_imports = find_luns_imports(&js_block.ast);
+        for lun_import in &lun_imports {
+            variables.push(VariableNameAndAssignedNumber {
+                name: lun_import.clone(),
+                assignment: num_gen.as_mut().unwrap()(),
+            })
+        }
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
-        let (position_result, import_result, _, _, lun_imports) = search_json(
+        let (position_result, import_result, _, _) = search_json(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
@@ -40,12 +47,6 @@ pub fn analyze_js(
             JsSearchParent::NoneValue,
             true,
         );
-        for lun_import in &lun_imports {
-            variables.push(VariableNameAndAssignedNumber {
-                name: lun_import.clone(),
-                assignment: num_gen.as_mut().unwrap()(),
-            })
-        }
 
         let mut functions_and_deps = analyze_ast(&js_block.ast, &variable_names);
         functions_and_deps.tidy();
@@ -150,6 +151,45 @@ pub fn find_variable_declarations(
     }
 }
 
+/// Finds all imports whose source ends with ".luns" and returns their local names.
+pub fn find_luns_imports(json: &Value) -> Vec<String> {
+    let mut imports = Vec::new();
+
+    // Get the top-level "body" array
+    if let Some(Value::Array(body)) = json.get("body") {
+        for item in body {
+            // Check if this item is an ImportDeclaration
+            if item.get("type").and_then(Value::as_str) == Some("ImportDeclaration") {
+                // Extract the module specifier string
+                if let Some(source_str) = item
+                    .get("source")
+                    .and_then(|src| src.get("value"))
+                    .and_then(Value::as_str)
+                {
+                    // Filter for those ending with ".lun.ts"
+                    if source_str.ends_with(".lun.ts") {
+                        // Iterate over all specifiers
+                        if let Some(specs) = item.get("specifiers").and_then(Value::as_array) {
+                            for spec in specs {
+                                // For each ImportSpecifier, take the local name
+                                if let Some(local_name) = spec
+                                    .get("local")
+                                    .and_then(|l| l.get("value"))
+                                    .and_then(Value::as_str)
+                                {
+                                    imports.push(local_name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    imports
+}
+
 fn power_of_two_generator(init: u32) -> impl FnMut() -> BigUint {
     let mut count = init;
     move || -> BigUint {
@@ -168,13 +208,7 @@ pub fn search_json(
     imports: Option<&Vec<String>>,
     parent: JsSearchParent,
     delete_imports: bool,
-) -> (
-    Vec<TransformInfo>,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-) {
+) -> (Vec<TransformInfo>, Vec<String>, Vec<String>, Vec<String>) {
     use serde_json::Value;
 
     if let Value::Object(obj) = json {
@@ -196,15 +230,14 @@ pub fn search_json(
                                     })],
                                     vec![],
                                     vec![variable_name.clone()],
-                                    vec![], // 関数名はここでは対象外
-                                    vec![],
+                                    vec![], // Function names are not targeted here
                                 );
                             }
                         }
                     }
                 }
             }
-            return (vec![], vec![], vec![], vec![], vec![]);
+            return (vec![], vec![], vec![], vec![]);
         } else if delete_imports == true
             && obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
@@ -213,32 +246,6 @@ pub fn search_json(
             let mut remove_end = trim_end;
             if raw_js.chars().nth(trim_end as usize).unwrap() == '\n' {
                 remove_end += 1;
-            }
-
-            let mut lun_imports = vec![];
-
-            // ここから追加
-            if let Some(source_obj) = obj.get("source") {
-                if let Some(Value::String(source_value)) = source_obj.get("value") {
-                    println!("{}", source_value);
-                    if source_value.ends_with(".luns") {
-                        if let Some(Value::Array(specifiers)) = obj.get("specifiers") {
-                            for specifier in specifiers {
-                                if let Some(specifier_obj) = specifier.as_object() {
-                                    if let Some(local_obj) =
-                                        specifier_obj.get("local").and_then(|v| v.as_object())
-                                    {
-                                        if let Some(Value::String(local_value)) =
-                                            local_obj.get("value")
-                                        {
-                                            lun_imports.push(local_value.clone());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
 
             return (
@@ -253,7 +260,6 @@ pub fn search_json(
                     .collect()],
                 vec![],
                 vec![],
-                lun_imports,
             );
         } else if obj.contains_key("type")
             && obj["type"] == Value::String("MemberExpression".into())
@@ -310,7 +316,6 @@ pub fn search_json(
                                 vec![],
                                 vec![],
                                 vec![],
-                                vec![],
                             );
                         }
                     } else if is_target_object && is_target_property_after_mount {
@@ -326,7 +331,6 @@ pub fn search_json(
                                 vec![],
                                 vec![],
                                 vec![],
-                                vec![],
                             );
                         }
                     } else if is_target_object && is_target_property_after_unmount {
@@ -339,7 +343,6 @@ pub fn search_json(
                                     end_position: end - 1,
                                     string: "$$lunasAfterUnmount".to_string(),
                                 })],
-                                vec![],
                                 vec![],
                                 vec![],
                                 vec![],
@@ -364,9 +367,8 @@ pub fn search_json(
             let mut import_tmp = vec![];
             let mut dep_vars_tmp = vec![];
             let mut funcs_tmp = functions_found;
-            let mut lun_imports_tmp = vec![];
             for (_key, value) in obj {
-                let (trans_res, import_res, dep_vars, funcs, lun_imports) = search_json(
+                let (trans_res, import_res, dep_vars, funcs) = search_json(
                     value,
                     raw_js,
                     variables,
@@ -378,24 +380,16 @@ pub fn search_json(
                 import_tmp.extend(import_res);
                 dep_vars_tmp.extend(dep_vars);
                 funcs_tmp.extend(funcs);
-                lun_imports_tmp.extend(lun_imports);
             }
-            return (
-                trans_tmp,
-                import_tmp,
-                dep_vars_tmp,
-                funcs_tmp,
-                lun_imports_tmp,
-            );
+            return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
         }
 
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
         let mut funcs_tmp = vec![];
-        let mut lun_imports_tmp = vec![];
         for (_key, value) in obj {
-            let (trans_res, import_res, dep_vars, funcs, lun_imports) = search_json(
+            let (trans_res, import_res, dep_vars, funcs) = search_json(
                 value,
                 raw_js,
                 variables,
@@ -407,23 +401,15 @@ pub fn search_json(
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
             funcs_tmp.extend(funcs);
-            lun_imports_tmp.extend(lun_imports);
         }
-        return (
-            trans_tmp,
-            import_tmp,
-            dep_vars_tmp,
-            funcs_tmp,
-            lun_imports_tmp,
-        );
+        return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
     } else if let Value::Array(arr) = json {
         let mut trans_tmp = vec![];
         let mut import_tmp = vec![];
         let mut dep_vars_tmp = vec![];
         let mut funcs_tmp = vec![];
-        let mut lun_imports_tmp = vec![];
         for child_value in arr {
-            let (trans_res, import_res, dep_vars, funcs, lun_imports) = search_json(
+            let (trans_res, import_res, dep_vars, funcs) = search_json(
                 child_value,
                 raw_js,
                 variables,
@@ -435,15 +421,8 @@ pub fn search_json(
             import_tmp.extend(import_res);
             dep_vars_tmp.extend(dep_vars);
             funcs_tmp.extend(funcs);
-            lun_imports_tmp.extend(lun_imports);
         }
-        return (
-            trans_tmp,
-            import_tmp,
-            dep_vars_tmp,
-            funcs_tmp,
-            lun_imports_tmp,
-        );
+        return (trans_tmp, import_tmp, dep_vars_tmp, funcs_tmp);
     }
-    return (vec![], vec![], vec![], vec![], vec![]);
+    return (vec![], vec![], vec![], vec![]);
 }
