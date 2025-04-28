@@ -3,7 +3,7 @@ use crate::structs::{
     js_utils::JsSearchParent,
     transform_info::{AddStringToPosition, TransformInfo},
 };
-use rand::{rngs::StdRng, seq::IndexedRandom, SeedableRng};
+use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde_json::Value;
 use std::{env, sync::Mutex};
 

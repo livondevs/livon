@@ -2,6 +2,7 @@ use crate::{consts::ROUTER_VIEW, structs::transform_info::CustomComponentBlockIn
 
 pub fn generate_router_initialization_code(
     custom_component_blocks_info: &Vec<CustomComponentBlockInfo>,
+    ref_node_ids: &Vec<String>,
 ) -> Result<String, String> {
     match custom_component_blocks_info
         .into_iter()
@@ -10,28 +11,81 @@ pub fn generate_router_initialization_code(
         Some(router_component) => Ok(if router_component.have_sibling_elm {
             match router_component.distance_to_next_elm > 1 {
                 true => {
+                    let parent_ref_idx = format!(
+                        "$$lunasGetElm({})",
+                        &ref_node_ids
+                            .iter()
+                            .position(|id| *id == router_component.parent_id)
+                            .unwrap()
+                            .to_string()
+                    );
+                    let x = format!(
+                        "$$lunasGetElm({})",
+                        ref_node_ids
+                            .iter()
+                            .position(|x| {
+                                x == &format!(
+                                    "{}-anchor",
+                                    router_component.custom_component_block_id
+                                )
+                            })
+                            .unwrap()
+                            .to_string()
+                    );
                     format!(
-                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, $$lunas{}Anchor, true);",
-                        router_component.parent_id, router_component.custom_component_block_id
+                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, {}, {}, true);",
+                        parent_ref_idx, x
                     )
                 }
                 false => {
-                    let anchor_ref_name = match &router_component.target_anchor_id {
-                        Some(anchor_id) => format!("$$lunas{}Ref", anchor_id),
+                    let parent_ref_idx = format!(
+                        "$$lunasGetElm({})",
+                        &ref_node_ids
+                            .iter()
+                            .position(|id| *id == router_component.parent_id)
+                            .unwrap()
+                            .to_string()
+                    );
+                    let anchor_ref_idx = match &router_component.target_anchor_id {
+                        Some(anchor_id) => format!(
+                            "$$lunasGetElm({})",
+                            ref_node_ids
+                                .iter()
+                                .position(|id| id == anchor_id)
+                                .unwrap()
+                                .to_string()
+                        ),
                         None => "null".to_string(),
                     };
                     format!(
-                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, {}, true);",
-                        router_component.parent_id, anchor_ref_name
+                        "$$lunasRouter.initialize($$lunasGeneratedRoutes, {}, {}, true);",
+                        parent_ref_idx, anchor_ref_idx
                     )
                 }
             }
         } else {
+            let parent_ref_idx = format!(
+                "$$lunasGetElm({})",
+                &ref_node_ids
+                    .iter()
+                    .position(|id| *id == router_component.parent_id)
+                    .unwrap()
+                    .to_string()
+            );
             format!(
-                "$$lunasRouter.initialize($$lunasGeneratedRoutes, $$lunas{}Ref, null, false);",
-                router_component.parent_id,
+                "$$lunasRouter.initialize($$lunasGeneratedRoutes, {}, null, false);",
+                parent_ref_idx,
             )
         }),
         None => Err("RouterView component not found".to_string()),
     }
 }
+
+/* let reference_node_idx = ref_node_ids
+    .iter()
+    .position(|id| id == &action_and_target.target)
+    .unwrap();
+let reference_string = match under_for {
+    true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
+    false => reference_node_idx.to_string(),
+}; */

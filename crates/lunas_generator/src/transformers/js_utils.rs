@@ -60,91 +60,93 @@ pub fn analyze_js(
 }
 
 pub fn load_lunas_script_variables(variables: &Vec<String>) -> String {
-    format!("$$lunasSetImportVars({})", variables.join(", "))
+    format!("$$lunasSetImportVars([{}])", variables.join(", "))
 }
 
-// Finds all variable declarations in a javascript file and returns a vector of VariableNameAndAssignedNumber structs
+// Finds all variable declarations in a JavaScript AST (including export declarations)
+// and returns a tuple containing a vector of TransformInfo and an optional number generator function.
 pub fn find_variable_declarations(
     json: &Value,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
     lunas_script: bool,
-) -> (vec::Vec<TransformInfo>, Option<impl FnMut() -> BigUint>) {
+) -> (Vec<TransformInfo>, Option<impl FnMut() -> BigUint>) {
     if let Some(Value::Array(body)) = json.get("body") {
-        let mut str_positions = vec![];
+        let mut str_positions = Vec::new();
         let mut num_generator = power_of_two_generator(initial_num);
+
         for body_item in body {
-            if Some(&Value::String("VariableDeclaration".to_string())) == body_item.get("type") {
-                if let Some(Value::Array(declarations)) = body_item.get("declarations") {
+            // Determine if the item is a VariableDeclaration or an ExportDeclaration containing a VariableDeclaration
+            let maybe_decl = match body_item.get("type") {
+                // Direct variable declaration
+                Some(Value::String(t)) if t == "VariableDeclaration" => Some(body_item),
+                // Export declaration wrapping a variable declaration
+                Some(Value::String(t)) if t == "ExportDeclaration" => body_item.get("declaration"),
+                _ => None,
+            };
+
+            if let Some(Value::Object(decl_obj)) = maybe_decl {
+                if let Some(Value::Array(declarations)) = decl_obj.get("declarations") {
                     for declaration in declarations {
-                        let name = if let Some(Value::Object(id)) = declaration.get("id") {
-                            if let Some(Value::String(name)) = id.get("value") {
-                                Some(name.to_string())
+                        // Extract the variable name
+                        let name = declaration
+                            .get("id")
+                            .and_then(|id| id.get("value"))
+                            .and_then(Value::as_str)
+                            .map(String::from);
+
+                        // Extract start and end positions from the initialization span
+                        let start_end = declaration
+                            .get("init")
+                            .and_then(|init| init.get("span"))
+                            .and_then(Value::as_object)
+                            .and_then(|span| {
+                                span.get("start")
+                                    .and_then(Value::as_u64)
+                                    .zip(span.get("end").and_then(Value::as_u64))
+                            })
+                            .map(|(s, e)| (s as u32, e as u32));
+
+                        if let (Some(name), Some((start, end))) = (name, start_end) {
+                            // Generate a unique number for this variable
+                            let variable_num = num_generator();
+                            variables.push(VariableNameAndAssignedNumber {
+                                name: name.clone(),
+                                assignment: variable_num.clone(),
+                            });
+
+                            // Prepare the reactive or non-reactive wrapper strings
+                            let open_wrapper = if lunas_script {
+                                "$$lunasCreateNonReactive(".to_string()
                             } else {
-                                None
-                            }
-                        } else {
-                            None
-                        };
-                        // get span
-                        let start_and_end =
-                            if let Some(Value::Object(init)) = declaration.get("init") {
-                                if let Some(Value::Object(span)) = init.get("span") {
-                                    if let Some(Value::Number(end)) = span.get("end") {
-                                        if let Some(Value::Number(start)) = span.get("start") {
-                                            Some((start, end))
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
+                                "$$lunasReactive(".to_string()
                             };
-                        if let Some(name) = name {
-                            if let Some((start, end)) = start_and_end {
-                                let variable_num = num_generator();
-                                variables.push(VariableNameAndAssignedNumber {
-                                    name,
-                                    assignment: variable_num,
-                                });
-                                if !lunas_script {
-                                    str_positions.push(TransformInfo::AddStringToPosition(
-                                        AddStringToPosition {
-                                            position: (start.as_u64().unwrap() - 1) as u32,
-                                            string: "$$lunasReactive(".to_string(),
-                                            sort_order: 1,
-                                        },
-                                    ));
-                                } else {
-                                    str_positions.push(TransformInfo::AddStringToPosition(
-                                        AddStringToPosition {
-                                            position: (start.as_u64().unwrap() - 1) as u32,
-                                            string: "$$lunasNonReactive(".to_string(),
-                                            sort_order: 1,
-                                        },
-                                    ));
-                                }
-                                str_positions.push(TransformInfo::AddStringToPosition(
-                                    AddStringToPosition {
-                                        position: (end.as_u64().unwrap() - 1) as u32,
-                                        string: format!(")"),
-                                        sort_order: 1,
-                                    },
-                                ));
-                            }
+
+                            // Insert wrapper before the initialization start
+                            str_positions.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: start.saturating_sub(1),
+                                    string: open_wrapper,
+                                    sort_order: 1,
+                                },
+                            ));
+                            // Insert closing parenthesis after the initialization end
+                            str_positions.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: end.saturating_sub(1),
+                                    string: ")".to_string(),
+                                    sort_order: 1,
+                                },
+                            ));
                         }
                     }
                 }
             }
         }
+
         (str_positions, Some(num_generator))
     } else {
-        (vec![], None)
+        (Vec::new(), None)
     }
 }
 
