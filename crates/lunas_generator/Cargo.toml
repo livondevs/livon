@@ -9,9 +9,9 @@ edition = "2021"
 serde_json = "1.0.140"
 lunas_html_parser = { path = "../lunas_html_parser" }
 nanoid = "0.4.0"
-getrandom = { version = "0.3.2", features = ["wasm_js"] }
+getrandom = { version = "0.2.16", features = ["js"] }
 lunas_parser = { path = "../lunas_parser" }
-rand = "0.9.1"
+rand = "0.8.5"
 lazy_static = "1.5.0"
 itertools = "0.14.0"
 swc_ecma_parser = "11.1.3"
