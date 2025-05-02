@@ -10,21 +10,3 @@ pub struct SourceSpan {
     pub start_column: usize,
     pub end_column: usize,
 }
-
-impl SourceSpan {
-    pub fn new(
-        text: String,
-        start_line: usize,
-        end_line: usize,
-        start_column: usize,
-        end_column: usize,
-    ) -> Self {
-        Self {
-            text,
-            start_line,
-            end_line,
-            start_column,
-            end_column,
-        }
-    }
-}

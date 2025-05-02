@@ -1,5 +1,4 @@
 use super::node::Node;
-use super::span::SourceSpan;
 use serde::{Serialize, Serializer};
 use std::collections::{BTreeMap, HashMap};
 use std::default::Default;
@@ -33,17 +32,9 @@ pub struct Element {
     #[serde(serialize_with = "ordered_map")]
     pub attributes: Attributes,
 
-    /// All of the elements classes
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub classes: Vec<String>,
-
     /// All of the elements child nodes
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<Node>,
-
-    /// Span of the element in the parsed source
-    #[serde(skip)]
-    pub source_span: SourceSpan,
 }
 
 impl Default for Element {
@@ -51,10 +42,8 @@ impl Default for Element {
         Self {
             name: "".to_string(),
             variant: ElementVariant::Void,
-            classes: vec![],
             attributes: HashMap::new(),
             children: vec![],
-            source_span: SourceSpan::default(),
         }
     }
 }
@@ -63,10 +52,6 @@ impl ToString for Element {
     fn to_string(&self) -> String {
         let mut string = String::new();
         string.push_str(&format!("<{}", self.name));
-
-        if !self.classes.is_empty() {
-            string.push_str(&format!(" class=\"{}\"", self.classes.join(" ")));
-        }
 
         // self.attributesをソートしてから出力する
         let mut attributes: Vec<_> = self.attributes.iter().collect();
@@ -84,6 +69,7 @@ impl ToString for Element {
             ElementVariant::Normal => {
                 string.push_str(">");
                 for child in &self.children {
+                    println!("child: {}", child.to_string());
                     string.push_str(&child.to_string());
                 }
                 string.push_str(&format!("</{}>", self.name));
