@@ -284,6 +284,7 @@ pub fn check_html_elms(
                             &mut raw_attr_value,
                             varibale_names,
                             func_deps,
+                            true,
                         );
 
                         element.attributes.remove(key);
@@ -455,6 +456,7 @@ pub fn check_html_elms(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                                 func_deps,
+                                true,
                             );
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
@@ -524,6 +526,7 @@ pub fn check_html_elms(
                                 &remove_statement.item_collection.as_str(),
                                 &varibale_names,
                                 func_deps,
+                                true,
                             );
                             for_blocks_info.push(ForBlockInfo {
                                 parent_id: node_id.clone(),
@@ -799,7 +802,8 @@ fn replace_text_with_reactive_value(
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables, func_deps);
+            let (output, dep_vars) =
+                append_v_to_vars_in_html(in_bracket, variables, func_deps, true);
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 

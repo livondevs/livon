@@ -4,7 +4,7 @@ use crate::structs::{
     transform_info::{AddStringToPosition, TransformInfo},
 };
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use serde_json::Value;
+use serde_json::{to_value, Value};
 use std::{env, sync::Mutex};
 
 // TODO: 綺麗な実装にする
@@ -63,7 +63,10 @@ pub fn add_or_remove_strings_to_script(
     return result;
 }
 
-use super::{js_utils::search_json, utils_swc::parse_with_swc};
+use super::{
+    js_utils::search_json,
+    utils_swc::{parse_expr_with_swc, parse_module_with_swc},
+};
 
 lazy_static! {
     pub static ref UUID_GENERATOR: Mutex<UuidGenerator> = Mutex::new(UuidGenerator::new());
@@ -118,10 +121,13 @@ pub fn append_v_to_vars_in_html(
     input: &str,
     variables: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
+    is_expr: bool,
 ) -> (String, Vec<String>) {
-    let parsed = parse_with_swc(&input.to_string());
-
-    let parsed_json = serde_json::to_value(&parsed).unwrap();
+    let parsed_json = if is_expr {
+        to_value(parse_expr_with_swc(&input.to_string())).unwrap()
+    } else {
+        to_value(parse_module_with_swc(&input.to_string())).unwrap()
+    };
 
     let (positions, _, depending_vars, depending_funcs) = search_json(
         &parsed_json,
@@ -158,7 +164,7 @@ pub fn append_v_to_vars_in_html(
 }
 
 pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
-    let parsed = parse_with_swc(&input.to_string());
+    let parsed = parse_module_with_swc(&input.to_string());
     let parsed_json = serde_json::to_value(&parsed).unwrap();
     let positions = find_non_reactives(&parsed_json, &variables);
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());

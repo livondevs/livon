@@ -6,7 +6,7 @@ use swc_common::{
 use swc_ecma_ast::Module;
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 
-pub fn parse_with_swc(code: &String) -> Module {
+pub fn parse_module_with_swc(code: &String) -> Module {
     let cm: Lrc<SourceMap> = Default::default();
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
     let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
@@ -26,7 +26,32 @@ pub fn parse_with_swc(code: &String) -> Module {
     let module = parser
         .parse_module()
         .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("failed to parser module");
+        .expect("failed to parse module");
+
+    module
+}
+
+pub fn parse_expr_with_swc(code: &String) -> Box<swc_ecma_ast::Expr> {
+    let cm: Lrc<SourceMap> = Default::default();
+    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
+    let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
+    let lexer = Lexer::new(
+        Syntax::Es(Default::default()),
+        Default::default(),
+        StringInput::from(&*fm),
+        None,
+    );
+
+    let mut parser = Parser::new_from(lexer);
+
+    for e in parser.take_errors() {
+        e.into_diagnostic(&handler).emit();
+    }
+
+    let module = parser
+        .parse_expr()
+        .map_err(|e| e.into_diagnostic(&handler).emit())
+        .expect("failed to parse module");
 
     module
 }

@@ -122,7 +122,7 @@ impl EventTarget {
             EventTarget::RefToFunction(content)
         } else {
             EventTarget::Statement(
-                append_v_to_vars_in_html(content.as_str(), &variables, func_deps).0,
+                append_v_to_vars_in_html(content.as_str(), &variables, func_deps, true).0,
             )
         }
     }
