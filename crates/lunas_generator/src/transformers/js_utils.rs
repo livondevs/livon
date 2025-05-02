@@ -413,12 +413,12 @@ mod tests {
     generate_for_test!(
         test_nested_object_identifier,
         TestInput {
-            raw_js: "const currentBet = 0;\nconst obj = { inner: { bet: currentBet } };"
+            raw_js: "const currentBet = 0;\nconst obj = { inner: { currentBet: currentBet } };"
                 .to_string(),
             variables: vec!["currentBet".to_string()]
         },
         TestExpected {
-            output_js: "const currentBet = 0;\nconst obj = { inner: { bet: currentBet.v } };"
+            output_js: "const currentBet = 0;\nconst obj = { inner: { currentBet: currentBet.v } };"
                 .to_string()
         }
     );
