@@ -228,8 +228,11 @@ pub fn search_json(
         // Identifier case
         if obj.get("type") == Some(&Value::String("Identifier".into())) {
             let skip = parent.clone().is_some()
-                && parent.clone().unwrap().get("type").as_ref()
-                    != Some(&&Value::String("VariableDeclarator".into()));
+                && parent
+                    .clone()
+                    .unwrap()
+                    .get("type")
+                    .as_ref() != Some(&&Value::String("VariableDeclarator".into()));
             if (skip || parent == JsSearchParent::ParentIsArray)
                 && obj
                     .get("value")
@@ -312,8 +315,11 @@ pub fn search_json(
                     }
                 }
             }
-            // recurse into all fields
-            for (_key, value) in obj {
+            // Recurse into all fields, but skip property keys in a KeyValueProperty.
+            for (key, value) in obj {
+                if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty") && key == "key" {
+                    continue;
+                }
                 search_json(
                     value,
                     raw_js,
@@ -329,8 +335,11 @@ pub fn search_json(
             return;
         }
 
-        // Generic object: recurse
-        for (_key, value) in obj {
+        // Generic object: recurse into all fields except property keys
+        for (key, value) in obj {
+            if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty") && key == "key" {
+                continue;
+            }
             search_json(
                 value,
                 raw_js,
