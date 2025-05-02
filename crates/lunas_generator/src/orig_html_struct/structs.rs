@@ -149,7 +149,7 @@ impl ToString for Node {
         match &self.content {
             NodeContent::Element(elm) => elm.to_string(),
             NodeContent::TextNode(text) => text.clone(),
-            NodeContent::Comment(comment) => comment.clone(),
+            NodeContent::Comment(_) => "".to_string(),
         }
     }
 }
