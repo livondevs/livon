@@ -126,24 +126,39 @@ pub fn append_v_to_vars_in_html(
     func_deps: &Vec<JsFunctionDeps>,
     is_expr: bool,
 ) -> Result<(String, Vec<String>), String> {
+    // 1) Transpile TS to JS
     let inp_ts = transform_ts_to_js(input).map_err(|e| e.to_string())?;
+
+    // 2) Parse JS code into a JSON AST
     let parsed_json = if is_expr {
-        to_value(parse_expr_with_swc(&inp_ts.to_string())).unwrap()
+        to_value(parse_expr_with_swc(&inp_ts)).unwrap()
     } else {
-        to_value(parse_module_with_swc(&inp_ts.to_string())).unwrap()
+        to_value(parse_module_with_swc(&inp_ts)).unwrap()
     };
 
-    let (positions, _, depending_vars, depending_funcs) = search_json(
+    // 3) Prepare buffers for search_json output
+    let mut positions = Vec::new();
+    let mut imports = Vec::new(); // unused here
+    let mut depending_vars = Vec::new();
+    let mut depending_funcs = Vec::new();
+
+    // 4) Invoke search_json to collect positions and dependent identifiers
+    search_json(
         &parsed_json,
-        &input.to_string(),
+        input,
         &variables,
-        None,
         JsSearchParent::ParentIsArray,
         false,
+        &mut positions,
+        &mut imports,
+        &mut depending_vars,
+        &mut depending_funcs,
     );
 
+    // 5) Apply transformations to the original input
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
 
+    // 6) Gather vars from function dependencies that were actually invoked
     let func_dep_vars = func_deps
         .iter()
         .filter_map(|func| {
@@ -156,11 +171,11 @@ pub fn append_v_to_vars_in_html(
         .flatten()
         .collect::<Vec<String>>();
 
+    // 7) Merge and deduplicate all depending variable names
     let all_depending_values = depending_vars
-        .iter()
-        .chain(func_dep_vars.iter())
-        .cloned()
-        .collect::<std::collections::HashSet<String>>()
+        .into_iter()
+        .chain(func_dep_vars.into_iter())
+        .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect::<Vec<String>>();
 
