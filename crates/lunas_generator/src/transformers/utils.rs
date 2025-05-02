@@ -1,7 +1,10 @@
-use crate::structs::{
-    js_analyze::JsFunctionDeps,
-    js_utils::JsSearchParent,
-    transform_info::{AddStringToPosition, TransformInfo},
+use crate::{
+    structs::{
+        js_analyze::JsFunctionDeps,
+        js_utils::JsSearchParent,
+        transform_info::{AddStringToPosition, TransformInfo},
+    },
+    transformers::utils_swc::transform_ts_to_js,
 };
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde_json::{to_value, Value};
@@ -122,11 +125,12 @@ pub fn append_v_to_vars_in_html(
     variables: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
     is_expr: bool,
-) -> (String, Vec<String>) {
+) -> Result<(String, Vec<String>), String> {
+    let inp_ts = transform_ts_to_js(input).map_err(|e| e.to_string())?;
     let parsed_json = if is_expr {
-        to_value(parse_expr_with_swc(&input.to_string())).unwrap()
+        to_value(parse_expr_with_swc(&inp_ts.to_string())).unwrap()
     } else {
-        to_value(parse_module_with_swc(&input.to_string())).unwrap()
+        to_value(parse_module_with_swc(&inp_ts.to_string())).unwrap()
     };
 
     let (positions, _, depending_vars, depending_funcs) = search_json(
@@ -160,7 +164,7 @@ pub fn append_v_to_vars_in_html(
         .into_iter()
         .collect::<Vec<String>>();
 
-    (modified_string, all_depending_values)
+    Ok((modified_string, all_depending_values))
 }
 
 pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {

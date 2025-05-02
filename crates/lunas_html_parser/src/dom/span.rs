@@ -1,4 +1,4 @@
-use serde::{Serialize};
+use serde::Serialize;
 
 /// Span of the information in the parsed source.
 #[derive(Debug, Default, Clone, Serialize, PartialEq)]

@@ -116,14 +116,17 @@ impl ToString for EventTarget {
 }
 
 impl EventTarget {
-    pub fn new(content: String, variables: &Vec<String>, func_deps: &Vec<JsFunctionDeps>) -> Self {
+    pub fn new(
+        content: String,
+        variables: &Vec<String>,
+        func_deps: &Vec<JsFunctionDeps>,
+    ) -> Result<Self, String> {
         // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
         if word_is_one_word(content.as_str()) {
-            EventTarget::RefToFunction(content)
+            Ok(EventTarget::RefToFunction(content))
         } else {
-            EventTarget::Statement(
-                append_v_to_vars_in_html(content.as_str(), &variables, func_deps, true).0,
-            )
+            let content = append_v_to_vars_in_html(content.as_str(), variables, func_deps, true)?;
+            Ok(EventTarget::Statement(content.0))
         }
     }
 }
