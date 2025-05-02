@@ -361,3 +361,90 @@ pub fn search_json(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::{js_utils::search_json, utils_swc::parse_module_with_swc};
+    use super::*;
+    use serde_json::to_value;
+
+    // Struct to hold the input parameters for the test.
+    struct TestInput {
+        raw_js: String,
+        variables: Vec<String>,
+    }
+
+    // Struct to hold the expected output for the test.
+    struct TestExpected {
+        output_js: String,
+    }
+
+    macro_rules! generate_for_test {
+        ($name:ident, $input:expr, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let TestInput { raw_js, variables } = $input;
+                let TestExpected { output_js } = $expected;
+                let mut transforms = Vec::new();
+                let mut imports = Vec::new();
+                let mut dep_vars = Vec::new();
+                let mut funcs = Vec::new();
+
+                let parsed_json = to_value(parse_module_with_swc(&raw_js)).unwrap();
+                search_json(
+                    &parsed_json,
+                    raw_js.as_str(),
+                    variables.as_slice(),
+                    JsSearchParent::NoneValue,
+                    false,
+                    &mut transforms,
+                    &mut imports,
+                    &mut dep_vars,
+                    &mut funcs,
+                );
+
+                let output = add_or_remove_strings_to_script(transforms.clone(), &raw_js);
+
+                assert_eq!(output, output_js);
+            }
+        };
+    }
+
+    generate_for_test!(
+        test_nested_object_identifier,
+        TestInput {
+            raw_js: "const currentBet = 0;\nconst obj = { inner: { bet: currentBet } };"
+                .to_string(),
+            variables: vec!["currentBet".to_string()]
+        },
+        TestExpected {
+            output_js: "const currentBet = 0;\nconst obj = { inner: { bet: currentBet.v } };"
+                .to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_function_call_argument,
+        TestInput {
+            raw_js: "const currentBet = 0;\nfunction useBet() { return currentBet; }".to_string(),
+            variables: vec!["currentBet".to_string()]
+        },
+        TestExpected {
+            output_js: "const currentBet = 0;\nfunction useBet() { return currentBet.v; }"
+                .to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_function_parameter_no_transform,
+        TestInput {
+            raw_js: "const currentBet = 0;\nfunction test(currentBet) { return currentBet; }"
+                .to_string(),
+            variables: vec!["currentBet".to_string()]
+        },
+        TestExpected {
+            output_js: "const currentBet = 0;\nfunction test(currentBet) { return currentBet; }"
+                .to_string()
+        }
+    );
+}
