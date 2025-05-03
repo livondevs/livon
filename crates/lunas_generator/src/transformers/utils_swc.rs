@@ -141,6 +141,7 @@ pub fn transform_ts_to_js(ts_code: &str) -> Result<String, Box<dyn Error>> {
     // 2) Unwrap the generated code by removing the `export default ` prefix and trailing semicolon
     let trimmed = code
         .trim_start_matches("export default ")
+        .trim_end_matches('\n')
         .trim_end_matches(';')
         .to_string();
 

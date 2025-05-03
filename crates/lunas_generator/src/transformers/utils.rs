@@ -121,19 +121,19 @@ fn is_testgen() -> bool {
 }
 
 pub fn append_v_to_vars_in_html(
-    input: &str,
+    input_ts: &str,
     variables: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
     is_expr: bool,
 ) -> Result<(String, Vec<String>), String> {
     // 1) Transpile TS to JS
-    let inp_ts = transform_ts_to_js(input).map_err(|e| e.to_string())?;
+    let js = transform_ts_to_js(input_ts).map_err(|e| e.to_string())?;
 
     // 2) Parse JS code into a JSON AST
     let parsed_json = if is_expr {
-        to_value(parse_expr_with_swc(&inp_ts)).unwrap()
+        to_value(parse_expr_with_swc(&js)).unwrap()
     } else {
-        to_value(parse_module_with_swc(&inp_ts)).unwrap()
+        to_value(parse_module_with_swc(&js)).unwrap()
     };
 
     // 3) Prepare buffers for search_json output
@@ -145,7 +145,7 @@ pub fn append_v_to_vars_in_html(
     // 4) Invoke search_json to collect positions and dependent identifiers
     search_json(
         &parsed_json,
-        input,
+        js.as_str(),
         &variables,
         JsSearchParent::ParentIsArray,
         false,
@@ -156,7 +156,7 @@ pub fn append_v_to_vars_in_html(
     );
 
     // 5) Apply transformations to the original input
-    let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
+    let modified_string = add_or_remove_strings_to_script(positions, &js);
 
     // 6) Gather vars from function dependencies that were actually invoked
     let func_dep_vars = func_deps
