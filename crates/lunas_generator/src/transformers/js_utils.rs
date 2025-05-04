@@ -283,6 +283,7 @@ pub fn search_json(
                             "router" => Some("$$lunasRouter"),
                             "afterMount" => Some("$$lunasAfterMount"),
                             "afterUnmount" => Some("$$lunasAfterUnmount"),
+                            "watch" => Some("$$lunasWatch"),
                             _ => None,
                         };
                     }
@@ -493,6 +494,17 @@ mod tests {
             output_js:
                 "const obj = { property: \"hello\", obj: \"hello\" };\nfunction test() { return { a: obj.v.property, obj: obj.v.obj } }"
                     .to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_dont_add_v_to_watch_func_first_arg,
+        TestInput {
+            raw_js: "Lunas.watch([count], () => { console.log(count) });".to_string(),
+            variables: vec!["count".to_string()]
+        },
+        TestExpected {
+            output_js: "$$lunasWatch([count], () => { console.log(count.v) });".to_string()
         }
     );
 }

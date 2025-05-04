@@ -792,6 +792,33 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
+  const watch = function (
+    this: LunasComponentState,
+    dependingVars: unknown[],
+    func: () => void
+  ) {
+    // Create a combined dependency bit
+    let combinedBits: number[] = [0];
+    for (const depVar of dependingVars) {
+      if (depVar instanceof valueObj) {
+        const bit = this.currentVarBitGen.next().value;
+        bitOrAssign(combinedBits, bit);
+        const { removeDependency } = depVar.addDependency(this, bit);
+        this.resetDependecies.push(removeDependency);
+      } else {
+        // Advance the generator even if not a reactive variable
+        this.currentVarBitGen.next().value;
+      }
+    }
+    // Add an update function that calls func when any dependency changes
+    const updateFunc = (() => {
+      if (bitAnd(this.valUpdateMap, combinedBits)) {
+        func();
+      }
+    }).bind(this);
+    this.updateComponentFuncs[0].push(updateFunc);
+  }.bind(this);
+
   return {
     $$lunasGetElm: getElm,
     $$lunasSetImportVars: setImportVars,
@@ -809,6 +836,7 @@ export const $$lunasInitComponent = function (
     $$lunasCreateFragments: createFragments,
     $$lunasInsertComponent: lunasInsertComponent,
     $$lunasMountComponent: lunasMountComponent,
+    $$lunasWatch: watch,
     $$lunasComponentReturn: {
       mount,
       insert,

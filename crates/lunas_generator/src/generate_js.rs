@@ -304,7 +304,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasGetElm, $$lunasSetImportVars, $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasAfterUnmount, $$lunasApplyEnhancement, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasGetElm, $$lunasSetImportVars, $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasAfterUnmount, $$lunasApplyEnhancement, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent, $$lunasWatch }} = new $$lunasInitComponent(args{});
 {}
 }}
 "#,
