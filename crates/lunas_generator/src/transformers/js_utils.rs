@@ -228,11 +228,8 @@ pub fn search_json(
         // Identifier case
         if obj.get("type") == Some(&Value::String("Identifier".into())) {
             let skip = parent.clone().is_some()
-                && parent
-                    .clone()
-                    .unwrap()
-                    .get("type")
-                    .as_ref() != Some(&&Value::String("VariableDeclarator".into()));
+                && parent.clone().unwrap().get("type").as_ref()
+                    != Some(&&Value::String("VariableDeclarator".into()));
             if (skip || parent == JsSearchParent::ParentIsArray)
                 && obj
                     .get("value")
@@ -301,6 +298,29 @@ pub fn search_json(
                         string: new_text.into(),
                     }));
                 }
+                return;
+            }
+            // Recurse into all fields if not replaced.
+            for (key, value) in obj {
+                if key == "property" {
+                    continue;
+                }
+                if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty")
+                    && key == "key"
+                {
+                    continue;
+                }
+                search_json(
+                    value,
+                    raw_js,
+                    variables,
+                    JsSearchParent::MapValue(obj),
+                    delete_imports,
+                    transforms,
+                    imports_out,
+                    dep_vars_out,
+                    funcs_out,
+                );
             }
             return;
         }
@@ -317,7 +337,9 @@ pub fn search_json(
             }
             // Recurse into all fields, but skip property keys in a KeyValueProperty.
             for (key, value) in obj {
-                if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty") && key == "key" {
+                if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty")
+                    && key == "key"
+                {
                     continue;
                 }
                 search_json(
@@ -400,6 +422,7 @@ mod tests {
                 let mut funcs = Vec::new();
 
                 let parsed_json = to_value(parse_module_with_swc(&raw_js)).unwrap();
+                // println!("AST: {:?}", parsed_json);
                 search_json(
                     &parsed_json,
                     raw_js.as_str(),
@@ -427,8 +450,9 @@ mod tests {
             variables: vec!["currentBet".to_string()]
         },
         TestExpected {
-            output_js: "const currentBet = 0;\nconst obj = { inner: { currentBet: currentBet.v } };"
-                .to_string()
+            output_js:
+                "const currentBet = 0;\nconst obj = { inner: { currentBet: currentBet.v } };"
+                    .to_string()
         }
     );
 
@@ -454,6 +478,21 @@ mod tests {
         TestExpected {
             output_js: "const currentBet = 0;\nfunction test(currentBet) { return currentBet; }"
                 .to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_function_object_property,
+        TestInput {
+            raw_js:
+                "const obj = { property: \"hello\", obj: \"hello\" };\nfunction test() { return { a: obj.property, obj: obj.obj } }"
+                    .to_string(),
+            variables: vec!["obj".to_string()]
+        },
+        TestExpected {
+            output_js:
+                "const obj = { property: \"hello\", obj: \"hello\" };\nfunction test() { return { a: obj.v.property, obj: obj.v.obj } }"
+                    .to_string()
         }
     );
 }
