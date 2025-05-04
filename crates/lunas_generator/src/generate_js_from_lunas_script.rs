@@ -1,11 +1,8 @@
 use lunas_parser::structs::detailed_language_blocks::JsBlock;
 
-use crate::{
-    structs::js_utils::JsSearchParent,
-    transformers::{
-        js_utils::{find_variable_declarations, search_json},
-        utils::add_or_remove_strings_to_script,
-    },
+use crate::transformers::{
+    js_utils::{find_variable_declarations, search_json},
+    utils::add_or_remove_strings_to_script,
 };
 
 pub fn generate_js_from_lunas_script_blk(
@@ -36,7 +33,7 @@ pub fn generate_js_from_lunas_script_blk(
         &js_block.ast,
         &js_block.raw,
         &variable_names,
-        JsSearchParent::NoneValue,
+        &vec![],
         false,
         &mut search_transforms,
         &mut search_imports,

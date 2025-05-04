@@ -1,7 +1,6 @@
 use crate::{
     structs::{
         js_analyze::JsFunctionDeps,
-        js_utils::JsSearchParent,
         transform_info::{AddStringToPosition, TransformInfo},
     },
     transformers::utils_swc::transform_ts_to_js,
@@ -147,7 +146,7 @@ pub fn append_v_to_vars_in_html(
         &parsed_json,
         js.as_str(),
         &variables,
-        JsSearchParent::ParentIsArray,
+        &vec![],
         false,
         &mut positions,
         &mut imports,

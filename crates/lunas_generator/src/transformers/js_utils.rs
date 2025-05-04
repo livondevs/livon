@@ -8,7 +8,6 @@ use crate::{
     ast_analyzer::function_analyzer::analyze_ast,
     structs::{
         js_analyze::{JsFunctionDeps, Tidy},
-        js_utils::JsSearchParent,
         transform_info::{
             AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo,
             VariableNameAndAssignedNumber,
@@ -52,7 +51,7 @@ pub fn analyze_js(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
-            JsSearchParent::NoneValue,
+            &vec![],
             true,
             &mut positions,
             &mut imports,
@@ -217,20 +216,72 @@ pub fn search_json(
     json: &Value,
     raw_js: &str,
     variables: &[String],
-    parent: JsSearchParent,
+    parents: &Vec<&Value>,
     delete_imports: bool,
     transforms: &mut Vec<TransformInfo>,
     imports_out: &mut Vec<String>,
     dep_vars_out: &mut Vec<String>,
     funcs_out: &mut Vec<String>,
 ) {
+    let parent = parents.last().clone();
+    let next_parents = parents
+        .clone()
+        .into_iter()
+        .chain(std::iter::once(json))
+        .collect::<Vec<&Value>>();
     if let Value::Object(obj) = json {
         // Identifier case
         if obj.get("type") == Some(&Value::String("Identifier".into())) {
-            let skip = parent.clone().is_some()
+            // Skip adding .v if inside the first argument array of a Lunas.watch call.
+            let mut skip_watch_arg = false;
+            for (i, ancestor) in parents.iter().enumerate() {
+                // 2) Find a CallExpression whose callee is `Lunas.watch`
+                if ancestor.get("type").and_then(Value::as_str) == Some("CallExpression") {
+                    if let Some(callee) = ancestor.get("callee").and_then(Value::as_object) {
+                        let is_watch = callee.get("type").and_then(Value::as_str)
+                            == Some("MemberExpression")
+                            && callee
+                                .get("object")
+                                .and_then(|o| o.get("value"))
+                                .and_then(Value::as_str)
+                                == Some("Lunas")
+                            && callee
+                                .get("property")
+                                .and_then(|p| p.get("value"))
+                                .and_then(Value::as_str)
+                                == Some("watch");
+                        if is_watch {
+                            // 3) Check if an ArrayExpression appears directly under that CallExpression
+                            let mut saw_array = false;
+                            for child in parents.iter().skip(i + 1) {
+                                if child.get("type").and_then(Value::as_str)
+                                    == Some("ArrayExpression")
+                                {
+                                    saw_array = true;
+                                    break;
+                                }
+                            }
+                            if saw_array {
+                                skip_watch_arg = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            if skip_watch_arg {
+                // We are inside Lunas.watch’s first argument array — do not append `.v`
+                return;
+            }
+            let parent_is_obj = match parent {
+                Some(Value::Object(_)) => true,
+                _ => false,
+            };
+            let skip = parent_is_obj
                 && parent.clone().unwrap().get("type").as_ref()
                     != Some(&&Value::String("VariableDeclarator".into()));
-            if (skip || parent == JsSearchParent::ParentIsArray)
+            let parent_is_array = matches!(parent, Some(Value::Array(_)));
+            if (skip || parent_is_array)
                 && obj
                     .get("value")
                     .and_then(Value::as_str)
@@ -315,7 +366,7 @@ pub fn search_json(
                     value,
                     raw_js,
                     variables,
-                    JsSearchParent::MapValue(obj),
+                    &next_parents,
                     delete_imports,
                     transforms,
                     imports_out,
@@ -347,7 +398,7 @@ pub fn search_json(
                     value,
                     raw_js,
                     variables,
-                    JsSearchParent::MapValue(obj),
+                    &next_parents,
                     delete_imports,
                     transforms,
                     imports_out,
@@ -367,7 +418,7 @@ pub fn search_json(
                 value,
                 raw_js,
                 variables,
-                JsSearchParent::MapValue(obj),
+                &next_parents,
                 delete_imports,
                 transforms,
                 imports_out,
@@ -383,7 +434,7 @@ pub fn search_json(
                 value,
                 raw_js,
                 variables,
-                JsSearchParent::ParentIsArray,
+                &next_parents,
                 delete_imports,
                 transforms,
                 imports_out,
@@ -396,7 +447,10 @@ pub fn search_json(
 
 #[cfg(test)]
 mod tests {
-    use super::super::{js_utils::search_json, utils_swc::parse_module_with_swc};
+    use super::super::{
+        js_utils::search_json,
+        utils_swc::{parse_expr_with_swc, parse_module_with_swc},
+    };
     use super::*;
     use serde_json::to_value;
 
@@ -404,6 +458,7 @@ mod tests {
     struct TestInput {
         raw_js: String,
         variables: Vec<String>,
+        is_module: bool,
     }
 
     // Struct to hold the expected output for the test.
@@ -415,20 +470,28 @@ mod tests {
         ($name:ident, $input:expr, $expected:expr) => {
             #[test]
             fn $name() {
-                let TestInput { raw_js, variables } = $input;
+                let TestInput {
+                    raw_js,
+                    variables,
+                    is_module,
+                } = $input;
                 let TestExpected { output_js } = $expected;
                 let mut transforms = Vec::new();
                 let mut imports = Vec::new();
                 let mut dep_vars = Vec::new();
                 let mut funcs = Vec::new();
 
-                let parsed_json = to_value(parse_module_with_swc(&raw_js)).unwrap();
+                let parsed_json = if is_module {
+                    to_value(parse_module_with_swc(&raw_js)).unwrap()
+                } else {
+                    to_value(parse_expr_with_swc(&raw_js)).unwrap()
+                };
                 // println!("AST: {:?}", parsed_json);
                 search_json(
                     &parsed_json,
                     raw_js.as_str(),
                     variables.as_slice(),
-                    JsSearchParent::NoneValue,
+                    &vec![],
                     false,
                     &mut transforms,
                     &mut imports,
@@ -448,7 +511,8 @@ mod tests {
         TestInput {
             raw_js: "const currentBet = 0;\nconst obj = { inner: { currentBet: currentBet } };"
                 .to_string(),
-            variables: vec!["currentBet".to_string()]
+            variables: vec!["currentBet".to_string()],
+            is_module: true
         },
         TestExpected {
             output_js:
@@ -461,7 +525,8 @@ mod tests {
         test_function_call_argument,
         TestInput {
             raw_js: "const currentBet = 0;\nfunction useBet() { return currentBet; }".to_string(),
-            variables: vec!["currentBet".to_string()]
+            variables: vec!["currentBet".to_string()],
+            is_module: true
         },
         TestExpected {
             output_js: "const currentBet = 0;\nfunction useBet() { return currentBet.v; }"
@@ -474,7 +539,8 @@ mod tests {
         TestInput {
             raw_js: "const currentBet = 0;\nfunction test(currentBet) { return currentBet; }"
                 .to_string(),
-            variables: vec!["currentBet".to_string()]
+            variables: vec!["currentBet".to_string()],
+            is_module: true
         },
         TestExpected {
             output_js: "const currentBet = 0;\nfunction test(currentBet) { return currentBet; }"
@@ -488,7 +554,8 @@ mod tests {
             raw_js:
                 "const obj = { property: \"hello\", obj: \"hello\" };\nfunction test() { return { a: obj.property, obj: obj.obj } }"
                     .to_string(),
-            variables: vec!["obj".to_string()]
+            variables: vec!["obj".to_string()],
+            is_module: true
         },
         TestExpected {
             output_js:
@@ -501,10 +568,22 @@ mod tests {
         test_dont_add_v_to_watch_func_first_arg,
         TestInput {
             raw_js: "Lunas.watch([count], () => { console.log(count) });".to_string(),
-            variables: vec!["count".to_string()]
+            variables: vec!["count".to_string()],
+            is_module: true
         },
         TestExpected {
             output_js: "$$lunasWatch([count], () => { console.log(count.v) });".to_string()
+        }
+    );
+    generate_for_test!(
+        test_add_v_simple,
+        TestInput {
+            raw_js: "count".to_string(),
+            variables: vec!["count".to_string()],
+            is_module: false
+        },
+        TestExpected {
+            output_js: "count.v".to_string()
         }
     );
 }
