@@ -177,6 +177,27 @@ class valueObj<T> {
       },
     };
   }
+
+  addToCurrentDependency(
+    componentObj: LunasComponentState,
+    symbolIndex: number[]
+  ) {
+    const currentDep = Object.getOwnPropertySymbols(this.dependencies).find(
+      (key) => key === componentObj.compSymbol
+    );
+    const currentSymbolIndex = currentDep
+      ? this.dependencies[currentDep][1]
+      : null;
+    if (currentSymbolIndex) {
+      const maskedSymbolIndex = bitCombine(currentSymbolIndex, symbolIndex);
+      this.dependencies[componentObj.compSymbol] = [
+        componentObj,
+        maskedSymbolIndex,
+      ];
+    } else {
+      this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
+    }
+  }
 }
 
 export const $$lunasInitComponent = function (
@@ -803,11 +824,7 @@ export const $$lunasInitComponent = function (
       if (depVar instanceof valueObj) {
         const bit = this.currentVarBitGen.next().value;
         bitOrAssign(combinedBits, bit);
-        const { removeDependency } = depVar.addDependency(this, bit);
-        this.resetDependecies.push(removeDependency);
-      } else {
-        // Advance the generator even if not a reactive variable
-        this.currentVarBitGen.next().value;
+        depVar.addToCurrentDependency(this, bit);
       }
     }
     // Add an update function that calls func when any dependency changes
@@ -1035,6 +1052,22 @@ function bitAnd(_a: number | number[], _b: number | number[]): boolean {
   return a.reduce((acc, val, i) => {
     return acc || (val & b[i]) !== 0;
   }, false);
+}
+
+function bitCombine(_a: number | number[], _b: number | number[]): number[] {
+  const length = Math.max(
+    typeof _a === "number" ? 1 : _a.length,
+    typeof _b === "number" ? 1 : _b.length
+  );
+
+  const a = fillArrayWithZero(_a, length);
+  const b = fillArrayWithZero(_b, length);
+
+  const result = new Array<number>(length);
+  for (let i = 0; i < length; i++) {
+    result[i] = a[i] | b[i];
+  }
+  return result;
 }
 
 // A function to perform bitwise "|=" operation on number[] and number[]
