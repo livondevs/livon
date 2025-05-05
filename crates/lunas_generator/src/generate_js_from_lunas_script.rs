@@ -43,7 +43,17 @@ pub fn generate_js_from_lunas_script_blk(
     positions.extend(search_transforms);
 
     // 3) Apply all collected transformations to the raw script
-    let output = add_or_remove_strings_to_script(positions, &js_block.raw);
+    let (output, tails) = add_or_remove_strings_to_script(positions, &js_block.raw);
+
+    let output = format!(
+        "{}{}",
+        output,
+        if tails.is_empty() {
+            "".to_string()
+        } else {
+            format!("\n{}", tails)
+        }
+    );
 
     // 4) Prepend the import statement and assemble the final script
     Ok(format!(

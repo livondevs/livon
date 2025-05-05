@@ -94,13 +94,17 @@ pub fn generate_js_from_blocks(
 
     let mut codes = vec![];
 
-    let (imports_in_script, js_output, js_func_deps, lun_imports) =
+    let (imports_in_script, (js_output, js_output_tail), js_func_deps, lun_imports) =
         analyze_js(blocks, inputs.len() as u32, &mut variables);
 
     codes.push(js_output);
 
     if lun_imports.len() > 0 {
         codes.push(load_lunas_script_variables(&lun_imports));
+    }
+
+    if js_output_tail.len() > 0 {
+        codes.push(js_output_tail);
     }
 
     imports.extend(imports_in_script.clone());

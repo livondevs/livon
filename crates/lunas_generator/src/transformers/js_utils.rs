@@ -9,7 +9,7 @@ use crate::{
     structs::{
         js_analyze::{JsFunctionDeps, Tidy},
         transform_info::{
-            AddStringToPosition, RemoveStatement, ReplaceText, TransformInfo,
+            AddStringToPosition, MoveToTheEnd, RemoveStatement, ReplaceText, TransformInfo,
             VariableNameAndAssignedNumber,
         },
     },
@@ -21,7 +21,12 @@ pub fn analyze_js(
     blocks: &DetailedBlock,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
-) -> (Vec<String>, String, Vec<JsFunctionDeps>, Vec<String>) {
+) -> (
+    Vec<String>,
+    (String, String),
+    Vec<JsFunctionDeps>,
+    Vec<String>,
+) {
     if let Some(js_block) = &blocks.detailed_language_blocks.js {
         // 1) Prepare buffers for transforms, imports, dependency variables, and functions
         let mut positions: Vec<TransformInfo> = Vec::new();
@@ -64,12 +69,12 @@ pub fn analyze_js(
         functions_and_deps.tidy();
 
         // 7) Apply transformations to the script
-        let output = add_or_remove_strings_to_script(positions.clone(), &js_block.raw);
+        let output_with_tail = add_or_remove_strings_to_script(positions.clone(), &js_block.raw);
 
-        (imports, output, functions_and_deps, lun_imports)
+        (imports, output_with_tail, functions_and_deps, lun_imports)
     } else {
         // Return empties if no JS block
-        (vec![], String::new(), vec![], vec![])
+        (vec![], (String::new(), String::new()), vec![], vec![])
     }
 }
 
@@ -400,6 +405,32 @@ pub fn search_json(
             return;
         }
 
+        if obj.get("type") == Some(&Value::String("CallExpression".into())) {
+            if let Some(callee) = obj.get("callee").and_then(Value::as_object) {
+                if callee.get("type") == Some(&Value::String("MemberExpression".into())) {
+                    if let (Some(object), Some(property)) =
+                        (callee.get("object"), callee.get("property"))
+                    {
+                        if let (Some(obj_val), Some(prop_val)) = (
+                            object.get("value").and_then(Value::as_str),
+                            property.get("value").and_then(Value::as_str),
+                        ) {
+                            if obj_val == "Lunas" && prop_val == "watch" {
+                                let start =
+                                    parent.unwrap()["span"]["start"].as_u64().unwrap() as u32 - 1;
+                                let end =
+                                    parent.unwrap()["span"]["end"].as_u64().unwrap() as u32 - 1;
+                                transforms.push(TransformInfo::MoveToTheEnd(MoveToTheEnd {
+                                    start_position: start,
+                                    end_position: end,
+                                }));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // CallExpression: recurse into callee + args
         if obj.get("type") == Some(&Value::String("CallExpression".into())) {
             // collect function name
@@ -522,7 +553,7 @@ mod tests {
                     &mut funcs,
                 );
 
-                let output = add_or_remove_strings_to_script(transforms.clone(), &raw_js);
+                let (output, _) = add_or_remove_strings_to_script(transforms.clone(), &raw_js);
 
                 assert_eq!(output, output_js);
             }

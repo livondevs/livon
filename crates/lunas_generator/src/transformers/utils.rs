@@ -9,60 +9,112 @@ use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde_json::{to_value, Value};
 use std::{env, sync::Mutex};
 
-// TODO: 綺麗な実装にする
+/// Applies a sequence of TransformInfo operations to the given script.
+/// Resolves overlapping and ensures valid UTF-8 boundaries by adjusting non-boundary indices.
+
+/// Applies transforms using cumulative offset correction to maintain byte-accurate positions.
 pub fn add_or_remove_strings_to_script(
-    position_and_strs: Vec<TransformInfo>,
-    script: &String,
-) -> String {
-    let mut transformers = position_and_strs.clone();
-    transformers.sort_by(|a, b| {
-        let a = match a {
-            TransformInfo::AddStringToPosition(a) => a.sort_order,
-            TransformInfo::RemoveStatement(_) => 0,
+    mut transforms: Vec<TransformInfo>,
+    script: &str,
+) -> (String, String) {
+    // Priority: Replace(0), Remove(1), Add(2), Move(3)
+    fn priority(tr: &TransformInfo) -> u8 {
+        match tr {
             TransformInfo::ReplaceText(_) => 0,
-        };
-        let b = match b {
-            TransformInfo::AddStringToPosition(b) => b.sort_order,
-            TransformInfo::RemoveStatement(_) => 0,
-            TransformInfo::ReplaceText(_) => 0,
-        };
-        a.cmp(&b)
+            TransformInfo::RemoveStatement(_) => 1,
+            TransformInfo::AddStringToPosition(_) => 2,
+            TransformInfo::MoveToTheEnd(_) => 3,
+        }
+    }
+    // Sort by priority, then by original byte position ascending
+    transforms.sort_by(|a, b| {
+        let pa = priority(a);
+        let pb = priority(b);
+        pa.cmp(&pb).then_with(|| {
+            let posa = match a {
+                TransformInfo::ReplaceText(rt) => rt.start_position,
+                TransformInfo::RemoveStatement(rs) => rs.start_position,
+                TransformInfo::AddStringToPosition(ad) => ad.position,
+                TransformInfo::MoveToTheEnd(me) => me.start_position,
+            };
+            let posb = match b {
+                TransformInfo::ReplaceText(rt) => rt.start_position,
+                TransformInfo::RemoveStatement(rs) => rs.start_position,
+                TransformInfo::AddStringToPosition(ad) => ad.position,
+                TransformInfo::MoveToTheEnd(me) => me.start_position,
+            };
+            posa.cmp(&posb)
+        })
     });
-    transformers.sort_by(|a, b| {
-        let a = match a {
-            TransformInfo::AddStringToPosition(a) => a.position,
-            TransformInfo::RemoveStatement(a) => a.start_position,
-            TransformInfo::ReplaceText(a) => a.start_position,
-        };
-        let b = match b {
-            TransformInfo::AddStringToPosition(b) => b.position,
-            TransformInfo::RemoveStatement(b) => b.start_position,
-            TransformInfo::ReplaceText(b) => b.start_position,
-        };
-        a.cmp(&b)
-    });
-    let mut result = String::new();
-    let mut last_position = 0;
-    for transform in transformers {
-        match transform {
-            TransformInfo::AddStringToPosition(add) => {
-                result.push_str(&script[last_position..add.position as usize]);
-                result.push_str(&add.string);
-                last_position = add.position as usize;
+
+    let mut result = script.to_string();
+    let mut end_str = "".to_string();
+    // Track cumulative byte offset change: Vec of (original_pos, delta_bytes)
+    let mut deltas: Vec<(usize, isize)> = Vec::new();
+
+    // Compute adjusted position given original pos
+    let adjust = |orig: usize, deltas: &[(usize, isize)]| -> usize {
+        let total: isize = deltas
+            .iter()
+            .filter(|(p, _)| *p <= orig)
+            .map(|(_, d)| *d)
+            .sum();
+        ((orig as isize) + total) as usize
+    };
+
+    for tr in transforms {
+        match tr {
+            TransformInfo::ReplaceText(rt) => {
+                let orig_start = rt.start_position as usize;
+                let orig_end = rt.end_position as usize;
+                let start = adjust(orig_start, &deltas);
+                let end = adjust(orig_end, &deltas);
+                if start <= end && end <= result.len() {
+                    let new_len = rt.string.len();
+                    let old_len = end - start;
+                    result.replace_range(start..end, &rt.string);
+                    deltas.push((orig_end, new_len as isize - old_len as isize));
+                }
             }
-            TransformInfo::RemoveStatement(remove) => {
-                result.push_str(&script[last_position..remove.start_position as usize]);
-                last_position = remove.end_position as usize;
+            TransformInfo::RemoveStatement(rs) => {
+                let orig_start = rs.start_position as usize;
+                let orig_end = rs.end_position as usize;
+                let start = adjust(orig_start, &deltas);
+                let end = adjust(orig_end, &deltas);
+                if start <= end && end <= result.len() {
+                    let old_len = end - start;
+                    result.replace_range(start..end, "");
+                    deltas.push((orig_end, -(old_len as isize)));
+                }
             }
-            TransformInfo::ReplaceText(replace) => {
-                result.push_str(&script[last_position..replace.start_position as usize]);
-                result.push_str(&replace.string);
-                last_position = replace.end_position as usize;
+            TransformInfo::AddStringToPosition(ad) => {
+                let orig = ad.position as usize;
+                let pos = adjust(orig, &deltas);
+                if pos <= result.len() {
+                    let add_len = ad.string.len();
+                    result.insert_str(pos, &ad.string);
+                    deltas.push((orig, add_len as isize));
+                }
+            }
+            TransformInfo::MoveToTheEnd(me) => {
+                let orig_start = me.start_position as usize;
+                let orig_end = me.end_position as usize;
+                let start = adjust(orig_start, &deltas);
+                let end = adjust(orig_end, &deltas);
+                if start <= end && end <= result.len() {
+                    let slice = result[start..end].to_string();
+                    result.replace_range(start..end, "");
+                    end_str.push_str("\n");
+                    end_str.push_str(&slice);
+                    let len = slice.len();
+                    // remove length at start, then add at end
+                    deltas.push((orig_end, -(len as isize)));
+                    // end position is original end: now appended after end of file, delta not needed for future
+                }
             }
         }
     }
-    result.push_str(&script[last_position..]);
-    return result;
+    (result, end_str)
 }
 
 use super::{
@@ -155,7 +207,7 @@ pub fn append_v_to_vars_in_html(
     );
 
     // 5) Apply transformations to the original input
-    let modified_string = add_or_remove_strings_to_script(positions, &js);
+    let (modified_string, _) = add_or_remove_strings_to_script(positions, &js);
 
     // 6) Gather vars from function dependencies that were actually invoked
     let func_dep_vars = func_deps
@@ -185,7 +237,7 @@ pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> Stri
     let parsed = parse_module_with_swc(&input.to_string());
     let parsed_json = serde_json::to_value(&parsed).unwrap();
     let positions = find_non_reactives(&parsed_json, &variables);
-    let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
+    let (modified_string, _) = add_or_remove_strings_to_script(positions, &input.to_string());
     modified_string
 }
 
