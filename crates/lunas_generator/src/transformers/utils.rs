@@ -26,25 +26,42 @@ pub fn add_or_remove_strings_to_script(
             TransformInfo::MoveToTheEnd(_) => 3,
         }
     }
-    // Sort by priority, then by original byte position ascending
+    // Sort by sort_order (AddStringToPosition), then by type priority, then by original byte position
     transforms.sort_by(|a, b| {
-        let pa = priority(a);
-        let pb = priority(b);
-        pa.cmp(&pb).then_with(|| {
-            let posa = match a {
-                TransformInfo::ReplaceText(rt) => rt.start_position,
-                TransformInfo::RemoveStatement(rs) => rs.start_position,
-                TransformInfo::AddStringToPosition(ad) => ad.position,
-                TransformInfo::MoveToTheEnd(me) => me.start_position,
-            };
-            let posb = match b {
-                TransformInfo::ReplaceText(rt) => rt.start_position,
-                TransformInfo::RemoveStatement(rs) => rs.start_position,
-                TransformInfo::AddStringToPosition(ad) => ad.position,
-                TransformInfo::MoveToTheEnd(me) => me.start_position,
-            };
-            posa.cmp(&posb)
-        })
+        // 1) sort_order for AddStringToPosition (others treated as 0)
+        let sa = if let TransformInfo::AddStringToPosition(ad) = a {
+            ad.sort_order as usize
+        } else {
+            0
+        };
+        let sb = if let TransformInfo::AddStringToPosition(ad) = b {
+            ad.sort_order as usize
+        } else {
+            0
+        };
+        sa.cmp(&sb)
+            // 2) type priority
+            .then_with(|| {
+                let pa = priority(a);
+                let pb = priority(b);
+                pa.cmp(&pb)
+            })
+            // 3) original byte position
+            .then_with(|| {
+                let posa = match a {
+                    TransformInfo::ReplaceText(rt) => rt.start_position as usize,
+                    TransformInfo::RemoveStatement(rs) => rs.start_position as usize,
+                    TransformInfo::AddStringToPosition(ad) => ad.position as usize,
+                    TransformInfo::MoveToTheEnd(me) => me.start_position as usize,
+                };
+                let posb = match b {
+                    TransformInfo::ReplaceText(rt) => rt.start_position as usize,
+                    TransformInfo::RemoveStatement(rs) => rs.start_position as usize,
+                    TransformInfo::AddStringToPosition(ad) => ad.position as usize,
+                    TransformInfo::MoveToTheEnd(me) => me.start_position as usize,
+                };
+                posa.cmp(&posb)
+            })
     });
 
     let mut result = script.to_string();
