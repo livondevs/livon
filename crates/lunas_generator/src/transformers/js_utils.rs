@@ -223,7 +223,7 @@ pub fn search_json(
     dep_vars_out: &mut Vec<String>,
     funcs_out: &mut Vec<String>,
 ) {
-    let parent = parents.last().clone();
+    let parent = parents.last().cloned();
     let next_parents = parents
         .clone()
         .into_iter()
@@ -273,15 +273,38 @@ pub fn search_json(
                 // We are inside Lunas.watch’s first argument array — do not append `.v`
                 return;
             }
-            let parent_is_obj = match parent {
-                Some(Value::Object(_)) => true,
-                _ => false,
+            // Determine whether to apply the transformation.
+            // If the Identifier appears in an unwrapped expression (e.g. a bare identifier) then we should add ".v".
+            // However, if the identifier is part of a binding (parameter or variable declaration id),
+            // we should NOT transform.
+            let should_transform = match parent {
+                // No parent, so likely a standalone expression.
+                None => true,
+                Some(p) => {
+                    let p_type = p.get("type").and_then(Value::as_str);
+                    if p_type == Some("VariableDeclarator") {
+                        // Don't transform the identifier in a variable declaration
+                        false
+                    } else if p_type == Some("ArrayExpression") {
+                        // It might be a function parameter list; check its parent.
+                        if parents.len() >= 2 {
+                            let gp = parents[parents.len() - 2];
+                            if let Some(gp_type) = gp.get("type").and_then(Value::as_str) {
+                                gp_type != "FunctionDeclaration"
+                                    && gp_type != "FunctionExpression"
+                                    && gp_type != "ArrowFunctionExpression"
+                            } else {
+                                true
+                            }
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    }
+                }
             };
-            let skip = parent_is_obj
-                && parent.clone().unwrap().get("type").as_ref()
-                    != Some(&&Value::String("VariableDeclarator".into()));
-            let parent_is_array = matches!(parent, Some(Value::Array(_)));
-            if (skip || parent_is_array)
+            if should_transform
                 && obj
                     .get("value")
                     .and_then(Value::as_str)
