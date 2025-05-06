@@ -553,7 +553,8 @@ mod tests {
                     &mut funcs,
                 );
 
-                let (output, _) = add_or_remove_strings_to_script(transforms.clone(), &raw_js);
+                let (output, tail) = add_or_remove_strings_to_script(transforms.clone(), &raw_js);
+                let output = format!("{}{}", output, tail);
 
                 assert_eq!(output, output_js);
             }
@@ -626,9 +627,10 @@ mod tests {
             is_module: true
         },
         TestExpected {
-            output_js: "$$lunasWatch([count], () => { console.log(count.v) });".to_string()
+            output_js: "\n$$lunasWatch([count], () => { console.log(count.v) });".to_string()
         }
     );
+
     generate_for_test!(
         test_add_v_simple,
         TestInput {
@@ -638,6 +640,18 @@ mod tests {
         },
         TestExpected {
             output_js: "count.v".to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_function_object_property_shorthand,
+        TestInput {
+            raw_js: "function test() { return { obj } };".to_string(),
+            variables: vec!["obj".to_string()],
+            is_module: true
+        },
+        TestExpected {
+            output_js: "function test() { return { obj: obj.v } };".to_string()
         }
     );
 }
