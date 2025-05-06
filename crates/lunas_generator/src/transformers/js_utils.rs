@@ -282,31 +282,23 @@ pub fn search_json(
             // If the Identifier appears in an unwrapped expression (e.g. a bare identifier) then we should add ".v".
             // However, if the identifier is part of a binding (parameter or variable declaration id),
             // we should NOT transform.
-            let should_transform = match parent {
-                // No parent, so likely a standalone expression.
-                None => true,
-                Some(p) => {
-                    let p_type = p.get("type").and_then(Value::as_str);
-                    if p_type == Some("VariableDeclarator") {
-                        // Don't transform the identifier in a variable declaration
-                        false
-                    } else if p_type == Some("ArrayExpression") {
-                        // It might be a function parameter list; check its parent.
-                        if parents.len() >= 2 {
-                            let gp = parents[parents.len() - 2];
-                            if let Some(gp_type) = gp.get("type").and_then(Value::as_str) {
-                                gp_type != "FunctionDeclaration"
-                                    && gp_type != "FunctionExpression"
-                                    && gp_type != "ArrowFunctionExpression"
-                            } else {
-                                true
+            let should_transform = {
+                let parent_type = parent.and_then(|p| p.get("type").and_then(Value::as_str));
+                match parent_type {
+                    Some("VariableDeclarator") => false,
+                    Some("ArrayExpression") => {
+                        if let Some(grandparent) = parents.get(parents.len().saturating_sub(2)) {
+                            match grandparent.get("type").and_then(Value::as_str) {
+                                Some("FunctionDeclaration")
+                                | Some("FunctionExpression")
+                                | Some("ArrowFunctionExpression") => false,
+                                _ => true,
                             }
                         } else {
                             true
                         }
-                    } else {
-                        true
                     }
+                    _ => true,
                 }
             };
             if should_transform
