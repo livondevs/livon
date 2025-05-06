@@ -80,12 +80,3 @@ pub fn generate_router_initialization_code(
         None => Err("RouterView component not found".to_string()),
     }
 }
-
-/* let reference_node_idx = ref_node_ids
-    .iter()
-    .position(|id| id == &action_and_target.target)
-    .unwrap();
-let reference_string = match under_for {
-    true => format!("[{}, ...$$lunasForIndices]", reference_node_idx),
-    false => reference_node_idx.to_string(),
-}; */
