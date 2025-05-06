@@ -1,5 +1,6 @@
 mod for_parser;
 mod parse2;
+mod parse_script;
 mod parser1;
 mod parsers;
 pub mod structs;
@@ -7,8 +8,10 @@ mod swc_parser;
 mod ts_to_js;
 
 use parse2::parse2;
+use parse_script::parse_lunas_script;
 use parser1::parse1;
 pub use structs::detailed_blocks::DetailedBlock;
+use structs::detailed_language_blocks::JsBlock;
 pub use structs::detailed_meta_data::{DetailedMetaData, PropsInput, UseComponentStatement};
 
 pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
@@ -27,6 +30,10 @@ pub fn parse_lunas_file(input: &str) -> Result<DetailedBlock, String> {
     };
 
     Ok(detailed_block)
+}
+
+pub fn parse_lunas_script_file(input: &str) -> Result<JsBlock, String> {
+    parse_lunas_script(input)
 }
 
 pub use for_parser::for_parser::{parse_for_statement, ParsedFor};
