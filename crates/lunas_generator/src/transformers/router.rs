@@ -19,7 +19,7 @@ pub fn generate_router_initialization_code(
                             .unwrap()
                             .to_string()
                     );
-                    let x = format!(
+                    let anchor_ref_idx = format!(
                         "$$lunasGetElm({})",
                         ref_node_ids
                             .iter()
@@ -34,7 +34,7 @@ pub fn generate_router_initialization_code(
                     );
                     format!(
                         "$$lunasRouter.initialize($$lunasGeneratedRoutes, {}, {}, true);",
-                        parent_ref_idx, x
+                        parent_ref_idx, anchor_ref_idx
                     )
                 }
                 false => {
