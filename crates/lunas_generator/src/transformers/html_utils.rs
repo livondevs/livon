@@ -284,7 +284,8 @@ pub fn check_html_elms(
                             &mut raw_attr_value,
                             varibale_names,
                             func_deps,
-                        );
+                            true,
+                        )?;
 
                         element.attributes.remove(key);
 
@@ -311,7 +312,7 @@ pub fn check_html_elms(
                                     value.to_string(),
                                     varibale_names,
                                     func_deps,
-                                ),
+                                )?,
                                 target: node_id.clone(),
                                 ctx: ctx_array.clone(),
                             })
@@ -455,7 +456,8 @@ pub fn check_html_elms(
                                 remove_statement.condition.as_str(),
                                 &varibale_names,
                                 func_deps,
-                            );
+                                true,
+                            )?;
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
@@ -524,7 +526,8 @@ pub fn check_html_elms(
                                 &remove_statement.item_collection.as_str(),
                                 &varibale_names,
                                 func_deps,
-                            );
+                                true,
+                            )?;
                             for_blocks_info.push(ForBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_for_blk_id: remove_statement.child_uuid.clone(),
@@ -670,7 +673,7 @@ pub fn check_html_elms(
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names, func_deps);
+            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names, func_deps)?;
             if dep_vars.len() > 0 && count_of_siblings <= 1 {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
@@ -779,7 +782,7 @@ fn replace_text_with_reactive_value(
     code: &mut String,
     variables: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
-) -> (Vec<String>, u32) {
+) -> Result<(Vec<String>, u32), String> {
     let mut count_of_bindings = 0;
 
     let start_tag = "${";
@@ -799,7 +802,8 @@ fn replace_text_with_reactive_value(
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables, func_deps);
+            let (output, dep_vars) =
+                append_v_to_vars_in_html(in_bracket, variables, func_deps, true)?;
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 
@@ -811,7 +815,7 @@ fn replace_text_with_reactive_value(
 
     new_code.push_str(&code[last_end..]);
     *code = new_code;
-    (depending_vars, count_of_bindings)
+    Ok((depending_vars, count_of_bindings))
 }
 
 pub fn create_lunas_internal_component_statement(
@@ -855,7 +859,8 @@ mod tests {
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
             &vec![],
-        );
+        )
+        .unwrap();
         assert_eq!(code, "$$lunasEscapeHtml(count2.v+count.v)");
     }
 
@@ -867,7 +872,8 @@ mod tests {
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
             &vec![],
-        );
+        )
+        .unwrap();
         assert_eq!(code, "$$lunasEscapeHtml( count2.v + count.v )");
     }
 
@@ -875,7 +881,8 @@ mod tests {
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
         let mut code = code.to_string();
-        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![]);
+        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![])
+            .unwrap();
         assert_eq!(
             code,
             "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"

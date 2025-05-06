@@ -154,7 +154,14 @@ pub fn gen_render_for_blk_func(
 
         let context_if_extracted = {
             let extracted_if_ctx = for_block.extract_if_ctx_between_latest_for(ctx_categories);
-            format!("[{}]", extracted_if_ctx.join(", "))
+            format!(
+                "[{}]",
+                extracted_if_ctx
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            )
         };
 
         let parent_for_array = {

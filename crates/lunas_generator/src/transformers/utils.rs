@@ -1,10 +1,13 @@
-use crate::structs::{
-    js_analyze::JsFunctionDeps,
-    js_utils::JsSearchParent,
-    transform_info::{AddStringToPosition, TransformInfo},
+use crate::{
+    structs::{
+        js_analyze::JsFunctionDeps,
+        js_utils::JsSearchParent,
+        transform_info::{AddStringToPosition, TransformInfo},
+    },
+    transformers::utils_swc::transform_ts_to_js,
 };
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use serde_json::Value;
+use serde_json::{to_value, Value};
 use std::{env, sync::Mutex};
 
 // TODO: 綺麗な実装にする
@@ -63,7 +66,10 @@ pub fn add_or_remove_strings_to_script(
     return result;
 }
 
-use super::{js_utils::search_json, utils_swc::parse_with_swc};
+use super::{
+    js_utils::search_json,
+    utils_swc::{parse_expr_with_swc, parse_module_with_swc},
+};
 
 lazy_static! {
     pub static ref UUID_GENERATOR: Mutex<UuidGenerator> = Mutex::new(UuidGenerator::new());
@@ -115,25 +121,44 @@ fn is_testgen() -> bool {
 }
 
 pub fn append_v_to_vars_in_html(
-    input: &str,
+    input_ts: &str,
     variables: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
-) -> (String, Vec<String>) {
-    let parsed = parse_with_swc(&input.to_string());
+    is_expr: bool,
+) -> Result<(String, Vec<String>), String> {
+    // 1) Transpile TS to JS
+    let js = transform_ts_to_js(input_ts).map_err(|e| e.to_string())?;
 
-    let parsed_json = serde_json::to_value(&parsed).unwrap();
+    // 2) Parse JS code into a JSON AST
+    let parsed_json = if is_expr {
+        to_value(parse_expr_with_swc(&js)).unwrap()
+    } else {
+        to_value(parse_module_with_swc(&js)).unwrap()
+    };
 
-    let (positions, _, depending_vars, depending_funcs) = search_json(
+    // 3) Prepare buffers for search_json output
+    let mut positions = Vec::new();
+    let mut imports = Vec::new(); // unused here
+    let mut depending_vars = Vec::new();
+    let mut depending_funcs = Vec::new();
+
+    // 4) Invoke search_json to collect positions and dependent identifiers
+    search_json(
         &parsed_json,
-        &input.to_string(),
+        js.as_str(),
         &variables,
-        None,
         JsSearchParent::ParentIsArray,
         false,
+        &mut positions,
+        &mut imports,
+        &mut depending_vars,
+        &mut depending_funcs,
     );
 
-    let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());
+    // 5) Apply transformations to the original input
+    let modified_string = add_or_remove_strings_to_script(positions, &js);
 
+    // 6) Gather vars from function dependencies that were actually invoked
     let func_dep_vars = func_deps
         .iter()
         .filter_map(|func| {
@@ -146,19 +171,19 @@ pub fn append_v_to_vars_in_html(
         .flatten()
         .collect::<Vec<String>>();
 
+    // 7) Merge and deduplicate all depending variable names
     let all_depending_values = depending_vars
-        .iter()
-        .chain(func_dep_vars.iter())
-        .cloned()
-        .collect::<std::collections::HashSet<String>>()
+        .into_iter()
+        .chain(func_dep_vars.into_iter())
+        .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .collect::<Vec<String>>();
 
-    (modified_string, all_depending_values)
+    Ok((modified_string, all_depending_values))
 }
 
 pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
-    let parsed = parse_with_swc(&input.to_string());
+    let parsed = parse_module_with_swc(&input.to_string());
     let parsed_json = serde_json::to_value(&parsed).unwrap();
     let positions = find_non_reactives(&parsed_json, &variables);
     let modified_string = add_or_remove_strings_to_script(positions, &input.to_string());

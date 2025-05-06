@@ -598,11 +598,13 @@ export const $$lunasInitComponent = function (
             if (diffDetected(oldItems, newItems)) {
               const refArr = this.refMap[mapOffset] as RefMapItem[];
               // Iterate in reverse order to prevent index shift issues when removing elements
-              for (let i = refArr.length - 1; i >= 0; i--) {
-                const item = refArr[i];
-                if (item instanceof HTMLElement) {
-                  item.remove();
-                  refArr.splice(i, 1);
+              if (refArr) {
+                for (let i = refArr.length - 1; i >= 0; i--) {
+                  const item = refArr[i];
+                  if (item instanceof HTMLElement) {
+                    item.remove();
+                    refArr.splice(i, 1);
+                  }
                 }
               }
               if (this.forBlocks[forBlockId]) {
