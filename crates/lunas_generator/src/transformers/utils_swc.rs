@@ -9,7 +9,7 @@ use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
 pub fn parse_with_swc(code: &String) -> Module {
     let cm: Lrc<SourceMap> = Default::default();
     let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-    let fm = cm.new_source_file(FileName::Anon, code.into());
+    let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
     let lexer = Lexer::new(
         Syntax::Es(Default::default()),
         Default::default(),

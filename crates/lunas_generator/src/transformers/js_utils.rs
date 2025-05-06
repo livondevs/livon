@@ -22,14 +22,22 @@ pub fn analyze_js(
     blocks: &DetailedBlock,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
-) -> (Vec<String>, Vec<String>, String, Vec<JsFunctionDeps>) {
+) -> (Vec<String>, String, Vec<JsFunctionDeps>, Vec<String>) {
     if let Some(js_block) = &blocks.detailed_language_blocks.js {
         let mut positions = vec![];
         let mut imports = vec![];
         // find all variable declarations
-        let str_positions = find_variable_declarations(&js_block.ast, initial_num, variables);
+        let (str_positions, mut num_gen) =
+            find_variable_declarations(&js_block.ast, initial_num, variables, false);
         // add all variable declarations to positions to add custom variable declaration function
         positions.extend(str_positions);
+        let lun_imports = find_luns_imports(&js_block.ast);
+        for lun_import in &lun_imports {
+            variables.push(VariableNameAndAssignedNumber {
+                name: lun_import.clone(),
+                assignment: num_gen.as_mut().unwrap()(),
+            })
+        }
         let variable_names = variables.iter().map(|v| v.name.clone()).collect();
         let (position_result, import_result, _, _) = search_json(
             &js_block.ast,
@@ -37,6 +45,7 @@ pub fn analyze_js(
             &variable_names,
             Some(&imports),
             JsSearchParent::NoneValue,
+            true,
         );
 
         let mut functions_and_deps = analyze_ast(&js_block.ast, &variable_names);
@@ -45,88 +54,140 @@ pub fn analyze_js(
         positions.extend(position_result);
         imports.extend(import_result);
         let output = add_or_remove_strings_to_script(positions, &js_block.raw);
-        (variable_names, imports, output, functions_and_deps)
+        (imports, output, functions_and_deps, lun_imports)
     } else {
-        let variable_names = variables
-            .iter()
-            .map(|v| v.name.clone())
-            .collect::<Vec<String>>();
-        (variable_names, vec![], "".to_string(), vec![])
+        (vec![], "".to_string(), vec![], vec![])
     }
 }
 
-// Finds all variable declarations in a javascript file and returns a vector of VariableNameAndAssignedNumber structs
-fn find_variable_declarations(
+pub fn load_lunas_script_variables(variables: &Vec<String>) -> String {
+    format!("$$lunasSetImportVars([{}])", variables.join(", "))
+}
+
+// Finds all variable declarations in a JavaScript AST (including export declarations)
+// and returns a tuple containing a vector of TransformInfo and an optional number generator function.
+pub fn find_variable_declarations(
     json: &Value,
     initial_num: u32,
     variables: &mut Vec<VariableNameAndAssignedNumber>,
-) -> vec::Vec<TransformInfo> {
+    lunas_script: bool,
+) -> (Vec<TransformInfo>, Option<impl FnMut() -> BigUint>) {
     if let Some(Value::Array(body)) = json.get("body") {
-        let mut str_positions = vec![];
+        let mut str_positions = Vec::new();
         let mut num_generator = power_of_two_generator(initial_num);
+
         for body_item in body {
-            if Some(&Value::String("VariableDeclaration".to_string())) == body_item.get("type") {
-                if let Some(Value::Array(declarations)) = body_item.get("declarations") {
+            // Determine if the item is a VariableDeclaration or an ExportDeclaration containing a VariableDeclaration
+            let maybe_decl = match body_item.get("type") {
+                // Direct variable declaration
+                Some(Value::String(t)) if t == "VariableDeclaration" => Some(body_item),
+                // Export declaration wrapping a variable declaration
+                Some(Value::String(t)) if t == "ExportDeclaration" => body_item.get("declaration"),
+                _ => None,
+            };
+
+            if let Some(Value::Object(decl_obj)) = maybe_decl {
+                if let Some(Value::Array(declarations)) = decl_obj.get("declarations") {
                     for declaration in declarations {
-                        let name = if let Some(Value::Object(id)) = declaration.get("id") {
-                            if let Some(Value::String(name)) = id.get("value") {
-                                Some(name.to_string())
+                        // Extract the variable name
+                        let name = declaration
+                            .get("id")
+                            .and_then(|id| id.get("value"))
+                            .and_then(Value::as_str)
+                            .map(String::from);
+
+                        // Extract start and end positions from the initialization span
+                        let start_end = declaration
+                            .get("init")
+                            .and_then(|init| init.get("span"))
+                            .and_then(Value::as_object)
+                            .and_then(|span| {
+                                span.get("start")
+                                    .and_then(Value::as_u64)
+                                    .zip(span.get("end").and_then(Value::as_u64))
+                            })
+                            .map(|(s, e)| (s as u32, e as u32));
+
+                        if let (Some(name), Some((start, end))) = (name, start_end) {
+                            // Generate a unique number for this variable
+                            let variable_num = num_generator();
+                            variables.push(VariableNameAndAssignedNumber {
+                                name: name.clone(),
+                                assignment: variable_num.clone(),
+                            });
+
+                            // Prepare the reactive or non-reactive wrapper strings
+                            let open_wrapper = if lunas_script {
+                                "$$lunasCreateNonReactive(".to_string()
                             } else {
-                                None
-                            }
-                        } else {
-                            None
-                        };
-                        // get span
-                        let start_and_end =
-                            if let Some(Value::Object(init)) = declaration.get("init") {
-                                if let Some(Value::Object(span)) = init.get("span") {
-                                    if let Some(Value::Number(end)) = span.get("end") {
-                                        if let Some(Value::Number(start)) = span.get("start") {
-                                            Some((start, end))
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
+                                "$$lunasReactive(".to_string()
                             };
-                        if let Some(name) = name {
-                            if let Some((start, end)) = start_and_end {
-                                let variable_num = num_generator();
-                                variables.push(VariableNameAndAssignedNumber {
-                                    name,
-                                    assignment: variable_num,
-                                });
-                                str_positions.push(TransformInfo::AddStringToPosition(
-                                    AddStringToPosition {
-                                        position: (start.as_u64().unwrap() - 1) as u32,
-                                        string: "$$lunasReactive(".to_string(),
-                                        sort_order: 1,
-                                    },
-                                ));
-                                str_positions.push(TransformInfo::AddStringToPosition(
-                                    AddStringToPosition {
-                                        position: (end.as_u64().unwrap() - 1) as u32,
-                                        string: format!(")"),
-                                        sort_order: 1,
-                                    },
-                                ));
+
+                            // Insert wrapper before the initialization start
+                            str_positions.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: start.saturating_sub(1),
+                                    string: open_wrapper,
+                                    sort_order: 1,
+                                },
+                            ));
+                            // Insert closing parenthesis after the initialization end
+                            str_positions.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: end.saturating_sub(1),
+                                    string: ")".to_string(),
+                                    sort_order: 1,
+                                },
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        (str_positions, Some(num_generator))
+    } else {
+        (Vec::new(), None)
+    }
+}
+
+/// Finds all imports whose source ends with ".luns" and returns their local names.
+pub fn find_luns_imports(json: &Value) -> Vec<String> {
+    let mut imports = Vec::new();
+
+    // Get the top-level "body" array
+    if let Some(Value::Array(body)) = json.get("body") {
+        for item in body {
+            // Check if this item is an ImportDeclaration
+            if item.get("type").and_then(Value::as_str) == Some("ImportDeclaration") {
+                // Extract the module specifier string
+                if let Some(source_str) = item
+                    .get("source")
+                    .and_then(|src| src.get("value"))
+                    .and_then(Value::as_str)
+                {
+                    // Filter for those ending with ".lun.ts"
+                    if source_str.ends_with(".lun.ts") {
+                        // Iterate over all specifiers
+                        if let Some(specs) = item.get("specifiers").and_then(Value::as_array) {
+                            for spec in specs {
+                                // For each ImportSpecifier, take the local name
+                                if let Some(local_name) = spec
+                                    .get("local")
+                                    .and_then(|l| l.get("value"))
+                                    .and_then(Value::as_str)
+                                {
+                                    imports.push(local_name.to_string());
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        str_positions
-    } else {
-        vec![]
     }
+
+    imports
 }
 
 fn power_of_two_generator(init: u32) -> impl FnMut() -> BigUint {
@@ -146,6 +207,7 @@ pub fn search_json(
     // FIXME: imports are unused
     imports: Option<&Vec<String>>,
     parent: JsSearchParent,
+    delete_imports: bool,
 ) -> (Vec<TransformInfo>, Vec<String>, Vec<String>, Vec<String>) {
     use serde_json::Value;
 
@@ -168,7 +230,7 @@ pub fn search_json(
                                     })],
                                     vec![],
                                     vec![variable_name.clone()],
-                                    vec![], // 関数名はここでは対象外
+                                    vec![], // Function names are not targeted here
                                 );
                             }
                         }
@@ -176,7 +238,8 @@ pub fn search_json(
                 }
             }
             return (vec![], vec![], vec![], vec![]);
-        } else if obj.contains_key("type")
+        } else if delete_imports == true
+            && obj.contains_key("type")
             && obj["type"] == Value::String("ImportDeclaration".into())
         {
             let trim_end = obj["span"]["end"].as_u64().unwrap() as u32;
@@ -311,6 +374,7 @@ pub fn search_json(
                     variables,
                     imports,
                     JsSearchParent::MapValue(&obj),
+                    delete_imports,
                 );
                 trans_tmp.extend(trans_res);
                 import_tmp.extend(import_res);
@@ -331,6 +395,7 @@ pub fn search_json(
                 variables,
                 imports,
                 JsSearchParent::MapValue(&obj),
+                delete_imports,
             );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
@@ -350,6 +415,7 @@ pub fn search_json(
                 variables,
                 imports,
                 JsSearchParent::ParentIsArray,
+                delete_imports,
             );
             trans_tmp.extend(trans_res);
             import_tmp.extend(import_res);
