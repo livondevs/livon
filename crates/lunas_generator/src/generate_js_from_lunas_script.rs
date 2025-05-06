@@ -1,11 +1,8 @@
 use lunas_parser::structs::detailed_language_blocks::JsBlock;
 
-use crate::{
-    structs::js_utils::JsSearchParent,
-    transformers::{
-        js_utils::{find_variable_declarations, search_json},
-        utils::add_or_remove_strings_to_script,
-    },
+use crate::transformers::{
+    js_utils::{find_variable_declarations, search_json},
+    utils::add_or_remove_strings_to_script,
 };
 
 pub fn generate_js_from_lunas_script_blk(
@@ -36,7 +33,7 @@ pub fn generate_js_from_lunas_script_blk(
         &js_block.ast,
         &js_block.raw,
         &variable_names,
-        JsSearchParent::NoneValue,
+        &vec![],
         false,
         &mut search_transforms,
         &mut search_imports,
@@ -46,7 +43,17 @@ pub fn generate_js_from_lunas_script_blk(
     positions.extend(search_transforms);
 
     // 3) Apply all collected transformations to the raw script
-    let output = add_or_remove_strings_to_script(positions, &js_block.raw);
+    let (output, tails) = add_or_remove_strings_to_script(positions, &js_block.raw);
+
+    let output = format!(
+        "{}{}",
+        output,
+        if tails.is_empty() {
+            "".to_string()
+        } else {
+            format!("\n{}", tails)
+        }
+    );
 
     // 4) Prepend the import statement and assemble the final script
     Ok(format!(
