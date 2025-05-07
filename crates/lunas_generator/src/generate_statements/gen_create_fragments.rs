@@ -58,7 +58,7 @@ pub fn gen_create_fragments(
                     };
 
                     fragments.push(format!(
-                        "[[() => {}, \"{}\"], {}, {}, {}]",
+                        "[[() => ({}), \"{}\"], {}, {}, {}]",
                         c.content_of_attr,
                         c.attribute_key,
                         target_node_idx,

@@ -217,6 +217,27 @@ export const $$lunasInitComponent = function (
     }
   }
 
+  const getElm = function (
+    this: LunasComponentState,
+    location: number | number[]
+  ) {
+    return getNestedArrayValue(this.refMap, location);
+  }.bind(this);
+
+  const setImportVars = function (this: LunasComponentState, items: unknown[]) {
+    for (const item of items) {
+      if (item instanceof valueObj) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
+      } else {
+        this.currentVarBitGen.next().value;
+      }
+    }
+  }.bind(this);
+
   const componentElementSetter = function (
     this: LunasComponentState,
     innerHtml: string,
@@ -282,6 +303,7 @@ export const $$lunasInitComponent = function (
     this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
+    _updateComponent(() => {});
     return this;
   }.bind(this);
 
@@ -599,11 +621,13 @@ export const $$lunasInitComponent = function (
             if (diffDetected(oldItems, newItems)) {
               const refArr = this.refMap[mapOffset] as RefMapItem[];
               // Iterate in reverse order to prevent index shift issues when removing elements
-              for (let i = refArr.length - 1; i >= 0; i--) {
-                const item = refArr[i];
-                if (item instanceof HTMLElement) {
-                  item.remove();
-                  refArr.splice(i, 1);
+              if (refArr) {
+                for (let i = refArr.length - 1; i >= 0; i--) {
+                  const item = refArr[i];
+                  if (item instanceof HTMLElement) {
+                    item.remove();
+                    refArr.splice(i, 1);
+                  }
                 }
               }
               if (this.forBlocks[forBlockId]) {
@@ -792,6 +816,8 @@ export const $$lunasInitComponent = function (
   }.bind(this);
 
   return {
+    $$lunasGetElm: getElm,
+    $$lunasSetImportVars: setImportVars,
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
