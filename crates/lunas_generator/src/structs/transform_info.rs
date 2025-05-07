@@ -14,6 +14,7 @@ pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
     ReplaceText(ReplaceText),
+    MoveToTheEnd(MoveToTheEnd),
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,12 @@ pub struct ReplaceText {
     pub start_position: u32,
     pub end_position: u32,
     pub string: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct MoveToTheEnd {
+    pub start_position: u32,
+    pub end_position: u32,
 }
 
 #[derive(Debug)]
