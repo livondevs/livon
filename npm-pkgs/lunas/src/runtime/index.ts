@@ -21,6 +21,7 @@ export type LunasComponentState = {
       condition: () => boolean;
       cleanup: (() => void)[];
       childs: string[];
+      nextForBlocks: string[];
     };
   };
   ifBlockStates: Record<string, boolean>;
@@ -43,7 +44,11 @@ export type LunasComponentState = {
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
   forBlocks: {
-    [key: string]: { cleanUp: (() => void)[]; childs: string[] };
+    [key: string]: {
+      cleanUp: (() => void)[];
+      childs: string[];
+      renderer: () => void;
+    };
   };
 
   refMap: RefMap;
@@ -382,6 +387,7 @@ export const $$lunasInitComponent = function (
         forBlk: forCtx.length ? forCtx[forCtx.length - 1] : null,
         cleanup: [],
         childs: [],
+        nextForBlocks: [],
       };
 
       ifCtxUnderFor.forEach((ctx) => {
@@ -398,6 +404,12 @@ export const $$lunasInitComponent = function (
           );
           if (shouldRender && !rendered && parentRendered) {
             this.ifBlocks[name].renderer();
+            this.ifBlocks[name].nextForBlocks.forEach((blkName) => {
+              const forBlk = this.forBlocks[blkName];
+              if (forBlk) {
+                forBlk.renderer();
+              }
+            });
           } else if (!shouldRender && rendered) {
             const ifBlkElm = getNestedArrayValue(
               this.refMap,
@@ -508,6 +520,7 @@ export const $$lunasInitComponent = function (
       ) => void,
       ifCtxUnderFor: string[],
       forCtx: string[],
+      prevIfCtx: string | null,
       updateFlag: number | number[],
       parentIndices: number[],
       mapInfo: [mapOffset: number, mapLength: number],
@@ -526,6 +539,7 @@ export const $$lunasInitComponent = function (
         afterRenderHook,
         ifCtxUnderFor,
         forCtx,
+        prevIfCtx,
         updateFlag,
         parentIndices,
         [mapOffset, mapLength],
@@ -533,7 +547,10 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
 
-      this.forBlocks[forBlockId] = { cleanUp: [], childs: [] };
+      if (prevIfCtx && this.ifBlocks[prevIfCtx]) {
+        this.ifBlocks[prevIfCtx].nextForBlocks.push(forBlockId);
+      }
+
       forCtx.forEach((ctx) => {
         this.forBlocks[ctx].childs.push(forBlockId);
       });
@@ -564,6 +581,12 @@ export const $$lunasInitComponent = function (
           }
         });
       }).bind(this);
+
+      this.forBlocks[forBlockId] = {
+        cleanUp: [],
+        childs: [],
+        renderer: () => renderForBlock(getDataArray()),
+      };
       renderForBlock(getDataArray());
 
       let oldItems = getDataArray();
@@ -588,7 +611,7 @@ export const $$lunasInitComponent = function (
                 cleanUp.forEach((f) => f());
                 Array.from(childs).forEach((child) => {
                   if (this.forBlocks[child]) {
-                    this.forBlocks[child]!.cleanUp.forEach((f) => f());
+                    this.forBlocks[child].cleanUp.forEach((f) => f());
                     this.forBlocks[child].cleanUp = [];
                   }
                 });

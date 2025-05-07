@@ -174,6 +174,19 @@ pub fn gen_render_for_blk_func(
             )
         };
 
+        let last_if_ctx = {
+            let last_if_ctx = for_block
+                .ctx_over_for
+                .iter()
+                .filter(|x| ctx_categories.if_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .last();
+            match last_if_ctx {
+                Some(last_if_ctx) => format!(r#""{}""#, last_if_ctx),
+                None => "null".to_string(),
+            }
+        };
+
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
@@ -259,6 +272,7 @@ pub fn gen_render_for_blk_func(
 {},
 {},
 {},
+{},
 [{}, {}],
 [{}{}]{}"#,
             for_block.target_for_blk_id,
@@ -269,6 +283,7 @@ pub fn gen_render_for_blk_func(
             for_on_create,
             context_if_extracted,
             parent_for_array,
+            last_if_ctx,
             get_combined_binary_number(dep_number),
             parent_indices,
             initial_ref_node_ids_len,
