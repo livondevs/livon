@@ -572,7 +572,8 @@ export const $$lunasInitComponent = function (
         refElementIndex?: number | number[]
       ],
       fragment?: FragmentFunc
-    ][]
+    ][],
+    indices?: number[]
   ): void {
     for (const config of forBlocksConfig) {
       const [
@@ -625,17 +626,33 @@ export const $$lunasInitComponent = function (
         });
       }).bind(this);
 
+      const toBeRendered = () => {
+        return (
+          !prevIfCtx ||
+          [prevIfCtx].every(
+            (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
+          )
+        );
+      };
+
       this.forBlocks[forBlockId] = {
         cleanUp: [],
         childs: [],
         renderer: () => renderForBlock(getDataArray()),
       };
+      if (!toBeRendered()) {
+        return;
+      }
       renderForBlock(getDataArray());
 
       let oldItems = getDataArray();
 
       this.updateComponentFuncs[0].push(
         (() => {
+          if (!toBeRendered()) {
+            return;
+          }
+
           if (bitAnd(this.valUpdateMap, updateFlag)) {
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly

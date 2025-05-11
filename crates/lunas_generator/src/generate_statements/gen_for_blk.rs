@@ -38,6 +38,7 @@ pub fn gen_render_for_blk_func(
     if_blocks_info: &Vec<IfBlockInfo>,
     for_blocks_info: &Vec<ForBlockInfo>,
     current_for_ctx: Option<&String>,
+    under_for: bool,
 ) -> Option<String> {
     let mut render_for = vec![];
 
@@ -133,6 +134,7 @@ pub fn gen_render_for_blk_func(
             &if_blocks_info,
             &for_blocks_info,
             Some(last_ctx_under_for),
+            true,
         );
 
         if let Some(render_sub_for) = render_sub_for {
@@ -314,10 +316,16 @@ pub fn gen_render_for_blk_func(
         return None;
     }
 
+    let indices = match under_for {
+        true => format!(", $$lunasForIndices"),
+        false => "".to_string(),
+    };
+
     Some(format!(
         r#"$$lunasCreateForBlock([
 {}
-]);"#,
-        create_indent(render_for.join(",\n").as_str())
+]{});"#,
+        create_indent(render_for.join(",\n").as_str()),
+        indices
     ))
 }
