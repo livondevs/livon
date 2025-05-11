@@ -131,6 +131,8 @@ mod tests {
         function_calling_rhs_1: "item of filteredItems()" => ParsedFor { iter_array: "filteredItems()".into(), item_index: None, item_value: Some("item".into()) },
         edge_case_1: "let [ k, v ] of (getObj()).items.entries()" => ParsedFor { iter_array: "(getObj()).items".into(), item_index: Some("k".into()), item_value: Some("v".into()) },
         edge_case_2: "const [idx, val] of Object.entries(await getData().then(r => r.json()))" => ParsedFor { iter_array: "await getData().then(r => r.json())".into(), item_index: Some("idx".into()), item_value: Some("val".into()) },
+        edge_case_3: "[i6] of [...Array(counts[5]).keys()]" => ParsedFor { iter_array: "[...Array(counts[5]).keys()]".into(), item_index: Some("i6".into()), item_value: None },
+        edge_case_4: "i of [...Array(bools.length).keys()]" => ParsedFor { iter_array: "[...Array(bools.length).keys()]".into(), item_index: Some("i".into()), item_value: None },
     }
 
     generate_for_error_tests! {
