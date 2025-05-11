@@ -69,7 +69,6 @@ impl ToString for Element {
             ElementVariant::Normal => {
                 string.push_str(">");
                 for child in &self.children {
-                    println!("child: {}", child.to_string());
                     string.push_str(&child.to_string());
                 }
                 string.push_str(&format!("</{}>", self.name));

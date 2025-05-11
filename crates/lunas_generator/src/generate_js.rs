@@ -241,6 +241,7 @@ pub fn generate_js_from_blocks(
         &if_blocks_info,
         &for_blocks_info,
         None,
+        false,
     );
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
