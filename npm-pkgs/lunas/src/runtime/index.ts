@@ -62,11 +62,7 @@ type LunasInternalElement = {
 
 type NestedArray<T> = (T | NestedArray<T>)[];
 
-type FragmentFunc = (
-  item?: unknown,
-  index?: number,
-  indices?: number[]
-) => Fragment[];
+type FragmentFunc = (item?: unknown, indices?: number[]) => Fragment[];
 
 class valueObj<T> {
   private _v: T;
@@ -550,17 +546,9 @@ export const $$lunasInitComponent = function (
     this: LunasComponentState,
     forBlocksConfig: [
       forBlockId: string,
-      renderItem: (
-        item: unknown,
-        index: number,
-        indices: number[]
-      ) => LunasInternalElement,
+      renderItem: (item: unknown, indices: number[]) => LunasInternalElement,
       getDataArray: () => unknown[],
-      afterRenderHook: (
-        item: unknown,
-        index: number,
-        indices: number[]
-      ) => void,
+      afterRenderHook: (item: unknown, indices: number[]) => void,
       ifCtxUnderFor: string[],
       forCtx: string[],
       prevIfCtx: string | null,
@@ -614,13 +602,13 @@ export const $$lunasInitComponent = function (
         }
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
-          const lunasElm = renderItem(item, index, fullIndices);
+          const lunasElm = renderItem(item, fullIndices);
           const domElm = _createDomElementFromLunasElement(lunasElm);
           setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
           containerElm.insertBefore(domElm, insertionPointElm);
-          afterRenderHook?.(item, index, fullIndices);
+          afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
-            const fragments = fragmentFunc(item, index, fullIndices);
+            const fragments = fragmentFunc(item, fullIndices);
             createFragments(fragments, ifCtxUnderFor, forBlockId);
           }
         });

@@ -1,4 +1,4 @@
-use lunas_parser::parse_for_statement;
+use lunas_parser::ParsedFor;
 use nanoid::nanoid;
 
 use crate::{
@@ -157,17 +157,12 @@ pub fn check_html_elms(
                             .insert("$$$conditional$$$".to_string(), None);
                         ctx_array.push(node.uuid.clone());
                     } else if key == ":for" {
-                        let for_statement = parse_for_statement(&action_value.clone().unwrap())?;
-                        let (item_name, item_index) = {
-                            (
-                                for_statement
-                                    .item_value
-                                    .unwrap_or("$$lunasForItem".to_string()),
-                                for_statement
-                                    .item_index
-                                    .unwrap_or("$$lunasForIndex".to_string()),
-                            )
+                        let action_value = match action_value.clone() {
+                            Some(val) => val,
+                            None => return Err("Missing value for :for attribute".to_string()),
                         };
+                        let for_statement =
+                            ParsedFor::parse(&action_value).map_err(|e| e.to_string())?;
 
                         let ctx_under_for = {
                             let mut ctx = ctx_array.clone();
@@ -181,9 +176,7 @@ pub fn check_html_elms(
                             manipulations: HtmlManipulation::RemoveChildForRepeatStatement(
                                 RemoveChildForRepeatStatement {
                                     child_uuid: node.uuid.clone(),
-                                    item_name,
-                                    item_index,
-                                    item_collection: for_statement.iter_array.clone(),
+                                    for_info: for_statement.clone(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
                                     ctx_under_for,
@@ -523,7 +516,7 @@ pub fn check_html_elms(
                                 false => None,
                             };
                             let (item_collection, dep_vars) = append_v_to_vars_in_html(
-                                &remove_statement.item_collection.as_str(),
+                                &remove_statement.for_info.iterable,
                                 &varibale_names,
                                 func_deps,
                                 true,
@@ -535,9 +528,9 @@ pub fn check_html_elms(
                                 target_anchor_id,
                                 node: deleted_node,
                                 ref_text_node_id,
-                                item_name: remove_statement.item_name.clone(),
-                                item_index: remove_statement.item_index.clone(),
-                                item_collection,
+                                for_info: remove_statement
+                                    .for_info
+                                    .clone_with_new_iterable(item_collection.as_str()),
                                 ctx_over_for: remove_statement.ctx_over_for.clone(),
                                 ctx_under_for: remove_statement.ctx_under_for.clone(),
                                 for_blk_id: remove_statement.block_id.clone(),

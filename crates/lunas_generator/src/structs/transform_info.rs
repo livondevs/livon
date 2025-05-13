@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lunas_parser::ParsedFor;
 use num_bigint::BigUint;
 
 use crate::{
@@ -197,9 +198,7 @@ pub struct ForBlockInfo {
     pub target_anchor_id: Option<String>,
     pub node: Node,
     pub ref_text_node_id: Option<String>,
-    pub item_name: String,
-    pub item_index: String,
-    pub item_collection: String,
+    pub for_info: ParsedFor,
     pub dep_vars: Vec<String>,
     pub ctx_under_for: Vec<String>,
     pub ctx_over_for: Vec<String>,

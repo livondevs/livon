@@ -145,11 +145,10 @@ pub fn gen_render_for_blk_func(
             "() => {}".to_string()
         } else {
             format!(
-                r#"({}, {}, $$lunasForIndices) => {{
+                r#"({}, $$lunasForIndices) => {{
 {}
 }}"#,
-                for_block.item_name,
-                for_block.item_index,
+                for_block.for_info.raw,
                 create_indent(post_render_statement.join("\n").as_str()),
             )
         };
@@ -211,8 +210,7 @@ pub fn gen_render_for_blk_func(
             .collect::<Vec<BigUint>>();
 
         let fragment_args = vec![
-            for_block.item_name.clone(),
-            for_block.item_index.clone(),
+            for_block.for_info.raw.clone(),
             "$$lunasForIndices".to_string(),
         ];
 
@@ -274,7 +272,7 @@ pub fn gen_render_for_blk_func(
         // TODO: Add comments to the generated code to clarify what each argument represents
         let create_for_func_inside = format!(
             r#""{}",
-({}, {}, $$lunasForIndices) => {},
+({}, $$lunasForIndices) => {},
 () => ({}),
 {},
 {},
@@ -285,10 +283,9 @@ pub fn gen_render_for_blk_func(
 [{}, {}],
 [{}{}]{}"#,
             for_block.target_for_blk_id,
-            for_block.item_name,
-            for_block.item_index,
+            for_block.for_info.raw,
             create_internal_element_statement,
-            for_block.item_collection,
+            for_block.for_info.iterable,
             for_on_create,
             context_if_extracted,
             parent_for_array,
