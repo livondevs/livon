@@ -597,8 +597,8 @@ export const $$lunasInitComponent = function (
           this.refMap,
           refElementIndex
         ) as HTMLElement;
-        if (!Array.isArray(items)) {
-          throw new Error(`Items should be an array but got ${typeof items}`);
+        if (!(items != null && typeof items[Symbol.iterator] === "function")) {
+          throw new Error(`Items should be an iterable object`);
         }
         items.forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
@@ -631,9 +631,8 @@ export const $$lunasInitComponent = function (
       if (!toBeRendered()) {
         return;
       }
-      renderForBlock(getDataArray());
 
-      let oldItems = getDataArray();
+      let oldItems = deepCopy(getDataArray());
 
       this.updateComponentFuncs[0].push(
         (() => {
@@ -645,17 +644,18 @@ export const $$lunasInitComponent = function (
             const newItems = getDataArray();
             // FIXME: Improve the logic to handle updates properly
             if (diffDetected(oldItems, newItems)) {
-              const refArr = this.refMap[mapOffset] as RefMapItem[];
-              // Iterate in reverse order to prevent index shift issues when removing elements
-              if (refArr) {
-                for (let i = refArr.length - 1; i >= 0; i--) {
-                  const item = refArr[i];
-                  if (item instanceof HTMLElement) {
-                    item.remove();
-                    refArr.splice(i, 1);
+              oldItems.forEach((_item, i) => {
+                const rs = resetMap(
+                  this.refMap,
+                  [mapOffset, ...parentIndices, i],
+                  mapLength
+                );
+                for (const r of rs) {
+                  if (r instanceof HTMLElement) {
+                    r.remove();
                   }
                 }
-              }
+              });
               if (this.forBlocks[forBlockId]) {
                 const { cleanUp, childs } = this.forBlocks[forBlockId];
                 cleanUp.forEach((f) => f());
@@ -669,10 +669,12 @@ export const $$lunasInitComponent = function (
               }
               renderForBlock(newItems);
             }
-            oldItems = newItems;
+            oldItems = deepCopy(newItems);
           }
         }).bind(this)
       );
+
+      renderForBlock(getDataArray());
     }
   }.bind(this);
 
@@ -1131,6 +1133,49 @@ function fillArrayWithZero(arr: number[] | number, length: number): number[] {
     array.push(0);
   }
   return array;
+}
+
+function resetMap<T>(
+  arr: NestedArray<T>,
+  mapLocation: number[],
+  length: number
+): T[] {
+  const results: T[] = [];
+  let copied = deepCopy(mapLocation); // deep copy the mapLocation
+  for (let i = 0; i < length; i++) {
+    let target: any = arr;
+    for (let i = 0; i < copied.length - 1; i++) {
+      target = target[copied[i]];
+    }
+    const lastIndex = copied[copied.length - 1];
+    const result = target[lastIndex];
+    results.push(result);
+    target[lastIndex] = undefined;
+
+    copied = addNumberToArrayInitial(copied, 1);
+  }
+
+  return results;
+}
+
+function deepCopy<T>(data: T): T {
+  if (data != null && typeof data === "object") {
+    // Check if data is an iterator (has a next method)
+    if (typeof (data as any).next === "function") {
+      return deepCopy(Array.from(data as unknown as Iterable<unknown>)) as T;
+    } else if (Array.isArray(data)) {
+      return data.map((item) => deepCopy(item)) as unknown as T;
+    } else {
+      const result: any = {};
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          result[key] = deepCopy((data as any)[key]);
+        }
+      }
+      return result;
+    }
+  }
+  return data;
 }
 
 function* bitArrayGenerator(): Generator<number[]> {
