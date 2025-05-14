@@ -39,8 +39,10 @@ pub fn gen_render_for_blk_func(
     for_blocks_info: &Vec<ForBlockInfo>,
     current_for_ctx: Option<&String>,
     under_for: bool,
-) -> Option<String> {
+) -> (Option<String>, usize) {
     let mut render_for = vec![];
+
+    let mut total_ref_node_ids_len_increase = 0;
 
     for for_block in for_block_info.iter() {
         if !for_block.check_latest_for_ctx(ctx_categories, &current_for_ctx) {
@@ -137,6 +139,7 @@ pub fn gen_render_for_blk_func(
             true,
         );
 
+        let (render_sub_for, ref_map_inc_size) = render_sub_for;
         if let Some(render_sub_for) = render_sub_for {
             post_render_statement.push(render_sub_for);
         }
@@ -195,7 +198,12 @@ pub fn gen_render_for_blk_func(
             }
         };
 
-        let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
+        let ref_node_ids_len_increase =
+            ref_node_ids.len() - initial_ref_node_ids_len - ref_map_inc_size;
+        println!("initial_ref_node_ids_len: {}", initial_ref_node_ids_len);
+        println!("ref_node_ids_len_increase: {}", ref_node_ids_len_increase);
+        println!("ref_map_inc_size: {}", ref_map_inc_size);
+        total_ref_node_ids_len_increase += ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
             .filter(|v| {
@@ -310,7 +318,7 @@ pub fn gen_render_for_blk_func(
     }
 
     if render_for.is_empty() {
-        return None;
+        return (None, 0);
     }
 
     let indices = match under_for {
@@ -318,11 +326,14 @@ pub fn gen_render_for_blk_func(
         false => "".to_string(),
     };
 
-    Some(format!(
-        r#"$$lunasCreateForBlock([
+    (
+        Some(format!(
+            r#"$$lunasCreateForBlock([
 {}
 ]{});"#,
-        create_indent(render_for.join(",\n").as_str()),
-        indices
-    ))
+            create_indent(render_for.join(",\n").as_str()),
+            indices
+        )),
+        total_ref_node_ids_len_increase,
+    )
 }
