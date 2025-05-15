@@ -26,7 +26,9 @@ export type LunasComponentState = {
   };
   ifBlockStates: Record<string, boolean>;
   blkUpdateMap: Record<string, boolean>;
-  updateComponentFuncs: (() => void)[][];
+  updateComponentFuncs: ((() => void) | undefined)[][];
+  updateForBlockFuncs: { [key: string]: (() => void)[] };
+  updateComponentInfo: any[];
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -36,7 +38,7 @@ export type LunasComponentState = {
   __lunas_apply_enhancement: () => void;
   __lunas_after_mount: () => void;
   __lunas_destroy: () => void;
-  // __lunas_init: () => void;
+  // __lunas_init: () => void;∂ç
   // __lunas_update_component: () => void;
   // __lunas_update_component_end: () => void;
   // __lunas_update_component_start: () => void;
@@ -217,6 +219,8 @@ export const $$lunasInitComponent = function (
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
+  this.updateComponentInfo = [];
+  this.updateForBlockFuncs = {};
   this.forBlocks = {};
   this.__lunas_after_mount = () => {};
   this.__lunas_destroy = () => {};
@@ -338,8 +342,19 @@ export const $$lunasInitComponent = function (
   ) {
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
-      this.updateComponentFuncs[0].forEach((f) => f());
-      this.updateComponentFuncs[1].forEach((f) => f());
+      this.updateComponentFuncs[0].forEach((f, i) => {
+        f && console.log(`exec`, i);
+        // f();
+        // if (this.updateComponentFuncs[0][i]) {
+        //   this.updateComponentFuncs[0][i]();
+        // }
+        this.updateComponentFuncs[0][i] && this.updateComponentFuncs[0][i]();
+      });
+      Object.entries(this.updateForBlockFuncs).forEach(([forBlockId, f]) => {
+        console.log(`forBlockId`, forBlockId);
+        f.forEach((f) => f());
+      });
+      this.updateComponentFuncs[1].forEach((f) => f && f());
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = [0];
@@ -588,6 +603,8 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
 
+      // console.log(`forBlockId`, forBlockId);
+
       if (prevIfCtx && this.ifBlocks[prevIfCtx]) {
         this.ifBlocks[prevIfCtx].nextForBlocks.push(forBlockId);
       }
@@ -601,6 +618,7 @@ export const $$lunasInitComponent = function (
           this.refMap,
           parentElementIndex
         ) as HTMLElement;
+        // console.log(`renderForBlock parent:`, containerElm.className);
 
         const insertionPointElm = getNestedArrayValue(
           this.refMap,
@@ -652,6 +670,7 @@ export const $$lunasInitComponent = function (
         }
 
         if (bitAnd(this.valUpdateMap, updateFlag)) {
+          console.log(`rendering forBlockId`, forBlockId);
           const newItems = Array.from(getDataArray());
           // FIXME: Improve the logic to handle updates properly
           if (diffDetected(oldItems, newItems)) {
@@ -661,54 +680,83 @@ export const $$lunasInitComponent = function (
                 [mapOffset, ...parentIndices, i],
                 mapLength
               );
-              console.log(rs.length);
               for (const r of rs) {
-                console.log(r);
                 if (r instanceof HTMLElement) {
                   r.remove();
                 }
               }
             });
             if (this.forBlocks[forBlockId]) {
+              console.log("XXX", forBlockId);
               const { cleanUp, childs } = this.forBlocks[forBlockId];
               cleanUp.forEach((f) => f());
-              Array.from(childs).forEach((child) => {
-                (function recursiveCleanup(
-                  this: LunasComponentState,
-                  child: string
-                ) {
-                  if (this.forBlocks[child]) {
-                    // Execute cleanup for nested children first
-                    this.forBlocks[child].childs.forEach(
-                      (nestedChild: string) => {
-                        recursiveCleanup.call(this, nestedChild);
-                      }
-                    );
-                    // Execute and clear the cleanup functions for this block
-                    this.forBlocks[child].cleanUp.forEach((f) => f());
-                    this.forBlocks[child].cleanUp = [];
-                  }
-                }).call(this, child);
-              });
-              this.forBlocks[forBlockId].cleanUp = [];
+              //   Array.from(childs).forEach((child) => {
+              //   //   (function recursiveCleanup(
+              //   //     this: LunasComponentState,
+              //   //     child: string
+              //   //   ) {
+              //   //     if (this.forBlocks[child]) {
+              //   //       // Execute cleanup for nested children first
+              //   //       console.log(this.forBlocks[child].childs, "をclean up中");
+              //   //       this.forBlocks[child].childs.forEach(
+              //   //         (nestedChild: string) => {
+              //   //           recursiveCleanup.call(this, nestedChild);
+              //   //         }
+              //   //       );
+              //   //       // Execute and clear the cleanup functions for this block
+              //   //       this.forBlocks[child].cleanUp.forEach((f) => f());
+              //   //       this.forBlocks[child].cleanUp = [];
+              //   //     }
+              //   //   }).call(this, child);
+              //   // });
+              //   // // this.forBlocks[forBlockId].cleanUp = [];
+              //   // this.forBlocks[forBlockId].childs = [];
+              // }
             }
+            console.log("new", newItems);
             renderForBlock(newItems);
           }
-          console.log(`forBlockId`, forBlockId);
-          console.log("oldItems", oldItems);
-          console.log("to be copied", newItems);
           oldItems = deepCopy(newItems);
-          console.log("oldItems", oldItems);
         }
       }).bind(this);
-      this.updateComponentFuncs[0].push(updateFunc);
+      // this.updateComponentFuncs[0].push(updateFunc);
+      if (!this.updateForBlockFuncs[forBlockId]) {
+        this.updateForBlockFuncs[forBlockId] = [];
+      }
+      this.updateForBlockFuncs[forBlockId].push(updateFunc);
+      const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
       const latestForName = forCtx[forCtx.length - 1];
       if (latestForName) {
         const cleanUpFunc = (() => {
-          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
-          this.updateComponentFuncs[0].splice(idx, 1);
+          console.log(`resetting`, forBlockId);
+          delete this.updateForBlockFuncs[forBlockId];
+          // delete this.updateForBlockFuncs[forBlockId];
+          // childのcleanupを実行
+          const childs = this.forBlocks[latestForName].childs;
+          childs.forEach((child) => {
+            if (this.forBlocks[child]) {
+              this.forBlocks[child].cleanUp.forEach((f) => f());
+              this.updateForBlockFuncs[forBlockId] = [];
+              this.forBlocks[child].cleanUp = [];
+              this.forBlocks[child].childs = [];
+            }
+          });
+          this.updateForBlockFuncs[forBlockId] = [];
         }).bind(this);
+        // const cleanUpFunc = ((_updateFunc: () => void) => {
+        //   console.log(forBlockId, "をリセット中");
+        //   const idx = this.updateComponentFuncs[0].indexOf(_updateFunc);
+        //   // console.log(`cleanUpFunc`, idx, this.updateComponentFuncs[0][idx]);
+        //   // this.updateComponentFuncs[0].splice(idx, 1);
+        //   console.log(idx);
+        //   // this.updateComponentFuncs[0][idx] = undefined;
+        //   // console.log(`cleanUpFunc2`, idx, this.updateComponentFuncs[0][idx]);
+        // }).bind(this, updateFunc);
         this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+        this.updateComponentInfo[idx] = {
+          forBlockId,
+          cleanup: latestForName,
+        };
       }
 
       renderForBlock(getDataArray());
