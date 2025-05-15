@@ -479,6 +479,15 @@ export const $$lunasInitComponent = function (
 
       this.updateComponentFuncs[0].push(updateFunc);
 
+      const latestForName = forCtx[forCtx.length - 1];
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+          this.updateComponentFuncs[0].splice(idx, 1);
+        }).bind(this);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+      }
+
       if (ifCtxUnderFor.length === 0) {
         condition() && this.ifBlocks[name].renderer();
       } else {
@@ -600,7 +609,7 @@ export const $$lunasInitComponent = function (
         if (!(items != null && typeof items[Symbol.iterator] === "function")) {
           throw new Error(`Items should be an iterable object`);
         }
-        items.forEach((item, index) => {
+        Array.from(items).forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
           const lunasElm = renderItem(item, fullIndices);
           const domElm = _createDomElementFromLunasElement(lunasElm);
@@ -632,47 +641,75 @@ export const $$lunasInitComponent = function (
         return;
       }
 
+      // console.log(`forBlockId`, forBlockId);
+      // console.log(`before copy`, getDataArray());
       let oldItems = deepCopy(getDataArray());
+      // console.log(`after copy`, oldItems);
 
-      this.updateComponentFuncs[0].push(
-        (() => {
-          if (!toBeRendered()) {
-            return;
-          }
+      const updateFunc = (() => {
+        if (!toBeRendered()) {
+          return;
+        }
 
-          if (bitAnd(this.valUpdateMap, updateFlag)) {
-            const newItems = getDataArray();
-            // FIXME: Improve the logic to handle updates properly
-            if (diffDetected(oldItems, newItems)) {
-              oldItems.forEach((_item, i) => {
-                const rs = resetMap(
-                  this.refMap,
-                  [mapOffset, ...parentIndices, i],
-                  mapLength
-                );
-                for (const r of rs) {
-                  if (r instanceof HTMLElement) {
-                    r.remove();
-                  }
+        if (bitAnd(this.valUpdateMap, updateFlag)) {
+          const newItems = Array.from(getDataArray());
+          // FIXME: Improve the logic to handle updates properly
+          if (diffDetected(oldItems, newItems)) {
+            oldItems.forEach((_item, i) => {
+              const rs = resetMap(
+                this.refMap,
+                [mapOffset, ...parentIndices, i],
+                mapLength
+              );
+              console.log(rs.length);
+              for (const r of rs) {
+                console.log(r);
+                if (r instanceof HTMLElement) {
+                  r.remove();
                 }
-              });
-              if (this.forBlocks[forBlockId]) {
-                const { cleanUp, childs } = this.forBlocks[forBlockId];
-                cleanUp.forEach((f) => f());
-                Array.from(childs).forEach((child) => {
+              }
+            });
+            if (this.forBlocks[forBlockId]) {
+              const { cleanUp, childs } = this.forBlocks[forBlockId];
+              cleanUp.forEach((f) => f());
+              Array.from(childs).forEach((child) => {
+                (function recursiveCleanup(
+                  this: LunasComponentState,
+                  child: string
+                ) {
                   if (this.forBlocks[child]) {
+                    // Execute cleanup for nested children first
+                    this.forBlocks[child].childs.forEach(
+                      (nestedChild: string) => {
+                        recursiveCleanup.call(this, nestedChild);
+                      }
+                    );
+                    // Execute and clear the cleanup functions for this block
                     this.forBlocks[child].cleanUp.forEach((f) => f());
                     this.forBlocks[child].cleanUp = [];
                   }
-                });
-                this.forBlocks[forBlockId].cleanUp = [];
-              }
-              renderForBlock(newItems);
+                }).call(this, child);
+              });
+              this.forBlocks[forBlockId].cleanUp = [];
             }
-            oldItems = deepCopy(newItems);
+            renderForBlock(newItems);
           }
-        }).bind(this)
-      );
+          console.log(`forBlockId`, forBlockId);
+          console.log("oldItems", oldItems);
+          console.log("to be copied", newItems);
+          oldItems = deepCopy(newItems);
+          console.log("oldItems", oldItems);
+        }
+      }).bind(this);
+      this.updateComponentFuncs[0].push(updateFunc);
+      const latestForName = forCtx[forCtx.length - 1];
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
+          this.updateComponentFuncs[0].splice(idx, 1);
+        }).bind(this);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+      }
 
       renderForBlock(getDataArray());
     }

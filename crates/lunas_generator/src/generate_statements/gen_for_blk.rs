@@ -200,9 +200,6 @@ pub fn gen_render_for_blk_func(
 
         let ref_node_ids_len_increase =
             ref_node_ids.len() - initial_ref_node_ids_len - ref_map_inc_size;
-        println!("initial_ref_node_ids_len: {}", initial_ref_node_ids_len);
-        println!("ref_node_ids_len_increase: {}", ref_node_ids_len_increase);
-        println!("ref_map_inc_size: {}", ref_map_inc_size);
         total_ref_node_ids_len_increase += ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
