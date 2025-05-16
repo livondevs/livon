@@ -601,8 +601,8 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
 
-      if (prevIfCtx && this.ifBlocks[prevIfCtx]) {
-        this.ifBlocks[prevIfCtx].nextForBlocks.push(forBlockId);
+      if (prevIfCtx && this.ifBlocks[`${prevIfCtx}-${indices}`]) {
+        this.ifBlocks[`${prevIfCtx}-${indices}`].nextForBlocks.push(forBlockId);
       }
 
       forCtx.forEach((ctx) => {
