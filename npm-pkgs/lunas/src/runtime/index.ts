@@ -702,7 +702,6 @@ export const $$lunasInitComponent = function (
       if (latestForName) {
         const cleanUpFunc = (() => {
           delete this.updateForBlockFuncs[forBlockId];
-          this.updateForBlockFuncs[forBlockId] = [];
           const childs = this.forBlocks[latestForName].childs;
           childs.forEach((child) => {
             if (this.forBlocks[child]) {
