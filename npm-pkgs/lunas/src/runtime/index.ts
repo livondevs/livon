@@ -28,7 +28,6 @@ export type LunasComponentState = {
   blkUpdateMap: Record<string, boolean>;
   updateComponentFuncs: ((() => void) | undefined)[][];
   updateForBlockFuncs: { [key: string]: (() => void)[] };
-  updateComponentInfo: any[];
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -219,7 +218,6 @@ export const $$lunasInitComponent = function (
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
-  this.updateComponentInfo = [];
   this.updateForBlockFuncs = {};
   this.forBlocks = {};
   this.__lunas_after_mount = () => {};
@@ -342,14 +340,22 @@ export const $$lunasInitComponent = function (
   ) {
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
-      this.updateComponentFuncs[0].forEach((f) => {
-        f && f();
-      });
-      const key = Object.keys(this.updateForBlockFuncs);
-      for (const forBlockId of key) {
-        const funcs = this.updateForBlockFuncs[forBlockId];
+      this.updateComponentFuncs[0].forEach((f) => f && f());
+      const forBlockIds = Object.keys(this.updateForBlockFuncs);
+
+      const funcsSnapshot: { [key: string]: (() => void)[] } = {};
+      for (const id of forBlockIds) {
+        funcsSnapshot[id] = this.updateForBlockFuncs[id].slice();
+      }
+
+      for (const oldKey of forBlockIds) {
+        const funcs = this.updateForBlockFuncs[oldKey] ?? [];
+        console.log(funcs);
         for (const func of funcs) {
-          func();
+          console.log(funcsSnapshot[oldKey].indexOf(func));
+          if (funcsSnapshot[oldKey].indexOf(func) !== -1) {
+            func();
+          }
         }
       }
       this.updateComponentFuncs[1].forEach((f) => f && f());
@@ -697,7 +703,6 @@ export const $$lunasInitComponent = function (
       }
       this.updateForBlockFuncs[forBlockId].push(updateFunc);
 
-      const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
       const latestForName = forCtx[forCtx.length - 1];
       if (latestForName) {
         const cleanUpFunc = (() => {
@@ -713,10 +718,6 @@ export const $$lunasInitComponent = function (
           });
         }).bind(this);
         this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
-        this.updateComponentInfo[idx] = {
-          forBlockId,
-          cleanup: latestForName,
-        };
       }
 
       renderForBlock(getDataArray());
@@ -1188,8 +1189,10 @@ function resetMap<T>(
   const results: T[] = [];
   let copied = deepCopy(mapLocation); // deep copy the mapLocation
   for (let i = 0; i < length; i++) {
+    // console.log({ copied });
     let target: any = arr;
     for (let i = 0; i < copied.length - 1; i++) {
+      // console.log(copied[i], i);
       target = target[copied[i]];
     }
     const lastIndex = copied[copied.length - 1];
