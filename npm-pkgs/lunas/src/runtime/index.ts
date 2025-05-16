@@ -350,9 +350,7 @@ export const $$lunasInitComponent = function (
 
       for (const oldKey of forBlockIds) {
         const funcs = this.updateForBlockFuncs[oldKey] ?? [];
-        console.log(funcs);
         for (const func of funcs) {
-          console.log(funcsSnapshot[oldKey].indexOf(func));
           if (funcsSnapshot[oldKey].indexOf(func) !== -1) {
             func();
           }
@@ -1189,10 +1187,8 @@ function resetMap<T>(
   const results: T[] = [];
   let copied = deepCopy(mapLocation); // deep copy the mapLocation
   for (let i = 0; i < length; i++) {
-    // console.log({ copied });
     let target: any = arr;
     for (let i = 0; i < copied.length - 1; i++) {
-      // console.log(copied[i], i);
       target = target[copied[i]];
     }
     const lastIndex = copied[copied.length - 1];
