@@ -8,6 +8,17 @@ export type LunasModuleExports = {
   __unmount: () => void;
 };
 
+enum BlockType {
+  IF = "IF",
+  FOR = "FOR",
+}
+
+export type UpdateBlockFuncs = {
+  name: string;
+  type: BlockType;
+  updateFuncs: (() => void)[];
+}[];
+
 export type LunasComponentState = {
   updatedFlag: boolean;
   valUpdateMap: number[];
@@ -27,7 +38,7 @@ export type LunasComponentState = {
   ifBlockStates: Record<string, boolean>;
   blkUpdateMap: Record<string, boolean>;
   updateComponentFuncs: ((() => void) | undefined)[][];
-  updateForBlockFuncs: { [key: string]: (() => void)[] };
+  updateBlockFuncs: UpdateBlockFuncs;
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -218,7 +229,7 @@ export const $$lunasInitComponent = function (
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
-  this.updateForBlockFuncs = {};
+  this.updateBlockFuncs = [];
   this.forBlocks = {};
   this.__lunas_after_mount = () => {};
   this.__lunas_destroy = () => {};
@@ -341,15 +352,19 @@ export const $$lunasInitComponent = function (
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
       this.updateComponentFuncs[0].forEach((f) => f && f());
-      const forBlockIds = Object.keys(this.updateForBlockFuncs);
+      const forBlockIds = this.updateBlockFuncs.map((blk) => blk.name);
 
       const funcsSnapshot: { [key: string]: (() => void)[] } = {};
       for (const id of forBlockIds) {
-        funcsSnapshot[id] = this.updateForBlockFuncs[id].slice();
+        funcsSnapshot[id] = this.updateBlockFuncs
+          .find((blk) => blk.name === id)!
+          .updateFuncs.slice();
       }
 
       for (const oldKey of forBlockIds) {
-        const funcs = this.updateForBlockFuncs[oldKey] ?? [];
+        const funcs = this.updateBlockFuncs.find(
+          (blk) => blk.name === oldKey
+        )!.updateFuncs;
         for (const func of funcs) {
           if (funcsSnapshot[oldKey].indexOf(func) !== -1) {
             func();
@@ -494,13 +509,22 @@ export const $$lunasInitComponent = function (
         }
       }).bind(this);
 
-      this.updateComponentFuncs[0].push(updateFunc);
+      if (!this.updateBlockFuncs.find((blk) => blk.name === name)) {
+        this.updateBlockFuncs.push({
+          name,
+          type: BlockType.IF,
+          updateFuncs: [],
+        });
+      }
+      this.updateBlockFuncs
+        .find((blk) => blk.name === name)!
+        .updateFuncs.push(updateFunc);
 
       const latestForName = forCtx[forCtx.length - 1];
       if (latestForName) {
         const cleanUpFunc = (() => {
-          const idx = this.updateComponentFuncs[0].indexOf(updateFunc);
-          this.updateComponentFuncs[0].splice(idx, 1);
+          this.updateBlockFuncs.find((blk) => blk.name === name)!.updateFuncs =
+            [];
         }).bind(this);
         this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
       }
@@ -696,20 +720,33 @@ export const $$lunasInitComponent = function (
         }
       }).bind(this);
 
-      if (!this.updateForBlockFuncs[forBlockId]) {
-        this.updateForBlockFuncs[forBlockId] = [];
+      if (!this.updateBlockFuncs.find((blk) => blk.name === forBlockId)) {
+        this.updateBlockFuncs.push({
+          name: forBlockId,
+          type: BlockType.FOR,
+          updateFuncs: [],
+        });
       }
-      this.updateForBlockFuncs[forBlockId].push(updateFunc);
+      const forBlock = this.updateBlockFuncs.find(
+        (blk) => blk.name === forBlockId
+      );
+      if (forBlock) {
+        forBlock.updateFuncs.push(updateFunc);
+      }
 
       const latestForName = forCtx[forCtx.length - 1];
       if (latestForName) {
         const cleanUpFunc = (() => {
-          delete this.updateForBlockFuncs[forBlockId];
+          this.updateBlockFuncs.find(
+            (blk) => blk.name === forBlockId
+          )!.updateFuncs = [];
           const childs = this.forBlocks[latestForName].childs;
           childs.forEach((child) => {
             if (this.forBlocks[child]) {
               this.forBlocks[child].cleanUp.forEach((f) => f());
-              this.updateForBlockFuncs[forBlockId] = [];
+              this.updateBlockFuncs.find(
+                (blk) => blk.name === forBlockId
+              )!.updateFuncs = [];
               this.forBlocks[child].cleanUp = [];
               this.forBlocks[child].childs = [];
             }
