@@ -36,4 +36,4 @@ pub fn parse_lunas_script_file(input: &str) -> Result<JsBlock, String> {
     parse_lunas_script(input)
 }
 
-pub use for_parser::for_parser::{parse_for_statement, ParsedFor};
+pub use for_parser::for_parser::ParsedFor;

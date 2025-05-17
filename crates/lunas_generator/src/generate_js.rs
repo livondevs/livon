@@ -227,7 +227,7 @@ pub fn generate_js_from_blocks(
         None,
         false,
     );
-    let render_for = gen_render_for_blk_func(
+    let (render_for, _) = gen_render_for_blk_func(
         &for_blocks_info,
         &ref_map,
         &action_and_target,
