@@ -49,6 +49,14 @@ pub fn gen_render_for_blk_func(
             continue;
         }
 
+        let if_blk_name = match under_for {
+            true => format!(
+                "() => `{}-${{$$lunasForIndices}}`",
+                for_block.target_for_blk_id
+            ),
+            false => format!("\"{}\"", for_block.target_for_blk_id),
+        };
+
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &for_block.node.content {
             NodeContent::Element(elm) => {
@@ -276,7 +284,7 @@ pub fn gen_render_for_blk_func(
 
         // TODO: Add comments to the generated code to clarify what each argument represents
         let create_for_func_inside = format!(
-            r#""{}",
+            r#"{},
 ({}, $$lunasForIndices) => {},
 () => ({}),
 {},
@@ -287,7 +295,7 @@ pub fn gen_render_for_blk_func(
 {},
 [{}, {}],
 [{}{}]{}"#,
-            for_block.target_for_blk_id,
+            if_blk_name,
             for_block.for_info.raw,
             create_internal_element_statement,
             for_block.for_info.iterable,
