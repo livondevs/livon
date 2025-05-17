@@ -439,6 +439,7 @@ export const $$lunasInitComponent = function (
           if (fragments) {
             createFragments(
               fragments,
+              indices,
               [...ifCtxUnderFor, ifBlockId],
               forCtx[forCtx.length - 1]
             );
@@ -677,7 +678,7 @@ export const $$lunasInitComponent = function (
           afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
             const fragments = fragmentFunc(item, fullIndices);
-            createFragments(fragments, ifCtxUnderFor, forBlockId);
+            createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
           }
         });
       }).bind(this);
@@ -823,6 +824,7 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
+    indices: number[] | undefined,
     ifCtx?: string[],
     latestForName?: string
   ) {
@@ -876,7 +878,12 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+        const popedIndices = copyAndPopArray(indices!);
+        const latestForNameWithIndices =
+          popedIndices.length > 0
+            ? `${latestForName}-${popedIndices}`
+            : latestForName;
+        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
       }
     }
   }.bind(this);
