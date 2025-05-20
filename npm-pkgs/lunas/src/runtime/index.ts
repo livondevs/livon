@@ -878,7 +878,7 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        const popedIndices = copyAndPopArray(indices!);
+        const popedIndices = indices ? copyAndPopArray(indices) : [];
         const latestForNameWithIndices =
           popedIndices.length > 0
             ? `${latestForName}-${popedIndices}`
