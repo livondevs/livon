@@ -216,7 +216,6 @@ fn power_of_two_generator(init: u32) -> impl FnMut() -> BigUint {
         result
     }
 }
-
 pub fn search_json(
     json: &Value,
     raw_js: &str,
@@ -374,12 +373,28 @@ pub fn search_json(
             }
             // Recurse into all fields if not replaced.
             for (key, value) in obj {
-                if key == "property" {
-                    continue;
-                }
                 if obj.get("type").and_then(Value::as_str) == Some("KeyValueProperty")
                     && key == "key"
                 {
+                    continue;
+                }
+                if key == "property" {
+                    // If the property is a computed property, process its children.
+                    if let Value::Object(prop_obj) = value {
+                        if prop_obj.get("type").and_then(Value::as_str) == Some("Computed") {
+                            search_json(
+                                value,
+                                raw_js,
+                                variables,
+                                &next_parents,
+                                delete_imports,
+                                transforms,
+                                imports_out,
+                                dep_vars_out,
+                                funcs_out,
+                            );
+                        }
+                    }
                     continue;
                 }
                 search_json(
@@ -644,6 +659,18 @@ mod tests {
         },
         TestExpected {
             output_js: "function test() { return { obj: obj.v } };".to_string()
+        }
+    );
+
+    generate_for_test!(
+        test_function_object_property_shorthand_no_transform,
+        TestInput {
+            raw_js: "function test() { obj[key] = value; }".to_string(),
+            variables: vec!["obj".to_string(), "key".to_string()],
+            is_module: true
+        },
+        TestExpected {
+            output_js: "function test() { obj.v[key.v] = value; }".to_string()
         }
     );
 }
