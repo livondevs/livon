@@ -829,7 +829,7 @@ export const $$lunasInitComponent = function (
     latestForName?: string
   ) {
     for (const [
-      [textContent, attributeName],
+      [textContent, attributeName, defaultValue],
       _nodeIdx,
       depBit,
       fragmentType,
@@ -856,6 +856,7 @@ export const $$lunasInitComponent = function (
           $$lunasReplaceAttr(
             attributeName!,
             textContent(),
+            defaultValue,
             target as HTMLElement
           );
         } else {
@@ -869,6 +870,7 @@ export const $$lunasInitComponent = function (
         $$lunasReplaceAttr(
           attributeName!,
           textContent(),
+          defaultValue,
           target as HTMLElement
         );
       }
@@ -1034,6 +1036,7 @@ export function $$lunasReplaceText(content: any, elm: Node) {
 export function $$lunasReplaceAttr(
   key: string,
   content: any,
+  defaultValue: string | undefined,
   elm: HTMLElement
 ) {
   if (typeof content === "boolean") {
@@ -1044,10 +1047,11 @@ export function $$lunasReplaceAttr(
     }
     return;
   } else if (typeof content === "object") {
-    const attrStr = Object.keys(content)
+    let attrVal = defaultValue ? `${defaultValue} ` : "";
+    attrVal += Object.keys(content)
       .filter((k) => content[k])
       .join(" ");
-    elm.setAttribute(key, attrStr);
+    elm.setAttribute(key, attrVal);
   } else {
     if (content === undefined && elm.hasAttribute(key)) {
       elm.removeAttribute(key);
@@ -1100,7 +1104,11 @@ export const $$lunasCreateNonReactive = function <T>(
 // };
 
 type Fragment = [
-  content: [textContent: () => string, attributeName?: string],
+  content: [
+    textContent: () => string,
+    attributeName?: string,
+    defaultValue?: string
+  ],
   nodeIdx: number[] | number,
   depBit: number | number[],
   fragmentType: FragmentType
