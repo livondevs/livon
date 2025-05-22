@@ -107,6 +107,15 @@ pub fn find_variable_declarations(
             if let Some(Value::Object(decl_obj)) = maybe_decl {
                 if let Some(Value::Array(declarations)) = decl_obj.get("declarations") {
                     for declaration in declarations {
+                        // Skip if the initializer is an ArrowFunctionExpression
+                        if let Some(init) = declaration.get("init") {
+                            if init.get("type").and_then(Value::as_str)
+                                == Some("ArrowFunctionExpression")
+                            {
+                                continue;
+                            }
+                        }
+
                         // Extract the variable name
                         let name = declaration
                             .get("id")
