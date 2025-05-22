@@ -38,6 +38,7 @@ pub fn gen_render_for_blk_func(
     if_blocks_info: &Vec<IfBlockInfo>,
     for_blocks_info: &Vec<ForBlockInfo>,
     current_for_ctx: Option<&String>,
+    under_for: bool,
 ) -> Option<String> {
     let mut render_for = vec![];
 
@@ -133,6 +134,7 @@ pub fn gen_render_for_blk_func(
             &if_blocks_info,
             &for_blocks_info,
             Some(last_ctx_under_for),
+            true,
         );
 
         if let Some(render_sub_for) = render_sub_for {
@@ -179,6 +181,19 @@ pub fn gen_render_for_blk_func(
                     .collect::<Vec<String>>()
                     .join(",")
             )
+        };
+
+        let last_if_ctx = {
+            let last_if_ctx = for_block
+                .ctx_over_for
+                .iter()
+                .filter(|x| ctx_categories.if_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .last();
+            match last_if_ctx {
+                Some(last_if_ctx) => format!(r#""{}""#, last_if_ctx),
+                None => "null".to_string(),
+            }
         };
 
         let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
@@ -266,6 +281,7 @@ pub fn gen_render_for_blk_func(
 {},
 {},
 {},
+{},
 [{}, {}],
 [{}{}]{}"#,
             for_block.target_for_blk_id,
@@ -276,6 +292,7 @@ pub fn gen_render_for_blk_func(
             for_on_create,
             context_if_extracted,
             parent_for_array,
+            last_if_ctx,
             get_combined_binary_number(dep_number),
             parent_indices,
             initial_ref_node_ids_len,
@@ -299,10 +316,16 @@ pub fn gen_render_for_blk_func(
         return None;
     }
 
+    let indices = match under_for {
+        true => format!(", $$lunasForIndices"),
+        false => "".to_string(),
+    };
+
     Some(format!(
         r#"$$lunasCreateForBlock([
 {}
-]);"#,
-        create_indent(render_for.join(",\n").as_str())
+]{});"#,
+        create_indent(render_for.join(",\n").as_str()),
+        indices
     ))
 }
