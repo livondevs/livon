@@ -226,7 +226,7 @@ pub fn generate_js_from_blocks(
         &ctx_cats,
         None,
         false,
-    );
+    )?;
     let (render_for, _) = gen_render_for_blk_func(
         &for_blocks_info,
         &ref_map,
@@ -242,7 +242,7 @@ pub fn generate_js_from_blocks(
         &for_blocks_info,
         None,
         false,
-    );
+    )?;
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
     let render_component = gen_render_custom_component_statements(
@@ -251,7 +251,7 @@ pub fn generate_js_from_blocks(
         &variable_names,
         &mut ref_node_ids,
         false,
-    );
+    )?;
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
             &custom_component_blocks_info,

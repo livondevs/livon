@@ -552,9 +552,9 @@ mod tests {
                 let mut funcs = Vec::new();
 
                 let parsed_json = if is_module {
-                    to_value(parse_module_with_swc(&raw_js)).unwrap()
+                    to_value(parse_module_with_swc(&raw_js).unwrap()).unwrap()
                 } else {
-                    to_value(parse_expr_with_swc(&raw_js)).unwrap()
+                    to_value(parse_expr_with_swc(&raw_js).unwrap()).unwrap()
                 };
                 // println!("AST: {:?}", parsed_json);
                 search_json(
