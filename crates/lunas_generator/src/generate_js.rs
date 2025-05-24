@@ -20,7 +20,7 @@ use crate::{
         html_utils::{check_html_elms, create_lunas_internal_component_statement},
         imports::generate_import_string,
         inputs::generate_input_variable_decl,
-        js_utils::analyze_js,
+        js_utils::{analyze_js, load_lunas_script_variables},
         router::generate_router_initialization_code,
     },
 };
@@ -92,10 +92,20 @@ pub fn generate_js_from_blocks(
 
     let props_assignment = generate_input_variable_decl(&inputs, &mut variables);
 
-    let (variable_names, imports_in_script, js_output, js_func_deps) =
+    let mut codes = vec![];
+
+    let (imports_in_script, (js_output, js_output_tail), js_func_deps, lun_imports) =
         analyze_js(blocks, inputs.len() as u32, &mut variables);
 
-    let mut codes = vec![js_output];
+    codes.push(js_output);
+
+    if lun_imports.len() > 0 {
+        codes.push(load_lunas_script_variables(&lun_imports));
+    }
+
+    if js_output_tail.len() > 0 {
+        codes.push(js_output_tail);
+    }
 
     imports.extend(imports_in_script.clone());
     for use_component in use_component_statements {
@@ -122,9 +132,14 @@ pub fn generate_js_from_blocks(
     let mut ref_node_ids = vec![];
     let mut new_node = Node::new_from_dom(&blocks.detailed_language_blocks.dom)?;
 
+    let variable_names = &variables
+        .iter()
+        .map(|v| v.name.clone())
+        .collect::<Vec<String>>();
+
     // Analyze HTML
     check_html_elms(
-        &variable_names,
+        variable_names,
         &component_names,
         &js_func_deps,
         &mut new_node,
@@ -161,6 +176,7 @@ pub fn generate_js_from_blocks(
         create_lunas_internal_component_statement(&new_elm, "$$lunasSetComponentElement")
     );
     codes.push(html_insert);
+
     match props_assignment.is_some() {
         true => codes.insert(0, props_assignment.unwrap()),
         false => {}
@@ -211,7 +227,7 @@ pub fn generate_js_from_blocks(
         None,
         false,
     );
-    let render_for = gen_render_for_blk_func(
+    let (render_for, _) = gen_render_for_blk_func(
         &for_blocks_info,
         &ref_map,
         &action_and_target,
@@ -225,6 +241,7 @@ pub fn generate_js_from_blocks(
         &if_blocks_info,
         &for_blocks_info,
         None,
+        false,
     );
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
@@ -238,6 +255,7 @@ pub fn generate_js_from_blocks(
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
             &custom_component_blocks_info,
+            &ref_node_ids,
         )?);
     }
     after_mount_code_array.extend(render_component);
@@ -291,7 +309,7 @@ fn gen_full_code(
         r#"import {{ $$lunasEscapeHtml, $$lunasInitComponent, $$lunasReplaceText, $$lunasReplaceAttr, $$createLunasElement, $$lunasCreateNonReactive }} from "{}";{}
 
 export default function(args = {{}}) {{
-    const {{ $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasAfterUnmount, $$lunasApplyEnhancement, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent }} = new $$lunasInitComponent(args{});
+    const {{ $$lunasGetElm, $$lunasSetImportVars, $$lunasSetComponentElement, $$lunasComponentReturn, $$lunasAfterMount, $$lunasAfterUnmount, $$lunasApplyEnhancement, $$lunasReactive, $$lunasCreateIfBlock, $$lunasCreateForBlock, $$lunasInsertEmpty, $$lunasGetElmRefs, $$lunasAddEvListener, $$lunasInsertTextNodes, $$lunasCreateFragments, $$lunasInsertComponent, $$lunasMountComponent, $$lunasWatch }} = new $$lunasInitComponent(args{});
 {}
 }}
 "#,

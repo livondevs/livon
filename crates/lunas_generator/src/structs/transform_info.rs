@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lunas_parser::ParsedFor;
 use num_bigint::BigUint;
 
 use crate::{
@@ -14,6 +15,7 @@ pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
     ReplaceText(ReplaceText),
+    MoveToTheEnd(MoveToTheEnd),
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +36,12 @@ pub struct ReplaceText {
     pub start_position: u32,
     pub end_position: u32,
     pub string: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct MoveToTheEnd {
+    pub start_position: u32,
+    pub end_position: u32,
 }
 
 #[derive(Debug)]
@@ -116,14 +124,17 @@ impl ToString for EventTarget {
 }
 
 impl EventTarget {
-    pub fn new(content: String, variables: &Vec<String>, func_deps: &Vec<JsFunctionDeps>) -> Self {
+    pub fn new(
+        content: String,
+        variables: &Vec<String>,
+        func_deps: &Vec<JsFunctionDeps>,
+    ) -> Result<Self, String> {
         // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
         if word_is_one_word(content.as_str()) {
-            EventTarget::RefToFunction(content)
+            Ok(EventTarget::RefToFunction(content))
         } else {
-            EventTarget::Statement(
-                append_v_to_vars_in_html(content.as_str(), &variables, func_deps).0,
-            )
+            let content = append_v_to_vars_in_html(content.as_str(), variables, func_deps, true)?;
+            Ok(EventTarget::Statement(content.0))
         }
     }
 }
@@ -187,9 +198,7 @@ pub struct ForBlockInfo {
     pub target_anchor_id: Option<String>,
     pub node: Node,
     pub ref_text_node_id: Option<String>,
-    pub item_name: String,
-    pub item_index: String,
-    pub item_collection: String,
+    pub for_info: ParsedFor,
     pub dep_vars: Vec<String>,
     pub ctx_under_for: Vec<String>,
     pub ctx_over_for: Vec<String>,
