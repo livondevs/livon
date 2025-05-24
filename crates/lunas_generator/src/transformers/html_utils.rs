@@ -219,6 +219,7 @@ pub fn check_html_elms(
                                             attribute_key: binding_attr.to_string(),
                                             content_of_attr: format!("{}.v", value),
                                             variable_names: vec![value.clone()],
+                                            default_value: None,
                                         }],
                                         ctx: ctx_array.clone(),
                                         elm_loc: element_location.clone(),
@@ -246,6 +247,18 @@ pub fn check_html_elms(
 
                         let reactive_attr_info =
                             find_reactive_attr_from_id(&id, elm_and_var_relation);
+
+                        let raw_key_value = {
+                            if raw_attr_name == "id" {
+                                None
+                            } else if let Some(value) = element.attributes.get(raw_attr_name) {
+                                let val = value.clone();
+                                element.attributes.remove(raw_attr_name);
+                                val
+                            } else {
+                                None
+                            }
+                        };
 
                         // if elm_and_var_relation includes elm_id
 
@@ -286,6 +299,7 @@ pub fn check_html_elms(
                             attribute_key: raw_attr_name.to_string(),
                             content_of_attr: raw_attr_value,
                             variable_names: used_vars,
+                            default_value: raw_key_value.clone(),
                         };
 
                         reactive_attr_info.reactive_attr.push(reactive_attr);
