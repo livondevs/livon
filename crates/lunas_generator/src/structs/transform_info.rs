@@ -274,18 +274,18 @@ pub struct ComponentArg {
 }
 
 impl ComponentArg {
-    fn to_string(&self, variable_names: &Vec<String>) -> String {
+    fn to_string(&self, variable_names: &Vec<String>) -> Result<String, String> {
         if self.bind {
             // TODO: delete unwrap and add support for boolean attributes
             let value_converted_to_obj =
-                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names);
-            format!("\"{}\": {}", self.name, value_converted_to_obj)
+                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names)?;
+            Ok(format!("\"{}\": {}", self.name, value_converted_to_obj))
         } else {
-            format!(
+            Ok(format!(
                 "\"{}\": $$lunasCreateNonReactive(\"{}\")",
                 self.name,
                 self.value.clone().unwrap()
-            )
+            ))
         }
     }
 }
@@ -313,16 +313,16 @@ impl ComponentArgs {
         ComponentArgs { args }
     }
 
-    pub fn to_object(&self, variable_names: &Vec<String>) -> String {
+    pub fn to_object(&self, variable_names: &Vec<String>) -> Result<String, String> {
         let obj_value = {
             let mut args_str: Vec<String> = vec![];
             for arg in &self.args {
-                args_str.push(arg.to_string(variable_names));
+                args_str.push(arg.to_string(variable_names)?);
             }
 
             args_str.join(", ")
         };
-        format!("{{{}}}", obj_value)
+        Ok(format!("{{{}}}", obj_value))
     }
 }
 

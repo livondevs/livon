@@ -5,60 +5,72 @@ use swc_common::{
     sync::Lrc,
     FileName, Globals, Mark, SourceMap, GLOBALS,
 };
-use swc_ecma_ast::Module;
 use swc_ecma_codegen::to_code_default;
 use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax, TsSyntax};
 use swc_ecma_transforms_base::{fixer::fixer, hygiene::hygiene, resolver};
 use swc_ecma_transforms_typescript::{typescript, Config};
 
-pub fn parse_module_with_swc(code: &String) -> Module {
-    let cm: Lrc<SourceMap> = Default::default();
-    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-    let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
-    let lexer = Lexer::new(
-        Syntax::Es(Default::default()),
+pub fn parse_module_with_swc(
+    code: &String,
+) -> Result<swc_ecma_ast::Module, Box<dyn std::error::Error>> {
+    let cm: Lrc<swc_common::SourceMap> = Default::default();
+    let handler = swc_common::errors::Handler::with_tty_emitter(
+        swc_common::errors::ColorConfig::Auto,
+        true,
+        false,
+        Some(cm.clone()),
+    );
+    let fm = cm.new_source_file(Lrc::new(swc_common::FileName::Anon), code.into());
+    let lexer = swc_ecma_parser::lexer::Lexer::new(
+        swc_ecma_parser::Syntax::Es(Default::default()),
         Default::default(),
-        StringInput::from(&*fm),
+        swc_ecma_parser::StringInput::from(&*fm),
         None,
     );
-
-    let mut parser = Parser::new_from(lexer);
+    let mut parser = swc_ecma_parser::Parser::new_from(lexer);
 
     for e in parser.take_errors() {
         e.into_diagnostic(&handler).emit();
     }
 
-    let module = parser
-        .parse_module()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("failed to parse module");
-
-    module
+    let module = parser.parse_module().map_err(|e| {
+        e.clone().into_diagnostic(&handler).emit();
+        Box::<dyn std::error::Error>::from(format!("Failed to parse module: {}", &e.kind().msg()))
+    })?;
+    Ok(module)
 }
 
-pub fn parse_expr_with_swc(code: &String) -> Box<swc_ecma_ast::Expr> {
-    let cm: Lrc<SourceMap> = Default::default();
-    let handler = Handler::with_tty_emitter(ColorConfig::Auto, true, false, Some(cm.clone()));
-    let fm = cm.new_source_file(Lrc::new(FileName::Anon), code.into());
-    let lexer = Lexer::new(
-        Syntax::Es(Default::default()),
+pub fn parse_expr_with_swc(
+    code: &String,
+) -> Result<Box<swc_ecma_ast::Expr>, Box<dyn std::error::Error>> {
+    let cm: Lrc<swc_common::SourceMap> = Default::default();
+    let handler = swc_common::errors::Handler::with_tty_emitter(
+        swc_common::errors::ColorConfig::Auto,
+        true,
+        false,
+        Some(cm.clone()),
+    );
+    let fm = cm.new_source_file(Lrc::new(swc_common::FileName::Anon), code.into());
+    let lexer = swc_ecma_parser::lexer::Lexer::new(
+        swc_ecma_parser::Syntax::Es(Default::default()),
         Default::default(),
-        StringInput::from(&*fm),
+        swc_ecma_parser::StringInput::from(&*fm),
         None,
     );
-
-    let mut parser = Parser::new_from(lexer);
+    let mut parser = swc_ecma_parser::Parser::new_from(lexer);
 
     for e in parser.take_errors() {
         e.into_diagnostic(&handler).emit();
     }
 
-    let module = parser
-        .parse_expr()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("failed to parse expression");
-
-    module
+    let expr = parser.parse_expr().map_err(|e| {
+        e.clone().into_diagnostic(&handler).emit();
+        Box::<dyn std::error::Error>::from(format!(
+            "Failed to parse expression: {}",
+            &e.kind().msg()
+        ))
+    })?;
+    Ok(expr)
 }
 
 // NOTE: This function temporarily wraps the input in `export default` so that standalone expressions can be parsed by the TS parser; remove this workaround once direct expr parsing is supported.
@@ -100,11 +112,15 @@ pub fn transform_ts_to_js(ts_code: &str) -> Result<String, Box<dyn Error>> {
         e.into_diagnostic(&handler).emit();
     }
 
+    // TODO: Add line numbers for error positions
     // Parse the source into an AST program/module
-    let module = parser
-        .parse_program()
-        .map_err(|e| e.into_diagnostic(&handler).emit())
-        .expect("Failed to parse TypeScript module.");
+    let module = parser.parse_program().map_err(|e| {
+        e.clone().into_diagnostic(&handler).emit();
+        Box::<dyn std::error::Error>::from(format!(
+            "Failed to parse TypeScript code: {}",
+            &e.kind().msg()
+        ))
+    })?;
 
     // Execute transformations within a global JS context
     let globals = Globals::default();
