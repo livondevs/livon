@@ -249,7 +249,9 @@ pub fn check_html_elms(
                             find_reactive_attr_from_id(&id, elm_and_var_relation);
 
                         let raw_key_value = {
-                            if let Some(value) = element.attributes.get(raw_attr_name) {
+                            if raw_attr_name == "id" {
+                                None
+                            } else if let Some(value) = element.attributes.get(raw_attr_name) {
                                 let val = value.clone();
                                 element.attributes.remove(raw_attr_name);
                                 val
