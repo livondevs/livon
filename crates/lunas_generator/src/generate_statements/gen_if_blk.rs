@@ -36,7 +36,7 @@ pub fn gen_render_if_blk_func(
     ctx_categories: &ContextCategories,
     current_for_ctx: Option<&String>,
     under_for: bool,
-) -> Option<String> {
+) -> Result<Option<String>, String> {
     let mut render_if = vec![];
 
     for if_block in if_block_info.iter() {
@@ -101,7 +101,7 @@ pub fn gen_render_if_blk_func(
             &variable_names,
             ref_node_ids,
             under_for,
-        );
+        )?;
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);
         }
@@ -262,7 +262,7 @@ pub fn gen_render_if_blk_func(
     }
 
     if render_if.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let indices = match under_for {
@@ -270,11 +270,11 @@ pub fn gen_render_if_blk_func(
         false => "".to_string(),
     };
 
-    Some(format!(
+    Ok(Some(format!(
         r#"$$lunasCreateIfBlock([
 {}
 ]{});"#,
         create_indent(render_if.join(",\n").as_str()),
         indices
-    ))
+    )))
 }

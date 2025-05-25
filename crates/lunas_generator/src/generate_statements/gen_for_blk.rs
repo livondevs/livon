@@ -38,13 +38,24 @@ pub fn gen_render_for_blk_func(
     if_blocks_info: &Vec<IfBlockInfo>,
     for_blocks_info: &Vec<ForBlockInfo>,
     current_for_ctx: Option<&String>,
-) -> Option<String> {
+    under_for: bool,
+) -> Result<(Option<String>, usize), String> {
     let mut render_for = vec![];
+
+    let mut total_ref_node_ids_len_increase = 0;
 
     for for_block in for_block_info.iter() {
         if !for_block.check_latest_for_ctx(ctx_categories, &current_for_ctx) {
             continue;
         }
+
+        let if_blk_name = match under_for {
+            true => format!(
+                "() => `{}-${{$$lunasForIndices}}`",
+                for_block.target_for_blk_id
+            ),
+            false => format!("\"{}\"", for_block.target_for_blk_id),
+        };
 
         let initial_ref_node_ids_len = ref_node_ids.len();
         let create_internal_element_statement = match &for_block.node.content {
@@ -89,7 +100,7 @@ pub fn gen_render_for_blk_func(
             &variable_names,
             ref_node_ids,
             true,
-        );
+        )?;
         if !render_child_component.is_empty() {
             post_render_statement.extend(render_child_component);
         }
@@ -108,7 +119,7 @@ pub fn gen_render_for_blk_func(
             &ctx_categories,
             Some(last_ctx_under_for),
             true,
-        );
+        )?;
 
         if let Some(if_blk_gen) = if_blk_gen {
             post_render_statement.push(if_blk_gen);
@@ -133,8 +144,10 @@ pub fn gen_render_for_blk_func(
             &if_blocks_info,
             &for_blocks_info,
             Some(last_ctx_under_for),
-        );
+            true,
+        )?;
 
+        let (render_sub_for, ref_map_inc_size) = render_sub_for;
         if let Some(render_sub_for) = render_sub_for {
             post_render_statement.push(render_sub_for);
         }
@@ -143,18 +156,24 @@ pub fn gen_render_for_blk_func(
             "() => {}".to_string()
         } else {
             format!(
-                r#"({}, {}, $$lunasForIndices) => {{
+                r#"({}, $$lunasForIndices) => {{
 {}
 }}"#,
-                for_block.item_name,
-                for_block.item_index,
+                for_block.for_info.raw,
                 create_indent(post_render_statement.join("\n").as_str()),
             )
         };
 
         let context_if_extracted = {
             let extracted_if_ctx = for_block.extract_if_ctx_between_latest_for(ctx_categories);
-            format!("[{}]", extracted_if_ctx.join(", "))
+            format!(
+                "[{}]",
+                extracted_if_ctx
+                    .iter()
+                    .map(|x| format!("\"{}\"", x))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            )
         };
 
         let parent_for_array = {
@@ -174,7 +193,22 @@ pub fn gen_render_for_blk_func(
             )
         };
 
-        let ref_node_ids_len_increase = ref_node_ids.len() - initial_ref_node_ids_len;
+        let last_if_ctx = {
+            let last_if_ctx = for_block
+                .ctx_over_for
+                .iter()
+                .filter(|x| ctx_categories.if_ctx.iter().any(|f| f == *x))
+                .map(|x| x.to_string())
+                .last();
+            match last_if_ctx {
+                Some(last_if_ctx) => format!(r#""{}""#, last_if_ctx),
+                None => "null".to_string(),
+            }
+        };
+
+        let ref_node_ids_len_increase =
+            ref_node_ids.len() - initial_ref_node_ids_len - ref_map_inc_size;
+        total_ref_node_ids_len_increase += ref_node_ids.len() - initial_ref_node_ids_len;
         let dep_number = dep_vars_assigned_numbers
             .iter()
             .filter(|v| {
@@ -189,8 +223,7 @@ pub fn gen_render_for_blk_func(
             .collect::<Vec<BigUint>>();
 
         let fragment_args = vec![
-            for_block.item_name.clone(),
-            for_block.item_index.clone(),
+            for_block.for_info.raw.clone(),
             "$$lunasForIndices".to_string(),
         ];
 
@@ -251,9 +284,10 @@ pub fn gen_render_for_blk_func(
 
         // TODO: Add comments to the generated code to clarify what each argument represents
         let create_for_func_inside = format!(
-            r#""{}",
-({}, {}, $$lunasForIndices) => {},
+            r#"{},
+({}, $$lunasForIndices) => {},
 () => ({}),
+{},
 {},
 {},
 {},
@@ -261,14 +295,14 @@ pub fn gen_render_for_blk_func(
 {},
 [{}, {}],
 [{}{}]{}"#,
-            for_block.target_for_blk_id,
-            for_block.item_name,
-            for_block.item_index,
+            if_blk_name,
+            for_block.for_info.raw,
             create_internal_element_statement,
-            for_block.item_collection,
+            for_block.for_info.iterable,
             for_on_create,
             context_if_extracted,
             parent_for_array,
+            last_if_ctx,
             get_combined_binary_number(dep_number),
             parent_indices,
             initial_ref_node_ids_len,
@@ -289,13 +323,22 @@ pub fn gen_render_for_blk_func(
     }
 
     if render_for.is_empty() {
-        return None;
+        return Ok((None, 0));
     }
 
-    Some(format!(
-        r#"$$lunasCreateForBlock([
+    let indices = match under_for {
+        true => format!(", $$lunasForIndices"),
+        false => "".to_string(),
+    };
+
+    Ok((
+        Some(format!(
+            r#"$$lunasCreateForBlock([
 {}
-]);"#,
-        create_indent(render_for.join(",\n").as_str())
+]{});"#,
+            create_indent(render_for.join(",\n").as_str()),
+            indices
+        )),
+        total_ref_node_ids_len_increase,
     ))
 }
