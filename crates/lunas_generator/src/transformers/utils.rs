@@ -199,9 +199,11 @@ pub fn append_v_to_vars_in_html(
 
     // 2) Parse JS code into a JSON AST
     let parsed_json = if is_expr {
-        to_value(parse_expr_with_swc(&js)).unwrap()
+        let expr = parse_expr_with_swc(&js).map_err(|e| e.to_string())?;
+        to_value(expr).unwrap()
     } else {
-        to_value(parse_module_with_swc(&js)).unwrap()
+        let module = parse_module_with_swc(&js).map_err(|e| e.to_string())?;
+        to_value(module).unwrap()
     };
 
     // 3) Prepare buffers for search_json output
@@ -250,12 +252,12 @@ pub fn append_v_to_vars_in_html(
     Ok((modified_string, all_depending_values))
 }
 
-pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> String {
-    let parsed = parse_module_with_swc(&input.to_string());
+pub fn convert_non_reactive_to_obj(input: &str, variables: &Vec<String>) -> Result<String, String> {
+    let parsed = parse_module_with_swc(&input.to_string()).map_err(|e| e.to_string())?;
     let parsed_json = serde_json::to_value(&parsed).unwrap();
     let positions = find_non_reactives(&parsed_json, &variables);
     let (modified_string, _) = add_or_remove_strings_to_script(positions, &input.to_string());
-    modified_string
+    Ok(modified_string)
 }
 
 pub fn find_non_reactives(json: &Value, variables: &Vec<String>) -> Vec<TransformInfo> {
