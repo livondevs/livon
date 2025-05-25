@@ -7,10 +7,10 @@ use crate::transformers::{
 
 pub fn generate_js_from_lunas_script_blk(
     js_block: &JsBlock,
-    runtime_path: Option<String>,
+    engine_path: Option<String>,
 ) -> Result<String, String> {
-    // Determine the runtime path, or use default if none provided
-    let runtime_path = runtime_path.unwrap_or_else(|| "lunas/dist/runtime".to_string());
+    // Determine the engine path, or use default if none provided
+    let engine_path = engine_path.unwrap_or_else(|| "lunas/engine".to_string());
 
     // Prepare lists for variable names and transformation positions
     let mut variables = Vec::new();
@@ -60,6 +60,6 @@ pub fn generate_js_from_lunas_script_blk(
         r#"import {{ $$lunasCreateNonReactive }} from "{}";
 
 {}"#,
-        runtime_path, output,
+        engine_path, output,
     ))
 }

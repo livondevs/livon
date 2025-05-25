@@ -1,4 +1,4 @@
-import { Router } from "../runtime/router";
+import { Router } from "../router";
 
 declare global {
   interface Lunas {

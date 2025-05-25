@@ -2,7 +2,6 @@
   "name": "lunas",
   "version": "0.0.1-beta.8",
   "description": "Lunas - Ultrafast and Sophisticated Web Frontend Framework",
-  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc"
@@ -17,5 +16,10 @@
     "url": "https://github.com/lunas-dev/lunas/issues"
   },
   "homepage": "https://github.com/lunas-dev/lunas#readme",
-  "private": false
+  "private": false,
+  "exports":{
+    "./engine": "./dist/engine/index.js",
+    "./router": "./dist/router/index.js",
+    "./compiler": "./dist/compiler/index.js"
+  }
 }
