@@ -27,7 +27,7 @@ use crate::{
 
 pub fn generate_js_from_blocks(
     blocks: &DetailedBlock,
-    runtime_path: Option<String>,
+    engine_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
     let use_component_statements = blocks
         .detailed_meta_data
@@ -55,7 +55,7 @@ pub fn generate_js_from_blocks(
 
     #[cfg(not(feature = "playground"))]
     {
-        imports.push("import { $$lunasRouter } from \"lunas/dist/runtime/router\";".to_string());
+        imports.push("import { $$lunasRouter } from \"lunas/router\";".to_string());
     }
 
     let using_auto_routing = blocks
@@ -83,9 +83,9 @@ pub fn generate_js_from_blocks(
     //         _ => false,
     //     });
 
-    let runtime_path = match runtime_path.is_none() {
-        true => "lunas/dist/runtime".to_string(),
-        false => runtime_path.unwrap(),
+    let engine_path = match engine_path.is_none() {
+        true => "lunas/engine".to_string(),
+        false => engine_path.unwrap(),
     };
 
     let mut variables = vec![];
@@ -226,7 +226,7 @@ pub fn generate_js_from_blocks(
         &ctx_cats,
         None,
         false,
-    );
+    )?;
     let (render_for, _) = gen_render_for_blk_func(
         &for_blocks_info,
         &ref_map,
@@ -242,7 +242,7 @@ pub fn generate_js_from_blocks(
         &for_blocks_info,
         None,
         false,
-    );
+    )?;
     after_mount_code_array.extend(render_if);
     after_mount_code_array.extend(render_for);
     let render_component = gen_render_custom_component_statements(
@@ -251,7 +251,7 @@ pub fn generate_js_from_blocks(
         &variable_names,
         &mut ref_node_ids,
         false,
-    );
+    )?;
     if using_auto_routing {
         after_mount_code_array.push(generate_router_initialization_code(
             &custom_component_blocks_info,
@@ -275,14 +275,14 @@ pub fn generate_js_from_blocks(
 
     codes.push("return $$lunasComponentReturn;".to_string());
 
-    let full_js_code = gen_full_code(runtime_path, imports, codes, inputs);
+    let full_js_code = gen_full_code(engine_path, imports, codes, inputs);
     let css_code = blocks.detailed_language_blocks.css.clone();
 
     Ok((full_js_code, css_code))
 }
 
 fn gen_full_code(
-    runtime_path: String,
+    engine_path: String,
     imports_string: Vec<String>,
     codes: Vec<String>,
     inputs: Vec<&PropsInput>,
@@ -313,7 +313,7 @@ export default function(args = {{}}) {{
 {}
 }}
 "#,
-        runtime_path, imports_string, arg_names_array, code,
+        engine_path, imports_string, arg_names_array, code,
     )
 }
 
