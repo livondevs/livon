@@ -1,5 +1,5 @@
 import { compile } from "lunas/compiler";
-import type { Plugin } from "vite";
+import { Plugin } from "vite";
 import { resolve as resolvePath } from "path";
 
 // Define the project root directory for path validation
