@@ -1,6 +1,7 @@
 import { compile } from "lunas/compiler";
 import { Plugin } from "vite";
-import { resolve as resolvePath } from "path";
+import { dirname, resolve as resolvePath } from "path";
+import { fileURLToPath } from "url";
 
 // Define the project root directory for path validation
 // Define the project root directory for path validation
