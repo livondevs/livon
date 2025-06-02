@@ -3,7 +3,11 @@ import { Plugin } from "vite";
 import { resolve as resolvePath } from "path";
 
 // Define the project root directory for path validation
-const PROJECT_ROOT = resolvePath(__dirname, "../");
+// Define the project root directory for path validation
+// Consider using Vite's config.root for validating user files after fixing __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = resolvePath(__dirname, "../"); // This path needs careful review based on its intended use.
 
 /**
  * Vite plugin for compiling and handling .lun and .lun.ts files.
