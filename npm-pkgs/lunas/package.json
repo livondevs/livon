@@ -17,9 +17,10 @@
   },
   "homepage": "https://github.com/lunas-dev/lunas#readme",
   "private": false,
-  "exports":{
+  "exports": {
     "./engine": "./dist/engine/index.js",
     "./router": "./dist/router/index.js",
-    "./compiler": "./dist/compiler/index.js"
+    "./compiler": "./dist/compiler/index.js",
+    "./reactivity": "./dist/reactivity/index.js"
   }
 }
