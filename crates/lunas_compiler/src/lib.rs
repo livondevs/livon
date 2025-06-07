@@ -1,5 +1,5 @@
-use lunas_generator::{lunas_compile_from_block, lunas_script_compile_from_block};
-use lunas_parser::{parse_lunas_file, parse_lunas_script_file};
+use lunas_generator::lunas_compile_from_block;
+use lunas_parser::parse_lunas_file;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -39,17 +39,4 @@ pub fn compile(
         js: code.0,
         css: code.1,
     })
-}
-
-#[wasm_bindgen]
-pub fn compile_lunas_script(
-    lunas_code: String,
-    engine_path: Option<String>,
-) -> Result<String, String> {
-    let js_block = match parse_lunas_script_file(&lunas_code) {
-        Ok(r) => Ok(r),
-        Err(e) => Err(e.to_string()),
-    }?;
-    let code = lunas_script_compile_from_block(&js_block, engine_path)?;
-    Ok(code)
 }

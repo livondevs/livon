@@ -1,3 +1,5 @@
+import { isReactive } from "../reactivity";
+
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
 }) => LunasModuleExports;
@@ -76,7 +78,7 @@ type NestedArray<T> = (T | NestedArray<T>)[];
 
 type FragmentFunc = (item?: unknown, indices?: number[]) => Fragment[];
 
-class valueObj<T> {
+export class valueObj<T> {
   private _v: T;
   private proxy: T;
   // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
@@ -262,6 +264,12 @@ export const $$lunasInitComponent = function (
           this.currentVarBitGen.next().value
         );
         this.resetDependecies.push(removeDependency);
+      } else if (isReactive(item)) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
       } else {
         this.currentVarBitGen.next().value;
       }
@@ -420,6 +428,7 @@ export const $$lunasInitComponent = function (
       fragments,
     ] of ifBlocks) {
       const ifBlockId = typeof getName === "function" ? getName() : getName;
+      setNestedArrayValue(this.refMap, mapOffset, undefined);
       this.ifBlocks[ifBlockId] = {
         renderer: ((
           mapOffset: number | number[],
@@ -636,8 +645,12 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
       const forBlockId = typeof getName === "function" ? getName() : getName;
-      if (prevIfCtx && this.ifBlocks[`${prevIfCtx}-${indices}`]) {
-        this.ifBlocks[`${prevIfCtx}-${indices}`].nextForBlocks.push(forBlockId);
+      const blkName = indices ? `${prevIfCtx}-${indices}` : prevIfCtx;
+      if (
+        prevIfCtx &&
+        this.ifBlocks[blkName!]
+      ) {
+        this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
       forCtx.forEach((ctx) => {
