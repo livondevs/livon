@@ -3,90 +3,52 @@ import { Plugin } from "vite";
 import { dirname, resolve as resolvePath } from "path";
 import { fileURLToPath } from "url";
 
-// Define the project root directory for path validation
-// Define the project root directory for path validation
-// Consider using Vite's config.root for validating user files after fixing __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const PROJECT_ROOT = resolvePath(__dirname, "../"); // This path needs careful review based on its intended use.
-
 /**
- * Vite plugin for compiling and handling .lun and .lun.ts files.
+ * Vite plugin for handling `.lun` files with custom compilation and CSS extraction.
+ *
+ * This plugin performs the following:
+ * - Transforms `.lun` files by compiling them and extracting their CSS.
+ * - Stores generated CSS in a map for each `.lun` file.
+ * - Injects a virtual CSS module import into the transformed JavaScript code.
+ * - Resolves and serves the virtual CSS module when requested by Vite.
+ *
+ * @returns {Plugin} A Vite plugin object for processing `.lun` files.
  */
 export function lunas(): Plugin {
-  // Map to store generated CSS code for each .lun file
+  // Map to store generated CSS for each .lun file
   const cssCodeMap = new Map<string, string>();
 
   return {
-    name: "vite-plugin-lunas",
-
-    /**
-     * Resolve virtual module IDs for .lun style imports.
-     */
-    resolveId(source) {
-      const [filepath, query] = source.split("?", 2);
-      // Check if the file is a .lun file with ?style.css or ?style query
-      if (
-        filepath.endsWith(".lun") &&
-        (query === "style.css" || query === "style")
-      ) {
-        const absPath = resolvePath(filepath);
-        // Only allow files inside the project root
-        if (!absPath.startsWith(PROJECT_ROOT)) {
-          return null;
-        }
-        return source;
+    name: "vite-plugin-lunas", // Plugin name
+    resolveId(id) {
+      // Handle virtual CSS module for .lun files
+      const [filename, query] = id.split("?", 2);
+      if (filename.endsWith(".lun") && query === "style.css") {
+        return id; // Mark as resolved for Vite
       }
-      return null;
     },
-
-    /**
-     * Transform .lun and .lun.ts files during the build process.
-     */
-    async transform(code, id) {
-      const absId = resolvePath(id.split("?")[0]);
-      // Ignore files outside the project root
-      if (!absId.startsWith(PROJECT_ROOT)) {
-        return null;
-      }
-
-      // Handle .lun files
-      if (absId.endsWith(".lun")) {
+    async transform(code, id: string) {
+      // Transform .lun files
+      if (id.endsWith(".lun")) {
         const result = compile(code);
-        // If CSS is present, store it and add a virtual import
         if (result.css) {
-          cssCodeMap.set(absId, result.css);
-          const virtualImport = `import ${JSON.stringify(
-            `${id}?style.css`
-          )};\n`;
+          // Store CSS for later retrieval
+          cssCodeMap.set(id, result.css);
           return {
-            code: virtualImport + result.js,
-            map: null,
+            code: `import '${id}?style.css';\n${result.js}`, // Import virtual CSS module
           };
         }
         return {
           code: result.js,
-          map: null,
         };
       }
-
-      return null;
     },
-
-    /**
-     * Load the virtual CSS module for .lun files.
-     */
     load(id) {
+      // Load the virtual CSS module for .lun files
       if (id.endsWith(".lun?style.css")) {
-        const filepath = id.replace("?style.css", "");
-        const absPath = resolvePath(filepath);
-        // Return CSS only if the file exists in the map
-        if (!cssCodeMap.has(absPath)) {
-          return null;
-        }
-        return cssCodeMap.get(absPath)!;
+        const originalId = id.replace("?style.css", "");
+        return cssCodeMap.get(originalId) || ""; // Return CSS or empty string
       }
-      return null;
     },
   };
 }

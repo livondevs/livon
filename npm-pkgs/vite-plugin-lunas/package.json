@@ -2,7 +2,7 @@
   "name": "vite-plugin-lunas",
   "version": "0.0.1-beta.1",
   "description": "Vite plugin for the Lunas web framework.",
-  "main": "./dist/index.js",
+  "main": "./dist/main.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -19,14 +19,15 @@
   },
   "homepage": "https://github.com/lunasrun/lunas#readme",
   "devDependencies": {
-    "@types/node": "^22.15.29",
+    "@types/estree": "^1.0.8",
+    "@types/node": "^22.15.30",
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "glob": "^11.0.2",
-    "vite": "^6.3.5"
+    "glob": "^11.0.2"
   },
   "peerDependencies": {
-    "lunas": "^0.0.1-beta.10"
+    "lunas": "^0.0.1-beta.10",
+    "vite": ">=4.0.0"
   }
 }

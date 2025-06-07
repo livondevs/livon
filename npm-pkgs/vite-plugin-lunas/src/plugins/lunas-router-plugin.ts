@@ -1,26 +1,33 @@
-import path from "path";
 import { glob } from "glob";
+import path from "path";
 import type { Plugin } from "vite";
-import { resolve as resolvePath } from "path";
-
-// Define the project root directory for security checks
-const PROJECT_ROOT = resolvePath(__dirname, "../");
 
 /**
- * Vite plugin for automatic routing based on .lun files in the pages directory.
+ * Vite plugin for automatic routing based on .lun files in the specified pages directory.
+ */
+/**
+ * Vite plugin for automatic route generation based on the file structure within a specified pages directory.
+ * 
+ * This plugin scans the provided `pagesDir` directory, generates route definitions,
+ * and exposes them as a virtual module (`virtual:generated-routes`) for use in the application.
+ * 
+ * @param options - Plugin options.
+ * @param options.pagesDir - Relative path to the directory containing page components.
+ * @returns A Vite plugin object that handles automatic route generation.
  */
 export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
-  // Resolve the absolute path of pagesDir and ensure it's inside the project root
-  const absPagesDir = resolvePath(options.pagesDir);
-  if (!absPagesDir.startsWith(PROJECT_ROOT)) {
-    throw new Error(
-      "Security error: pagesDir must be inside the project root: " +
-        options.pagesDir
-    );
-  }
+  let projectRoot: string;
 
   return {
     name: "vite-plugin-lunas-auto-routing",
+    enforce: "pre",
+
+    /**
+     * Store the resolved project root directory.
+     */
+    configResolved(config) {
+      projectRoot = config.root;
+    },
 
     /**
      * Resolve the virtual module ID for generated routes.
@@ -33,50 +40,48 @@ export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
     },
 
     /**
-     * Load and generate routes dynamically based on .lun files.
+     * Load and generate the virtual module for routes.
      */
     load(id) {
       if (id === "virtual:generated-routes") {
-        const routesArrayCode = generateRoutesCode(absPagesDir);
-        return `export const routes = ${routesArrayCode};`;
+        const absPagesDir = path.resolve(projectRoot, options.pagesDir);
+        if (!absPagesDir.startsWith(projectRoot)) {
+          throw new Error(
+            `Security error: pagesDir must be inside the project root: ${absPagesDir}`
+          );
+        }
+
+        const routesArray = generateRoutes(absPagesDir, projectRoot);
+        return `export const routes = ${routesArray};`;
       }
       return null;
     },
   };
 }
-
 /**
- * Generate a stringified array of route objects from .lun files in the pages directory.
+ * Scan .lun files under absDir and produce a JSON array string of route objects.
+ * @param absDir Absolute path to the pages directory
  */
-function generateRoutesCode(pagesDir: string): string {
-  // Use glob to find all .lun files
-  const pattern = path.join(pagesDir, "**/*.lun");
-  const files = glob.sync(pattern);
+function generateRoutes(absDir: string, projectRoot: string): string {
+  const pattern = path.posix.join(absDir.replace(/\\/g, "/"), "**/*.lun");
+  const files = glob.sync(pattern, { nodir: true });
 
-  // Map each file to a route object string
-  const routeObjects: string[] = files.map((file) => {
-    // Convert absolute path to project-relative path and normalize separators
-    const relPath = path.relative(process.cwd(), file).replace(/\\/g, "/");
+  const routes = files.map((file) => {
+    // Create a relative path from the project root for imports
+    const relPath = path.relative(projectRoot, file).split(path.sep).join("/");
+    const baseName = path.basename(file, ".lun");
 
-    // Use empty name for index.lun, otherwise sanitize to lower-case and safe characters only
-    let name = path.basename(file, ".lun");
-    if (name.toLowerCase() === "index") {
-      name = "";
-    }
-    const safeName = name.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    // Determine route path
+    const routeName = baseName.toLowerCase() === "index" ? "" : baseName;
+    const safeName = routeName.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    const routePath = `/${safeName}`;
 
-    // Generate the route path
-    const routePath = "/" + safeName;
-
-    // Use JSON.stringify to escape the import path safely
-    const importPathLiteral = JSON.stringify("./" + relPath);
-
-    // Build the route object as a string
+    // Dynamic import for the component
+    const importLiteral = JSON.stringify(`./${relPath}`);
     return `{ path: ${JSON.stringify(
       routePath
-    )}, component: () => import(${importPathLiteral}) }`;
+    )}, component: () => import(${importLiteral}) }`;
   });
 
-  // Return the full array as a string
-  return `[${routeObjects.join(",")}]`;
+  return `[${routes.join(",")}]`;
 }
