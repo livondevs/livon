@@ -32,7 +32,8 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 // TODO:dep_vars の使い方を再考する
 // TODO: 引数が大きすぎるので、共通の目的を持った引数はstructとしてグループ化する
 pub fn check_html_elms(
-    varibale_names: &Vec<String>,
+    variable_names: &Vec<String>,
+    variable_names_to_add_value_accessor: &Vec<String>,
     component_names: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
     node: &mut Node,
@@ -288,7 +289,8 @@ pub fn check_html_elms(
 
                         let (raw_attr_value, used_vars) = append_v_to_vars_in_html(
                             &mut raw_attr_value,
-                            varibale_names,
+                            variable_names,
+                            variable_names_to_add_value_accessor,
                             func_deps,
                             true,
                         )?;
@@ -317,7 +319,8 @@ pub fn check_html_elms(
                                 action_name: action_name.to_string(),
                                 action: EventTarget::new(
                                     value.to_string(),
-                                    varibale_names,
+                                    variable_names,
+                                    variable_names_to_add_value_accessor,
                                     func_deps,
                                 )?,
                                 target: node_id.clone(),
@@ -368,7 +371,8 @@ pub fn check_html_elms(
                 };
 
                 check_html_elms(
-                    varibale_names,
+                    variable_names,
+                    variable_names_to_add_value_accessor,
                     component_names,
                     func_deps,
                     child_node,
@@ -461,7 +465,8 @@ pub fn check_html_elms(
                             };
                             let (cond, dep_vars) = append_v_to_vars_in_html(
                                 remove_statement.condition.as_str(),
-                                &varibale_names,
+                                variable_names,
+                                &variable_names_to_add_value_accessor,
                                 func_deps,
                                 true,
                             )?;
@@ -531,7 +536,8 @@ pub fn check_html_elms(
                             };
                             let (item_collection, dep_vars) = append_v_to_vars_in_html(
                                 &remove_statement.for_info.iterable,
-                                &varibale_names,
+                                variable_names,
+                                &variable_names_to_add_value_accessor,
                                 func_deps,
                                 true,
                             )?;
@@ -680,7 +686,12 @@ pub fn check_html_elms(
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names, func_deps)?;
+            let (dep_vars, _) = replace_text_with_reactive_value(
+                text,
+                variable_names,
+                variable_names_to_add_value_accessor,
+                func_deps,
+            )?;
             if dep_vars.len() > 0 && count_of_siblings <= 1 {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
@@ -788,6 +799,7 @@ fn create_space_for_ref_map(
 fn replace_text_with_reactive_value(
     code: &mut String,
     variables: &Vec<String>,
+    variable_names_to_add_value_accessor: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
 ) -> Result<(Vec<String>, u32), String> {
     let mut count_of_bindings = 0;
@@ -809,8 +821,13 @@ fn replace_text_with_reactive_value(
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) =
-                append_v_to_vars_in_html(in_bracket, variables, func_deps, true)?;
+            let (output, dep_vars) = append_v_to_vars_in_html(
+                in_bracket,
+                variables,
+                variable_names_to_add_value_accessor,
+                func_deps,
+                true,
+            )?;
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 
@@ -865,6 +882,7 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec!["count".to_string(), "count2".to_string()],
             &vec![],
         )
         .unwrap();
@@ -878,6 +896,7 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec!["count".to_string(), "count2".to_string()],
             &vec![],
         )
         .unwrap();
@@ -888,8 +907,13 @@ mod tests {
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
         let mut code = code.to_string();
-        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![])
-            .unwrap();
+        replace_text_with_reactive_value(
+            &mut code,
+            &vec!["interval".to_string()],
+            &vec!["interval".to_string()],
+            &vec![],
+        )
+        .unwrap();
         assert_eq!(
             code,
             "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"

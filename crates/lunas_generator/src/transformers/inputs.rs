@@ -11,6 +11,7 @@ pub fn generate_input_variable_decl(
         variables.push(VariableNameAndAssignedNumber {
             name: input.variable_name.clone(),
             assignment: BigUint::from(2u32).pow(i as u32),
+            to_add_value_accessor: true,
         });
     }
     let prop_name = inputs

@@ -45,17 +45,24 @@ pub fn analyze_js(
             variables.push(VariableNameAndAssignedNumber {
                 name: lun_import.clone(),
                 assignment: num_gen.as_mut().unwrap()(),
+                to_add_value_accessor: false,
             });
         }
 
         // 4) Build a list of variable names for search
         let variable_names: Vec<String> = variables.iter().map(|v| v.name.clone()).collect();
+        let variable_names_with_variable_accessor: Vec<String> = variables
+            .iter()
+            .filter(|v| v.to_add_value_accessor)
+            .map(|v| v.name.clone())
+            .collect();
 
         // 5) Invoke search_json with mutable buffers for all outputs
         search_json(
             &js_block.ast,
             &js_block.raw,
             &variable_names,
+            &variable_names_with_variable_accessor,
             &vec![],
             true,
             &mut positions,
@@ -141,6 +148,7 @@ pub fn find_variable_declarations(
                             variables.push(VariableNameAndAssignedNumber {
                                 name: name.clone(),
                                 assignment: variable_num.clone(),
+                                to_add_value_accessor: true,
                             });
 
                             // Prepare the reactive or non-reactive wrapper strings
@@ -229,6 +237,7 @@ pub fn search_json(
     json: &Value,
     raw_js: &str,
     variables: &[String],
+    variables_with_value_accessor: &Vec<String>,
     parents: &Vec<&Value>,
     delete_imports: bool,
     transforms: &mut Vec<TransformInfo>,
@@ -317,11 +326,19 @@ pub fn search_json(
             {
                 if let Some(span) = obj.get("span").and_then(Value::as_object) {
                     if let Some(end) = span.get("end").and_then(Value::as_u64) {
-                        transforms.push(TransformInfo::AddStringToPosition(AddStringToPosition {
-                            position: (end - 1) as u32,
-                            string: ".v".into(),
-                            sort_order: 0,
-                        }));
+                        if variables_with_value_accessor
+                            .iter()
+                            .any(|v| v == obj.get("value").and_then(Value::as_str).unwrap())
+                        {
+                            transforms.push(TransformInfo::AddStringToPosition(
+                                AddStringToPosition {
+                                    position: (end - 1) as u32,
+                                    string: ".v".into(),
+                                    sort_order: 0,
+                                },
+                            ));
+                        }
+
                         dep_vars_out.push(obj["value"].as_str().unwrap().to_string());
                     }
                 }
@@ -395,6 +412,7 @@ pub fn search_json(
                                 value,
                                 raw_js,
                                 variables,
+                                &variables_with_value_accessor,
                                 &next_parents,
                                 delete_imports,
                                 transforms,
@@ -410,6 +428,7 @@ pub fn search_json(
                     value,
                     raw_js,
                     variables,
+                    &variables_with_value_accessor,
                     &next_parents,
                     delete_imports,
                     transforms,
@@ -468,6 +487,7 @@ pub fn search_json(
                     value,
                     raw_js,
                     variables,
+                    &variables_with_value_accessor,
                     &next_parents,
                     delete_imports,
                     transforms,
@@ -488,6 +508,7 @@ pub fn search_json(
                 value,
                 raw_js,
                 variables,
+                &variables_with_value_accessor,
                 &next_parents,
                 delete_imports,
                 transforms,
@@ -504,6 +525,7 @@ pub fn search_json(
                 value,
                 raw_js,
                 variables,
+                &variables_with_value_accessor,
                 &next_parents,
                 delete_imports,
                 transforms,
@@ -561,6 +583,7 @@ mod tests {
                     &parsed_json,
                     raw_js.as_str(),
                     variables.as_slice(),
+                    &variables,
                     &vec![],
                     false,
                     &mut transforms,
