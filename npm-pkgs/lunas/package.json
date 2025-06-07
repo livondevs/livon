@@ -11,7 +11,7 @@
     "url": "git+https://github.com/lunas-dev/lunas.git"
   },
   "author": "Lunas Dev Team",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/lunas-dev/lunas/issues"
   },
