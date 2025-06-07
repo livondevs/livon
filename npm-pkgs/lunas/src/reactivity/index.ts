@@ -29,7 +29,7 @@ export function reactive<T extends object>(
   componentObj?: LunasComponentState,
   componentSymbol?: symbol,
   symbolIndex: number[] = [0]
-): ReactiveWrapper<T> {
+): T {
   // 1) Create a valueObj instance that wraps the initial value.
   const wrapper = new valueObj<T>(
     initial,
@@ -60,5 +60,5 @@ export function reactive<T extends object>(
     configurable: false,
   });
 
-  return proxy as ReactiveWrapper<T>;
+  return proxy as T;
 }
