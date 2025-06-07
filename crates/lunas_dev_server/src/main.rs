@@ -11,15 +11,11 @@ async fn main() {
                 serde_json::Value::String(s) => s.to_string(),
                 _ => panic!("code is not a string"),
             };
-            let runtime_path = match body.get("runtimePath") {
-                Some(v) => Some(
-                    v.as_str()
-                        .expect("runtime_path is not a string")
-                        .to_string(),
-                ),
+            let engine_path = match body.get("enginePath") {
+                Some(v) => Some(v.as_str().expect("engine_path is not a string").to_string()),
                 None => None,
             };
-            match compile(code.clone(), runtime_path) {
+            match compile(code.clone(), engine_path) {
                 Ok(r) => {
                     warp::reply::with_status(warp::reply::json(&r), warp::http::StatusCode::OK)
                 }

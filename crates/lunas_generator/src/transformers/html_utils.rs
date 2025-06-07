@@ -1,4 +1,4 @@
-use lunas_parser::parse_for_statement;
+use lunas_parser::ParsedFor;
 use nanoid::nanoid;
 
 use crate::{
@@ -32,7 +32,8 @@ use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
 // TODO:dep_vars の使い方を再考する
 // TODO: 引数が大きすぎるので、共通の目的を持った引数はstructとしてグループ化する
 pub fn check_html_elms(
-    varibale_names: &Vec<String>,
+    variable_names: &Vec<String>,
+    variable_names_to_add_value_accessor: &Vec<String>,
     component_names: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
     node: &mut Node,
@@ -157,17 +158,12 @@ pub fn check_html_elms(
                             .insert("$$$conditional$$$".to_string(), None);
                         ctx_array.push(node.uuid.clone());
                     } else if key == ":for" {
-                        let for_statement = parse_for_statement(&action_value.clone().unwrap())?;
-                        let (item_name, item_index) = {
-                            (
-                                for_statement
-                                    .item_value
-                                    .unwrap_or("$$lunasForItem".to_string()),
-                                for_statement
-                                    .item_index
-                                    .unwrap_or("$$lunasForIndex".to_string()),
-                            )
+                        let action_value = match action_value.clone() {
+                            Some(val) => val,
+                            None => return Err("Missing value for :for attribute".to_string()),
                         };
+                        let for_statement =
+                            ParsedFor::parse(&action_value).map_err(|e| e.to_string())?;
 
                         let ctx_under_for = {
                             let mut ctx = ctx_array.clone();
@@ -181,9 +177,7 @@ pub fn check_html_elms(
                             manipulations: HtmlManipulation::RemoveChildForRepeatStatement(
                                 RemoveChildForRepeatStatement {
                                     child_uuid: node.uuid.clone(),
-                                    item_name,
-                                    item_index,
-                                    item_collection: for_statement.iter_array.clone(),
+                                    for_info: for_statement.clone(),
                                     block_id: node_id.clone(),
                                     ctx_over_for: ctx_array.clone(),
                                     ctx_under_for,
@@ -226,6 +220,7 @@ pub fn check_html_elms(
                                             attribute_key: binding_attr.to_string(),
                                             content_of_attr: format!("{}.v", value),
                                             variable_names: vec![value.clone()],
+                                            default_value: None,
                                         }],
                                         ctx: ctx_array.clone(),
                                         elm_loc: element_location.clone(),
@@ -253,6 +248,18 @@ pub fn check_html_elms(
 
                         let reactive_attr_info =
                             find_reactive_attr_from_id(&id, elm_and_var_relation);
+
+                        let raw_key_value = {
+                            if raw_attr_name == "id" {
+                                None
+                            } else if let Some(value) = element.attributes.get(raw_attr_name) {
+                                let val = value.clone();
+                                element.attributes.remove(raw_attr_name);
+                                val
+                            } else {
+                                None
+                            }
+                        };
 
                         // if elm_and_var_relation includes elm_id
 
@@ -282,9 +289,11 @@ pub fn check_html_elms(
 
                         let (raw_attr_value, used_vars) = append_v_to_vars_in_html(
                             &mut raw_attr_value,
-                            varibale_names,
+                            variable_names,
+                            variable_names_to_add_value_accessor,
                             func_deps,
-                        );
+                            true,
+                        )?;
 
                         element.attributes.remove(key);
 
@@ -292,6 +301,7 @@ pub fn check_html_elms(
                             attribute_key: raw_attr_name.to_string(),
                             content_of_attr: raw_attr_value,
                             variable_names: used_vars,
+                            default_value: raw_key_value.clone(),
                         };
 
                         reactive_attr_info.reactive_attr.push(reactive_attr);
@@ -309,9 +319,10 @@ pub fn check_html_elms(
                                 action_name: action_name.to_string(),
                                 action: EventTarget::new(
                                     value.to_string(),
-                                    varibale_names,
+                                    variable_names,
+                                    variable_names_to_add_value_accessor,
                                     func_deps,
-                                ),
+                                )?,
                                 target: node_id.clone(),
                                 ctx: ctx_array.clone(),
                             })
@@ -360,7 +371,8 @@ pub fn check_html_elms(
                 };
 
                 check_html_elms(
-                    varibale_names,
+                    variable_names,
+                    variable_names_to_add_value_accessor,
                     component_names,
                     func_deps,
                     child_node,
@@ -453,9 +465,11 @@ pub fn check_html_elms(
                             };
                             let (cond, dep_vars) = append_v_to_vars_in_html(
                                 remove_statement.condition.as_str(),
-                                &varibale_names,
+                                variable_names,
+                                &variable_names_to_add_value_accessor,
                                 func_deps,
-                            );
+                                true,
+                            )?;
                             if_blocks_info.push(IfBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_if_blk_id: remove_statement.child_uuid.clone(),
@@ -521,10 +535,12 @@ pub fn check_html_elms(
                                 false => None,
                             };
                             let (item_collection, dep_vars) = append_v_to_vars_in_html(
-                                &remove_statement.item_collection.as_str(),
-                                &varibale_names,
+                                &remove_statement.for_info.iterable,
+                                variable_names,
+                                &variable_names_to_add_value_accessor,
                                 func_deps,
-                            );
+                                true,
+                            )?;
                             for_blocks_info.push(ForBlockInfo {
                                 parent_id: node_id.clone(),
                                 target_for_blk_id: remove_statement.child_uuid.clone(),
@@ -532,9 +548,9 @@ pub fn check_html_elms(
                                 target_anchor_id,
                                 node: deleted_node,
                                 ref_text_node_id,
-                                item_name: remove_statement.item_name.clone(),
-                                item_index: remove_statement.item_index.clone(),
-                                item_collection,
+                                for_info: remove_statement
+                                    .for_info
+                                    .clone_with_new_iterable(item_collection.as_str()),
                                 ctx_over_for: remove_statement.ctx_over_for.clone(),
                                 ctx_under_for: remove_statement.ctx_under_for.clone(),
                                 for_blk_id: remove_statement.block_id.clone(),
@@ -670,7 +686,12 @@ pub fn check_html_elms(
             Ok(())
         }
         NodeContent::TextNode(text) => {
-            let (dep_vars, _) = replace_text_with_reactive_value(text, varibale_names, func_deps);
+            let (dep_vars, _) = replace_text_with_reactive_value(
+                text,
+                variable_names,
+                variable_names_to_add_value_accessor,
+                func_deps,
+            )?;
             if dep_vars.len() > 0 && count_of_siblings <= 1 {
                 html_manipulators.push(HtmlManipulator {
                     target_uuid: parent_uuid.unwrap().clone(),
@@ -778,8 +799,9 @@ fn create_space_for_ref_map(
 fn replace_text_with_reactive_value(
     code: &mut String,
     variables: &Vec<String>,
+    variable_names_to_add_value_accessor: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
-) -> (Vec<String>, u32) {
+) -> Result<(Vec<String>, u32), String> {
     let mut count_of_bindings = 0;
 
     let start_tag = "${";
@@ -799,7 +821,13 @@ fn replace_text_with_reactive_value(
 
             new_code.push_str(pre_bracket);
             new_code.push_str(start_tag);
-            let (output, dep_vars) = append_v_to_vars_in_html(in_bracket, variables, func_deps);
+            let (output, dep_vars) = append_v_to_vars_in_html(
+                in_bracket,
+                variables,
+                variable_names_to_add_value_accessor,
+                func_deps,
+                true,
+            )?;
             new_code.push_str(&escape_html(&output));
             new_code.push_str(end_tag);
 
@@ -811,7 +839,7 @@ fn replace_text_with_reactive_value(
 
     new_code.push_str(&code[last_end..]);
     *code = new_code;
-    (depending_vars, count_of_bindings)
+    Ok((depending_vars, count_of_bindings))
 }
 
 pub fn create_lunas_internal_component_statement(
@@ -854,8 +882,10 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec!["count".to_string(), "count2".to_string()],
             &vec![],
-        );
+        )
+        .unwrap();
         assert_eq!(code, "$$lunasEscapeHtml(count2.v+count.v)");
     }
 
@@ -866,8 +896,10 @@ mod tests {
         replace_text_with_reactive_value(
             &mut code,
             &vec!["count".to_string(), "count2".to_string()],
+            &vec!["count".to_string(), "count2".to_string()],
             &vec![],
-        );
+        )
+        .unwrap();
         assert_eq!(code, "$$lunasEscapeHtml( count2.v + count.v )");
     }
 
@@ -875,7 +907,13 @@ mod tests {
     fn exploration3() {
         let code = "${interval==null?'start':'clear'}";
         let mut code = code.to_string();
-        replace_text_with_reactive_value(&mut code, &vec!["interval".to_string()], &vec![]);
+        replace_text_with_reactive_value(
+            &mut code,
+            &vec!["interval".to_string()],
+            &vec!["interval".to_string()],
+            &vec![],
+        )
+        .unwrap();
         assert_eq!(
             code,
             "${$$lunasEscapeHtml(interval.v == null ? 'start' : 'clear')}"

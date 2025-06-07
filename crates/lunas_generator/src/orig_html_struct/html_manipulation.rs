@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use lunas_parser::ParsedFor;
+
 #[derive(Debug, Clone)]
 pub struct HtmlManipulator {
     pub target_uuid: String,
@@ -32,9 +34,7 @@ pub struct RemoveChildForIfStatement {
 #[derive(Debug, Clone)]
 pub struct RemoveChildForRepeatStatement {
     pub child_uuid: String,
-    pub item_name: String,
-    pub item_index: String,
-    pub item_collection: String,
+    pub for_info: ParsedFor,
     pub block_id: String,
     pub ctx_under_for: Vec<String>,
     pub ctx_over_for: Vec<String>,

@@ -28,13 +28,13 @@ impl LunasCompilerOutput {
 #[wasm_bindgen]
 pub fn compile(
     lunas_code: String,
-    runtime_path: Option<String>,
+    engine_path: Option<String>,
 ) -> Result<LunasCompilerOutput, String> {
     let blocks = match parse_lunas_file(&lunas_code) {
         Ok(r) => Ok(r),
         Err(e) => Err(e.to_string()),
     }?;
-    let code = lunas_compile_from_block(&blocks, runtime_path)?;
+    let code = lunas_compile_from_block(&blocks, engine_path)?;
     Ok(LunasCompilerOutput {
         js: code.0,
         css: code.1,
