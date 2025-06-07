@@ -48,6 +48,7 @@ pub struct MoveToTheEnd {
 pub struct VariableNameAndAssignedNumber {
     pub name: String,
     pub assignment: BigUint,
+    pub to_add_value_accessor: bool,
 }
 
 #[derive(Debug)]
@@ -127,13 +128,20 @@ impl EventTarget {
     pub fn new(
         content: String,
         variables: &Vec<String>,
+        variables_to_add_value_accessor: &Vec<String>,
         func_deps: &Vec<JsFunctionDeps>,
     ) -> Result<Self, String> {
         // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
         if word_is_one_word(content.as_str()) {
             Ok(EventTarget::RefToFunction(content))
         } else {
-            let content = append_v_to_vars_in_html(content.as_str(), variables, func_deps, true)?;
+            let content = append_v_to_vars_in_html(
+                content.as_str(),
+                variables,
+                variables_to_add_value_accessor,
+                func_deps,
+                true,
+            )?;
             Ok(EventTarget::Statement(content.0))
         }
     }

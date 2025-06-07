@@ -136,10 +136,16 @@ pub fn generate_js_from_blocks(
         .iter()
         .map(|v| v.name.clone())
         .collect::<Vec<String>>();
+    let variable_names_to_add_value_accessor = &variables
+        .iter()
+        .filter(|v| v.to_add_value_accessor)
+        .map(|v| v.name.clone())
+        .collect::<Vec<String>>();
 
     // Analyze HTML
     check_html_elms(
         variable_names,
+        variable_names_to_add_value_accessor,
         &component_names,
         &js_func_deps,
         &mut new_node,
@@ -219,7 +225,7 @@ pub fn generate_js_from_blocks(
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
-        &variable_names,
+        &variable_names_to_add_value_accessor,
         &variables,
         &elm_and_var_relation,
         &mut ref_node_ids,
@@ -233,7 +239,7 @@ pub fn generate_js_from_blocks(
         &action_and_target,
         &text_node_renderer_group,
         &custom_component_blocks_info,
-        &variable_names,
+        &variable_names_to_add_value_accessor,
         &variables,
         &elm_and_var_relation,
         &mut ref_node_ids,
@@ -248,7 +254,7 @@ pub fn generate_js_from_blocks(
     let render_component = gen_render_custom_component_statements(
         &custom_component_blocks_info,
         &vec![],
-        &variable_names,
+        &variable_names_to_add_value_accessor,
         &mut ref_node_ids,
         false,
     )?;

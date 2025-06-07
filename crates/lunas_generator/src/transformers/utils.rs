@@ -191,6 +191,7 @@ fn is_testgen() -> bool {
 pub fn append_v_to_vars_in_html(
     input_ts: &str,
     variables: &Vec<String>,
+    variable_names_to_add_value_accessor: &Vec<String>,
     func_deps: &Vec<JsFunctionDeps>,
     is_expr: bool,
 ) -> Result<(String, Vec<String>), String> {
@@ -217,6 +218,7 @@ pub fn append_v_to_vars_in_html(
         &parsed_json,
         js.as_str(),
         &variables,
+        &variable_names_to_add_value_accessor,
         &vec![],
         false,
         &mut positions,

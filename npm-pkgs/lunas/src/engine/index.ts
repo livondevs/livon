@@ -1,3 +1,5 @@
+import { isReactive } from "../reactivity";
+
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
 }) => LunasModuleExports;
@@ -76,7 +78,7 @@ type NestedArray<T> = (T | NestedArray<T>)[];
 
 type FragmentFunc = (item?: unknown, indices?: number[]) => Fragment[];
 
-class valueObj<T> {
+export class valueObj<T> {
   private _v: T;
   private proxy: T;
   // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
@@ -257,6 +259,12 @@ export const $$lunasInitComponent = function (
   const setImportVars = function (this: LunasComponentState, items: unknown[]) {
     for (const item of items) {
       if (item instanceof valueObj) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
+      } else if (isReactive(item)) {
         const { removeDependency } = item.addDependency(
           this,
           this.currentVarBitGen.next().value
