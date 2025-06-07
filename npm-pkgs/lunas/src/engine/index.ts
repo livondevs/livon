@@ -420,6 +420,7 @@ export const $$lunasInitComponent = function (
       fragments,
     ] of ifBlocks) {
       const ifBlockId = typeof getName === "function" ? getName() : getName;
+      setNestedArrayValue(this.refMap, mapOffset, undefined);
       this.ifBlocks[ifBlockId] = {
         renderer: ((
           mapOffset: number | number[],
@@ -636,8 +637,12 @@ export const $$lunasInitComponent = function (
         fragmentFunc,
       ] = config;
       const forBlockId = typeof getName === "function" ? getName() : getName;
-      if (prevIfCtx && this.ifBlocks[`${prevIfCtx}-${indices}`]) {
-        this.ifBlocks[`${prevIfCtx}-${indices}`].nextForBlocks.push(forBlockId);
+      const blkName = indices ? `${prevIfCtx}-${indices}` : prevIfCtx;
+      if (
+        prevIfCtx &&
+        this.ifBlocks[blkName!]
+      ) {
+        this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
       forCtx.forEach((ctx) => {
