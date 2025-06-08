@@ -1,10 +1,10 @@
-name: Publish vite plugin npm package
+name: Publish vite plugin npm package (BETA)
 
 on:
   workflow_dispatch:
 
 jobs:
-  publish-package:
+  publish-vite-plugin-package-beta:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
