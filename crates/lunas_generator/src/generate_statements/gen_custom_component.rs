@@ -6,7 +6,7 @@ pub fn gen_render_custom_component_statements(
     variable_names: &Vec<String>,
     ref_node_ids: &mut Vec<String>,
     under_for: bool,
-) -> Vec<String> {
+) -> Result<Vec<String>, String> {
     let mut render_custom_statements = vec![];
 
     for custom_component_block in custom_component_block_info.iter() {
@@ -72,7 +72,7 @@ pub fn gen_render_custom_component_statements(
             render_custom_statements.push(format!(
                 "$$lunasInsertComponent({}({}), {}, {}, {}, {}, {});",
                 custom_component_block.component_name,
-                custom_component_block.args.to_object(variable_names),
+                custom_component_block.args.to_object(variable_names)?,
                 parent_idx,
                 anchor,
                 ref_idx,
@@ -110,7 +110,7 @@ pub fn gen_render_custom_component_statements(
             render_custom_statements.push(format!(
                 "$$lunasMountComponent({}({}), {}, {}, {}, {});",
                 custom_component_block.component_name,
-                custom_component_block.args.to_object(variable_names),
+                custom_component_block.args.to_object(variable_names)?,
                 parent_idx,
                 ref_idx,
                 latest_ctx,
@@ -122,5 +122,5 @@ pub fn gen_render_custom_component_statements(
             ));
         }
     }
-    render_custom_statements
+    Ok(render_custom_statements)
 }

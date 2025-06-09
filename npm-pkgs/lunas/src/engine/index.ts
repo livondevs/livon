@@ -1,3 +1,5 @@
+import { isReactive } from "../reactivity";
+
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
 }) => LunasModuleExports;
@@ -7,6 +9,17 @@ export type LunasModuleExports = {
   insert: (elm: HTMLElement, anchor: HTMLElement | null) => LunasComponentState;
   __unmount: () => void;
 };
+
+enum BlockType {
+  IF = "IF",
+  FOR = "FOR",
+}
+
+export type UpdateBlockFuncs = {
+  name: string;
+  type: BlockType;
+  updateFuncs: (() => void)[];
+}[];
 
 export type LunasComponentState = {
   updatedFlag: boolean;
@@ -21,11 +34,13 @@ export type LunasComponentState = {
       condition: () => boolean;
       cleanup: (() => void)[];
       childs: string[];
+      nextForBlocks: string[];
     };
   };
   ifBlockStates: Record<string, boolean>;
   blkUpdateMap: Record<string, boolean>;
-  updateComponentFuncs: (() => void)[][];
+  updateComponentFuncs: ((() => void) | undefined)[][];
+  updateBlockFuncs: UpdateBlockFuncs;
   isMounted: boolean;
   componentElm: HTMLElement;
   compSymbol: symbol;
@@ -43,7 +58,11 @@ export type LunasComponentState = {
   // __lunas_update_start: () => void;
   // __lunas_init_component: () => void;
   forBlocks: {
-    [key: string]: { cleanUp: (() => void)[]; childs: string[] };
+    [key: string]: {
+      cleanUp: (() => void)[];
+      childs: string[];
+      renderer: () => void;
+    };
   };
 
   refMap: RefMap;
@@ -57,13 +76,9 @@ type LunasInternalElement = {
 
 type NestedArray<T> = (T | NestedArray<T>)[];
 
-type FragmentFunc = (
-  item?: unknown,
-  index?: number,
-  indices?: number[]
-) => Fragment[];
+type FragmentFunc = (item?: unknown, indices?: number[]) => Fragment[];
 
-class valueObj<T> {
+export class valueObj<T> {
   private _v: T;
   private proxy: T;
   // Dependencies map: key is a symbol, value is a tuple of [LunasComponentState, number[]]
@@ -177,6 +192,27 @@ class valueObj<T> {
       },
     };
   }
+
+  addToCurrentDependency(
+    componentObj: LunasComponentState,
+    symbolIndex: number[]
+  ) {
+    const currentDep = Object.getOwnPropertySymbols(this.dependencies).find(
+      (key) => key === componentObj.compSymbol
+    );
+    const currentSymbolIndex = currentDep
+      ? this.dependencies[currentDep][1]
+      : null;
+    if (currentSymbolIndex) {
+      const maskedSymbolIndex = bitCombine(currentSymbolIndex, symbolIndex);
+      this.dependencies[componentObj.compSymbol] = [
+        componentObj,
+        maskedSymbolIndex,
+      ];
+    } else {
+      this.dependencies[componentObj.compSymbol] = [componentObj, symbolIndex];
+    }
+  }
 }
 
 export const $$lunasInitComponent = function (
@@ -195,6 +231,7 @@ export const $$lunasInitComponent = function (
   this.resetDependecies = [];
   this.refMap = [];
   this.updateComponentFuncs = [[], []];
+  this.updateBlockFuncs = [];
   this.forBlocks = {};
   this.__lunas_after_mount = () => {};
   this.__lunas_destroy = () => {};
@@ -211,6 +248,33 @@ export const $$lunasInitComponent = function (
       this.currentVarBitGen.next().value;
     }
   }
+
+  const getElm = function (
+    this: LunasComponentState,
+    location: number | number[]
+  ) {
+    return getNestedArrayValue(this.refMap, location);
+  }.bind(this);
+
+  const setImportVars = function (this: LunasComponentState, items: unknown[]) {
+    for (const item of items) {
+      if (item instanceof valueObj) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
+      } else if (isReactive(item)) {
+        const { removeDependency } = item.addDependency(
+          this,
+          this.currentVarBitGen.next().value
+        );
+        this.resetDependecies.push(removeDependency);
+      } else {
+        this.currentVarBitGen.next().value;
+      }
+    }
+  }.bind(this);
 
   const componentElementSetter = function (
     this: LunasComponentState,
@@ -277,6 +341,7 @@ export const $$lunasInitComponent = function (
     this.__lunas_apply_enhancement();
     this.__lunas_after_mount();
     this.isMounted = true;
+    _updateComponent(() => {});
     return this;
   }.bind(this);
 
@@ -294,8 +359,27 @@ export const $$lunasInitComponent = function (
   ) {
     this.__lunas_update = (() => {
       if (!this.updatedFlag) return;
-      this.updateComponentFuncs[0].forEach((f) => f());
-      this.updateComponentFuncs[1].forEach((f) => f());
+      this.updateComponentFuncs[0].forEach((f) => f && f());
+      const forBlockIds = this.updateBlockFuncs.map((blk) => blk.name);
+
+      const funcsSnapshot: { [key: string]: (() => void)[] } = {};
+      for (const id of forBlockIds) {
+        funcsSnapshot[id] = this.updateBlockFuncs
+          .find((blk) => blk.name === id)!
+          .updateFuncs.slice();
+      }
+
+      for (const oldKey of forBlockIds) {
+        const funcs = this.updateBlockFuncs.find(
+          (blk) => blk.name === oldKey
+        )!.updateFuncs;
+        for (const func of funcs) {
+          if (funcsSnapshot[oldKey].indexOf(func) !== -1) {
+            func();
+          }
+        }
+      }
+      this.updateComponentFuncs[1].forEach((f) => f && f());
       updateFunc.call(this);
       this.updatedFlag = false;
       this.valUpdateMap = [0];
@@ -315,7 +399,7 @@ export const $$lunasInitComponent = function (
   const createIfBlock = function (
     this: LunasComponentState,
     ifBlocks: [
-      name: string | (() => string),
+      forBlockId: string | (() => string),
       lunasElement: () => LunasInternalElement,
       condition: () => boolean,
       postRender: () => void,
@@ -343,8 +427,9 @@ export const $$lunasInitComponent = function (
       [parentElementIndex, refElementIndex],
       fragments,
     ] of ifBlocks) {
-      const name = typeof getName === "function" ? getName() : getName;
-      this.ifBlocks[name] = {
+      const ifBlockId = typeof getName === "function" ? getName() : getName;
+      setNestedArrayValue(this.refMap, mapOffset, undefined);
+      this.ifBlocks[ifBlockId] = {
         renderer: ((
           mapOffset: number | number[],
           _mapLength: number | number[]
@@ -363,14 +448,15 @@ export const $$lunasInitComponent = function (
           if (fragments) {
             createFragments(
               fragments,
-              [...ifCtxUnderFor, name],
+              indices,
+              [...ifCtxUnderFor, ifBlockId],
               forCtx[forCtx.length - 1]
             );
           }
-          this.ifBlockStates[name] = true;
-          this.blkUpdateMap[name] = true;
+          this.ifBlockStates[ifBlockId] = true;
+          this.blkUpdateMap[ifBlockId] = true;
           Object.values(this.ifBlocks).forEach((blk) => {
-            if (blk.context.includes(name)) {
+            if (blk.context.includes(ifBlockId)) {
               blk.condition() && blk.renderer();
             }
           });
@@ -382,22 +468,29 @@ export const $$lunasInitComponent = function (
         forBlk: forCtx.length ? forCtx[forCtx.length - 1] : null,
         cleanup: [],
         childs: [],
+        nextForBlocks: [],
       };
 
       ifCtxUnderFor.forEach((ctx) => {
         const parentBlockName = indices ? `${ctx}-${indices}` : ctx;
-        this.ifBlocks[parentBlockName].childs.push(name);
+        this.ifBlocks[parentBlockName].childs.push(ifBlockId);
       });
 
       const updateFunc = (() => {
         if (bitAnd(this.valUpdateMap, depBit)) {
           const shouldRender = condition();
-          const rendered = !!this.ifBlockStates[name];
+          const rendered = !!this.ifBlockStates[ifBlockId];
           const parentRendered = ifCtxUnderFor.every(
             (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
           );
           if (shouldRender && !rendered && parentRendered) {
-            this.ifBlocks[name].renderer();
+            this.ifBlocks[ifBlockId].renderer();
+            this.ifBlocks[ifBlockId].nextForBlocks.forEach((blkName) => {
+              const forBlk = this.forBlocks[blkName];
+              if (forBlk) {
+                forBlk.renderer();
+              }
+            });
           } else if (!shouldRender && rendered) {
             const ifBlkElm = getNestedArrayValue(
               this.refMap,
@@ -414,9 +507,9 @@ export const $$lunasInitComponent = function (
               }
             }
 
-            delete this.ifBlockStates[name];
+            delete this.ifBlockStates[ifBlockId];
 
-            [name, ...this.ifBlocks[name].childs].forEach((child) => {
+            [ifBlockId, ...this.ifBlocks[ifBlockId].childs].forEach((child) => {
               if (this.ifBlocks[child]) {
                 this.ifBlocks[child].cleanup.forEach((f) => f());
                 this.ifBlocks[child].cleanup = [];
@@ -426,10 +519,34 @@ export const $$lunasInitComponent = function (
         }
       }).bind(this);
 
-      this.updateComponentFuncs[0].push(updateFunc);
+      if (!this.updateBlockFuncs.find((blk) => blk.name === ifBlockId)) {
+        this.updateBlockFuncs.push({
+          name: ifBlockId,
+          type: BlockType.IF,
+          updateFuncs: [],
+        });
+      }
+      this.updateBlockFuncs
+        .find((blk) => blk.name === ifBlockId)!
+        .updateFuncs.push(updateFunc);
+
+      const latestForName = forCtx[forCtx.length - 1];
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          this.updateBlockFuncs.find(
+            (blk) => blk.name === ifBlockId
+          )!.updateFuncs = [];
+        }).bind(this);
+        const popedIndices = copyAndPopArray(indices!);
+        const latestForNameWithIndices =
+          popedIndices.length > 0
+            ? `${latestForName}-${popedIndices}`
+            : latestForName;
+        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+      }
 
       if (ifCtxUnderFor.length === 0) {
-        condition() && this.ifBlocks[name].renderer();
+        condition() && this.ifBlocks[ifBlockId].renderer();
       } else {
         const parentBlockName = indices
           ? `${ifCtxUnderFor[ifCtxUnderFor.length - 1]}-${indices}`
@@ -437,15 +554,15 @@ export const $$lunasInitComponent = function (
         if (
           this.ifBlockStates[parentBlockName] &&
           condition() &&
-          !this.ifBlockStates[name]
+          !this.ifBlockStates[ifBlockId]
         ) {
-          this.ifBlocks[name].renderer();
+          this.ifBlocks[ifBlockId].renderer();
         }
       }
 
       if (this.forBlocks[forCtx[forCtx.length - 1]]) {
         this.forBlocks[forCtx[forCtx.length - 1]].cleanUp.push(() => {
-          [name, ...this.ifBlocks[name].childs].forEach((child) => {
+          [ifBlockId, ...this.ifBlocks[ifBlockId].childs].forEach((child) => {
             if (this.ifBlocks[child]) {
               this.ifBlocks[child].cleanup.forEach((f) => f());
               this.ifBlocks[child].cleanup = [];
@@ -494,20 +611,13 @@ export const $$lunasInitComponent = function (
   const createForBlock = function (
     this: LunasComponentState,
     forBlocksConfig: [
-      forBlockId: string,
-      renderItem: (
-        item: unknown,
-        index: number,
-        indices: number[]
-      ) => LunasInternalElement,
+      forBlockId: string | (() => string),
+      renderItem: (item: unknown, indices: number[]) => LunasInternalElement,
       getDataArray: () => unknown[],
-      afterRenderHook: (
-        item: unknown,
-        index: number,
-        indices: number[]
-      ) => void,
+      afterRenderHook: (item: unknown, indices: number[]) => void,
       ifCtxUnderFor: string[],
       forCtx: string[],
+      prevIfCtx: string | null,
       updateFlag: number | number[],
       parentIndices: number[],
       mapInfo: [mapOffset: number, mapLength: number],
@@ -516,90 +626,177 @@ export const $$lunasInitComponent = function (
         refElementIndex?: number | number[]
       ],
       fragment?: FragmentFunc
-    ][]
+    ][],
+    indices?: number[]
   ): void {
     for (const config of forBlocksConfig) {
       const [
-        forBlockId,
+        getName,
         renderItem,
         getDataArray,
         afterRenderHook,
         ifCtxUnderFor,
         forCtx,
+        prevIfCtx,
         updateFlag,
         parentIndices,
         [mapOffset, mapLength],
         [parentElementIndex, refElementIndex],
         fragmentFunc,
       ] = config;
+      const forBlockId = typeof getName === "function" ? getName() : getName;
+      const blkName = indices ? `${prevIfCtx}-${indices}` : prevIfCtx;
+      if (prevIfCtx && this.ifBlocks[blkName!]) {
+        this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
+      }
 
-      this.forBlocks[forBlockId] = { cleanUp: [], childs: [] };
       forCtx.forEach((ctx) => {
-        this.forBlocks[ctx].childs.push(forBlockId);
+        const allCtxPatterns = [];
+        const copiedIndices = indices ? indices.slice() : [];
+        while (true) {
+          allCtxPatterns.push(
+            copiedIndices.length > 0 ? `${ctx}-${copiedIndices}` : ctx
+          );
+          copiedIndices.pop();
+          if (!copiedIndices || copiedIndices.length === 0) {
+            break;
+          }
+        }
+        allCtxPatterns.forEach((ctx) => {
+          this.ifBlocks[ctx] && this.ifBlocks[ctx].childs.push(forBlockId);
+        });
       });
+
+      let oldItems = deepCopy(getDataArray());
 
       const renderForBlock = ((items: unknown[]) => {
         const containerElm = getNestedArrayValue(
           this.refMap,
           parentElementIndex
         ) as HTMLElement;
-
         const insertionPointElm = getNestedArrayValue(
           this.refMap,
           refElementIndex
         ) as HTMLElement;
-        if (!Array.isArray(items)) {
-          throw new Error(`Items should be an array but got ${typeof items}`);
+        if (!(items != null && typeof items[Symbol.iterator] === "function")) {
+          throw new Error(`Items should be an iterable object`);
         }
-        items.forEach((item, index) => {
+        Array.from(items).forEach((item, index) => {
           const fullIndices = [...parentIndices, index];
-          const lunasElm = renderItem(item, index, fullIndices);
+          const lunasElm = renderItem(item, fullIndices);
           const domElm = _createDomElementFromLunasElement(lunasElm);
           setNestedArrayValue(this.refMap, [mapOffset, ...fullIndices], domElm);
           containerElm.insertBefore(domElm, insertionPointElm);
-          afterRenderHook?.(item, index, fullIndices);
+          afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
-            const fragments = fragmentFunc(item, index, fullIndices);
-            createFragments(fragments, ifCtxUnderFor, forBlockId);
+            const fragments = fragmentFunc(item, fullIndices);
+            createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
           }
         });
+        oldItems = deepCopy(getDataArray());
       }).bind(this);
-      renderForBlock(getDataArray());
 
-      let oldItems = getDataArray();
+      const toBeRendered = () => {
+        return (
+          !prevIfCtx ||
+          [prevIfCtx].every(
+            (ctx) => this.ifBlockStates[indices ? `${ctx}-${indices}` : ctx]
+          )
+        );
+      };
 
-      this.updateComponentFuncs[0].push(
-        (() => {
-          if (bitAnd(this.valUpdateMap, updateFlag)) {
-            const newItems = getDataArray();
-            // FIXME: Improve the logic to handle updates properly
-            if (diffDetected(oldItems, newItems)) {
-              const refArr = this.refMap[mapOffset] as RefMapItem[];
-              // Iterate in reverse order to prevent index shift issues when removing elements
-              for (let i = refArr.length - 1; i >= 0; i--) {
-                const item = refArr[i];
-                if (item instanceof HTMLElement) {
-                  item.remove();
-                  refArr.splice(i, 1);
+      this.forBlocks[forBlockId] = {
+        cleanUp: [],
+        childs: [],
+        renderer: () => renderForBlock(getDataArray()),
+      };
+
+      const updateFunc = (() => {
+        if (!toBeRendered()) {
+          return;
+        }
+
+        if (bitAnd(this.valUpdateMap, updateFlag)) {
+          const newItems = Array.from(getDataArray());
+          if (diffDetected(oldItems, newItems)) {
+            oldItems.forEach((_item, i) => {
+              const rs = resetMap(
+                this.refMap,
+                [mapOffset, ...parentIndices, i],
+                mapLength
+              );
+              for (const r of rs) {
+                if (r instanceof HTMLElement) {
+                  r.remove();
                 }
               }
-              if (this.forBlocks[forBlockId]) {
-                const { cleanUp, childs } = this.forBlocks[forBlockId];
-                cleanUp.forEach((f) => f());
-                Array.from(childs).forEach((child) => {
-                  if (this.forBlocks[child]) {
-                    this.forBlocks[child]!.cleanUp.forEach((f) => f());
-                    this.forBlocks[child].cleanUp = [];
-                  }
-                });
-                this.forBlocks[forBlockId].cleanUp = [];
-              }
-              renderForBlock(newItems);
+            });
+            if (this.forBlocks[forBlockId]) {
+              const { cleanUp, childs } = this.forBlocks[forBlockId];
+              cleanUp.forEach((f) => f());
+              this.forBlocks[forBlockId].cleanUp = [];
+              childs.forEach((child) => {
+                if (this.forBlocks[child]) {
+                  this.forBlocks[child].cleanUp.forEach((f) => f());
+                  this.forBlocks[child].cleanUp = [];
+                }
+              });
             }
-            oldItems = newItems;
+            renderForBlock(newItems);
           }
-        }).bind(this)
+        }
+      }).bind(this);
+
+      if (!this.updateBlockFuncs.find((blk) => blk.name === forBlockId)) {
+        this.updateBlockFuncs.push({
+          name: forBlockId,
+          type: BlockType.FOR,
+          updateFuncs: [],
+        });
+      }
+      const forBlock = this.updateBlockFuncs.find(
+        (blk) => blk.name === forBlockId
       );
+      if (forBlock) {
+        forBlock.updateFuncs.push(updateFunc);
+      }
+
+      const latestForName = forCtx[forCtx.length - 1];
+      if (latestForName) {
+        const cleanUpFunc = (() => {
+          this.updateBlockFuncs.find(
+            (blk) => blk.name === forBlockId
+          )!.updateFuncs = [];
+          const newIndices = copyAndPopArray(indices!);
+          const latestForNameWithIndices =
+            newIndices.length > 0
+              ? `${latestForName}-${newIndices}`
+              : latestForName;
+          const childs = this.forBlocks[latestForNameWithIndices].childs;
+          childs.forEach((child) => {
+            if (this.forBlocks[child]) {
+              this.forBlocks[child].cleanUp.forEach((f) => f());
+              this.updateBlockFuncs.find(
+                (blk) => blk.name === forBlockId
+              )!.updateFuncs = [];
+              this.forBlocks[child].cleanUp = [];
+              this.forBlocks[child].childs = [];
+            }
+          });
+        }).bind(this);
+        const popedIndices = copyAndPopArray(indices!);
+        const latestForNameWithIndices =
+          popedIndices.length > 0
+            ? `${latestForName}-${popedIndices}`
+            : latestForName;
+        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+      }
+
+      if (!toBeRendered()) {
+        return;
+      }
+
+      renderForBlock(getDataArray());
     }
   }.bind(this);
 
@@ -638,11 +835,12 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
+    indices: number[] | undefined,
     ifCtx?: string[],
     latestForName?: string
   ) {
     for (const [
-      [textContent, attributeName],
+      [textContent, attributeName, defaultValue],
       _nodeIdx,
       depBit,
       fragmentType,
@@ -669,6 +867,7 @@ export const $$lunasInitComponent = function (
           $$lunasReplaceAttr(
             attributeName!,
             textContent(),
+            defaultValue,
             target as HTMLElement
           );
         } else {
@@ -682,6 +881,7 @@ export const $$lunasInitComponent = function (
         $$lunasReplaceAttr(
           attributeName!,
           textContent(),
+          defaultValue,
           target as HTMLElement
         );
       }
@@ -691,7 +891,12 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
+        const popedIndices = indices ? copyAndPopArray(indices) : [];
+        const latestForNameWithIndices =
+          popedIndices.length > 0
+            ? `${latestForName}-${popedIndices}`
+            : latestForName;
+        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
       }
     }
   }.bind(this);
@@ -768,7 +973,32 @@ export const $$lunasInitComponent = function (
     }
   }.bind(this);
 
+  const watch = function (
+    this: LunasComponentState,
+    dependingVars: unknown[],
+    func: () => void
+  ) {
+    // Create a combined dependency bit
+    let combinedBits: number[] = [0];
+    for (const depVar of dependingVars) {
+      if (depVar instanceof valueObj) {
+        const bit = this.currentVarBitGen.next().value;
+        bitOrAssign(combinedBits, bit);
+        depVar.addToCurrentDependency(this, bit);
+      }
+    }
+    // Add an update function that calls func when any dependency changes
+    const updateFunc = (() => {
+      if (bitAnd(this.valUpdateMap, combinedBits)) {
+        func();
+      }
+    }).bind(this);
+    this.updateComponentFuncs[0].push(updateFunc);
+  }.bind(this);
+
   return {
+    $$lunasGetElm: getElm,
+    $$lunasSetImportVars: setImportVars,
     $$lunasSetComponentElement: componentElementSetter,
     $$lunasApplyEnhancement: applyEnhancement,
     $$lunasAfterMount: setAfterMount,
@@ -783,6 +1013,7 @@ export const $$lunasInitComponent = function (
     $$lunasCreateFragments: createFragments,
     $$lunasInsertComponent: lunasInsertComponent,
     $$lunasMountComponent: lunasMountComponent,
+    $$lunasWatch: watch,
     $$lunasComponentReturn: {
       mount,
       insert,
@@ -816,6 +1047,7 @@ export function $$lunasReplaceText(content: any, elm: Node) {
 export function $$lunasReplaceAttr(
   key: string,
   content: any,
+  defaultValue: string | undefined,
   elm: HTMLElement
 ) {
   if (typeof content === "boolean") {
@@ -826,10 +1058,11 @@ export function $$lunasReplaceAttr(
     }
     return;
   } else if (typeof content === "object") {
-    const attrStr = Object.keys(content)
+    let attrVal = defaultValue ? `${defaultValue} ` : "";
+    attrVal += Object.keys(content)
       .filter((k) => content[k])
       .join(" ");
-    elm.setAttribute(key, attrStr);
+    elm.setAttribute(key, attrVal);
   } else {
     if (content === undefined && elm.hasAttribute(key)) {
       elm.removeAttribute(key);
@@ -882,7 +1115,11 @@ export const $$lunasCreateNonReactive = function <T>(
 // };
 
 type Fragment = [
-  content: [textContent: () => string, attributeName?: string],
+  content: [
+    textContent: () => string,
+    attributeName?: string,
+    defaultValue?: string
+  ],
   nodeIdx: number[] | number,
   depBit: number | number[],
   fragmentType: FragmentType
@@ -983,6 +1220,22 @@ function bitAnd(_a: number | number[], _b: number | number[]): boolean {
   }, false);
 }
 
+function bitCombine(_a: number | number[], _b: number | number[]): number[] {
+  const length = Math.max(
+    typeof _a === "number" ? 1 : _a.length,
+    typeof _b === "number" ? 1 : _b.length
+  );
+
+  const a = fillArrayWithZero(_a, length);
+  const b = fillArrayWithZero(_b, length);
+
+  const result = new Array<number>(length);
+  for (let i = 0; i < length; i++) {
+    result[i] = a[i] | b[i];
+  }
+  return result;
+}
+
 // A function to perform bitwise "|=" operation on number[] and number[]
 function bitOrAssign(
   target: number | number[],
@@ -1018,6 +1271,49 @@ function fillArrayWithZero(arr: number[] | number, length: number): number[] {
   return array;
 }
 
+function resetMap<T>(
+  arr: NestedArray<T>,
+  mapLocation: number[],
+  length: number
+): T[] {
+  const results: T[] = [];
+  let copied = deepCopy(mapLocation); // deep copy the mapLocation
+  for (let i = 0; i < length; i++) {
+    let target: any = arr;
+    for (let i = 0; i < copied.length - 1; i++) {
+      target = target[copied[i]];
+    }
+    const lastIndex = copied[copied.length - 1];
+    const result = target[lastIndex];
+    results.push(result);
+    target[lastIndex] = undefined;
+
+    copied = addNumberToArrayInitial(copied, 1);
+  }
+
+  return results;
+}
+
+function deepCopy<T>(data: T): T {
+  if (data != null && typeof data === "object") {
+    // Check if data is an iterator (has a next method)
+    if (typeof (data as any).next === "function") {
+      return deepCopy(Array.from(data as unknown as Iterable<unknown>)) as T;
+    } else if (Array.isArray(data)) {
+      return data.map((item) => deepCopy(item)) as unknown as T;
+    } else {
+      const result: any = {};
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          result[key] = deepCopy((data as any)[key]);
+        }
+      }
+      return result;
+    }
+  }
+  return data;
+}
+
 function* bitArrayGenerator(): Generator<number[]> {
   const bitWidth = 31;
   let exp = 0;
@@ -1030,4 +1326,10 @@ function* bitArrayGenerator(): Generator<number[]> {
     yield out;
     exp++;
   }
+}
+
+function copyAndPopArray(arr: number[]): number[] {
+  const copy = arr.slice();
+  copy.pop();
+  return copy;
 }

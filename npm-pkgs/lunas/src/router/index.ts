@@ -1,4 +1,4 @@
-import { LunasModuleExports, ComponentDeclaration } from ".";
+import { LunasModuleExports, ComponentDeclaration } from "../engine";
 
 export type ComponentLoader = () => Promise<{ default: ComponentDeclaration }>;
 

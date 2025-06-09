@@ -13,8 +13,8 @@ extern crate lazy_static;
 
 pub fn lunas_compile_from_block(
     b: &DetailedBlock,
-    runtime_path: Option<String>,
+    engine_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
-    let compiled_code = generate_js_from_blocks(b, runtime_path);
+    let compiled_code = generate_js_from_blocks(b, engine_path);
     compiled_code
 }

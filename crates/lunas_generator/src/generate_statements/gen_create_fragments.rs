@@ -57,13 +57,20 @@ pub fn gen_create_fragments(
                         }
                     };
 
+                    let default_value_param = if let Some(default_value) = c.default_value {
+                        format!(r#", "{}""#, default_value)
+                    } else {
+                        "".to_string()
+                    };
+
                     fragments.push(format!(
-                        "[[() => {}, \"{}\"], {}, {}, {}]",
+                        "[[() => ({}), \"{}\"{}], {}, {}, {}]",
                         c.content_of_attr,
                         c.attribute_key,
+                        default_value_param,
                         target_node_idx,
                         get_combined_binary_number(dep_vars_assigned_numbers),
-                        "0" // FragmentType.ATTRIBUTE
+                        "0", // FragmentType.ATTRIBUTE
                     ));
                 }
             }

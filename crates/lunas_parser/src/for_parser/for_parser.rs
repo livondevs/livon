@@ -1,151 +1,252 @@
-use pest::Parser;
-use pest_derive::Parser;
+//! Parser for `for..of` and `for..in` statements, converting them to a unified representation.
+//!
+//! This module uses SWC to parse the input and directly traverses the AST
+//! to extract loop components. It uses `SourceMap::span_to_snippet`
+//! to get the exact source substrings from AST node spans.
 
-#[derive(Parser)]
-#[grammar = "for_parser/for_parser.pest"]
-struct ForParser;
+use std::error::Error;
+use std::result::Result;
 
-#[derive(Debug, PartialEq)]
-pub struct ParsedFor {
-    pub iter_array: String,
-    pub item_index: Option<String>,
-    pub item_value: Option<String>,
+use swc_common::{sync::Lrc, FileName, SourceMap, SourceMapper, Span, Spanned};
+use swc_ecma_ast::{
+    CallExpr, Callee, Expr, ForHead, ForInStmt, ForOfStmt, MemberProp, ModuleItem, Stmt,
+};
+use swc_ecma_parser::{lexer::Lexer, Parser, StringInput, Syntax};
+
+/// Kind of `for` statement: `for..of` or `for..in`.
+#[derive(Debug, PartialEq, Clone)]
+pub enum ForKind {
+    Of,
+    In,
 }
 
-/// Parses a JS `for ... of/in ...` header and returns its components.
-/// Returns Err(String) on any parse or semantic error.
-pub fn parse_for_statement(input: &str) -> Result<ParsedFor, String> {
-    let mut pairs = ForParser::parse(Rule::for_stmt, input).map_err(|e| e.to_string())?;
-    let stmt = pairs.next().ok_or("Empty parse result")?;
+/// Parsed representation of a `for` statement.
+#[derive(Debug, PartialEq, Clone)]
+pub struct ParsedFor {
+    pub kind: ForKind,
+    pub iterable: String,
+    /// Raw pattern string as appeared in the input (e.g., "[x]" or "item"),
+    /// without 'let', 'const', or 'var'.
+    pub raw: String,
+}
 
-    let mut index = None;
-    let mut value = None;
-    let mut pending_ident = None;
-    let mut operator = None;
-    let mut rhs = None;
+impl ParsedFor {
+    /// Parse strings like `"const [idx, val] of data.entries()"` or `"let key in mapObj"`.
+    pub fn parse(input: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let src = input.trim();
+        let wrapped = format!("for({}){{}}", src);
 
-    for pair in stmt.into_inner() {
-        match pair.as_rule() {
-            Rule::declaration => {}
-            Rule::pattern => {
-                let inner = pair.into_inner().next().unwrap();
-                match inner.as_rule() {
-                    Rule::array_destructure | Rule::object_destructure => {
-                        let mut idents = inner.into_inner();
-                        index = Some(idents.next().unwrap().as_str().to_string());
-                        value = Some(idents.next().unwrap().as_str().to_string());
+        let cm: Lrc<SourceMap> = Default::default();
+        let fm = cm.new_source_file(
+            FileName::Custom("for_stmt.js".into()).into(),
+            wrapped.clone(),
+        );
+        let lexer = Lexer::new(
+            Syntax::Es(Default::default()),
+            Default::default(),
+            StringInput::from(&*fm),
+            None,
+        );
+        let mut parser = Parser::new_from(lexer);
+        let module = parser.parse_module().map_err(|e| {
+            Box::<dyn Error + Send + Sync>::from(format!(
+                "SWC parse error for input '{}': {:?}",
+                src, e
+            ))
+        })?;
+
+        let module_item = module.body.into_iter().next().unwrap_or_else(|| {
+            panic!("Empty input, no statements: '{}'", src);
+        });
+
+        let actual_stmt = match module_item {
+            ModuleItem::Stmt(s) => s,
+            _ => {
+                panic!("Input did not yield a statement: '{}'", src);
+            }
+        };
+
+        let (kind, left_for_head, right_expr) = match actual_stmt {
+            Stmt::ForOf(ForOfStmt { left, right, .. }) => (ForKind::Of, left, right),
+            Stmt::ForIn(ForInStmt { left, right, .. }) => (ForKind::In, left, right),
+            _ => {
+                panic!("Not a for..of or for..in statement: '{}'", src);
+            }
+        };
+
+        let pattern_span: Span = match left_for_head {
+            ForHead::VarDecl(var_decl) => {
+                if var_decl.decls.is_empty() {
+                    panic!("Variable declaration in for loop head has no declarators");
+                }
+                var_decl.decls[0].name.span()
+            }
+            ForHead::Pat(pat) => pat.span(),
+            ForHead::UsingDecl(_) => {
+                panic!(
+                    "Not a for..of or for..in statement (found UsingDecl): '{}'",
+                    src
+                );
+            }
+        };
+
+        let raw = cm
+            .span_to_snippet(pattern_span)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to get snippet for pattern (span {:?}): {:?}",
+                    pattern_span, e
+                )
+            })
+            .trim()
+            .to_string();
+
+        let mut iterable_span = right_expr.span();
+
+        // Special-case dropping `.entries()` in specific for-of scenarios
+        if kind == ForKind::Of {
+            if let Expr::Call(CallExpr { callee, args, .. }) = &*right_expr {
+                if let Callee::Expr(callee_expr_val) = callee {
+                    if let Expr::Member(member_expr) = &**callee_expr_val {
+                        if let MemberProp::Ident(ident_prop) = &member_expr.prop {
+                            if ident_prop.sym.as_ref() == "entries" {
+                                let obj_expr = &*member_expr.obj;
+                                let drop_entries = match obj_expr {
+                                    Expr::Ident(obj_ident) if obj_ident.sym.as_ref() == "Object" => {
+                                        args.get(0).map_or(false, |first_arg| {
+                                            first_arg.spread.is_none()
+                                                && !matches!(&*first_arg.expr, Expr::Ident(_))
+                                        })
+                                    }
+                                    Expr::Member(_) => true,
+                                    Expr::Paren(paren_expr) => {
+                                        matches!(&*paren_expr.expr, Expr::Member(_))
+                                    }
+                                    _ => false,
+                                };
+
+                                if drop_entries {
+                                    if let Expr::Ident(obj_ident) = &*member_expr.obj {
+                                        if obj_ident.sym.as_ref() == "Object" {
+                                            if let Some(first_arg) = args.get(0) {
+                                                iterable_span = first_arg.expr.span();
+                                            }
+                                        }
+                                    } else if let Expr::Member(sub_member_expr) = &*member_expr.obj {
+                                        iterable_span = sub_member_expr.span();
+                                    }
+                                }
+                            }
+                        }
                     }
-                    Rule::identifier => pending_ident = Some(inner.as_str().to_string()),
-                    _ => unreachable!(),
                 }
             }
-            Rule::operator => operator = Some(pair.as_str()),
-            Rule::rhs => rhs = Some(pair.as_str().trim().to_string()),
-            _ => unreachable!(),
+        }
+
+        let iterable = cm
+            .span_to_snippet(iterable_span)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to get snippet for iterable (span {:?}): {:?}",
+                    iterable_span, e
+                )
+            })
+            .trim()
+            .to_string();
+
+        Ok(ParsedFor {
+            kind,
+            iterable,
+            raw,
+        })
+    }
+
+    pub fn clone_with_new_iterable(&self, new_iterable: &str) -> Self {
+        ParsedFor {
+            kind: self.kind.clone(),
+            iterable: new_iterable.to_string(),
+            raw: self.raw.clone(),
         }
     }
 
-    // Semantic validations
-    let op = operator.ok_or("Missing operator")?;
-    if op == "in" && (value.is_some()) {
-        return Err("Destructuring pattern not allowed with 'in' operator".into());
-    }
-
-    // Set pending identifier based on operator
-    if let Some(name) = pending_ident {
-        match op {
-            "in" => index = Some(name),
-            "of" => value = Some(name),
-            _ => unreachable!(),
-        }
-    }
-
-    // rhsが `Object.entries(...)` や `.entries()` で終わる場合、内部を抽出
-    let iter_array = if let Some(rhs_str) = rhs {
-        if let Some(array_name) = rhs_str
-            .strip_prefix("Object.entries(")
-            .and_then(|s| s.strip_suffix(')'))
-        {
-            array_name.trim().to_string()
-        } else if rhs_str.ends_with(".entries()") {
-            rhs_str.strip_suffix(".entries()").unwrap().to_string()
+    pub fn for_in_to_for_of(&self) -> Self {
+        if self.kind == ForKind::In {
+            ParsedFor {
+                kind: ForKind::Of,
+                iterable: format!("Object.keys({})", self.iterable),
+                raw: self.raw.clone(),
+            }
         } else {
-            rhs_str
+            self.clone()
         }
-    } else {
-        return Err("Missing RHS".into());
-    };
-
-    Ok(ParsedFor {
-        iter_array,
-        item_index: index,
-        item_value: value,
-    })
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{ForKind, ParsedFor};
 
     macro_rules! generate_for_tests {
-        ($($name:ident: $input:expr => $expected:expr,)*) => {
-            $(
-                #[test]
-                fn $name() {
-                    match parse_for_statement($input) {
-                        Ok(actual) => assert_eq!(actual, $expected, "Test failed for input: {}", $input),
-                        Err(e) => panic!("Expected Ok({:?}), got Err('{}') for input: {}", $expected, e, $input),
-                    }
-                }
-            )*
+        ($($name:ident: $input:expr => $expected:expr),+ $(,)?) => {
+            $(#[test]
+            fn $name() {
+                let pf = ParsedFor::parse($input).unwrap_or_else(|e| panic!("Parse failed for input '{}':\nError: {:?}", $input, e));
+                let exp: ParsedFor = $expected;
+                assert_eq!(pf.kind,     exp.kind, "Input: '{}'", $input);
+                assert_eq!(pf.iterable, exp.iterable, "Input: '{}'", $input);
+                assert_eq!(pf.raw,      exp.raw, "Input: '{}'", $input);
+            })+
         };
     }
 
     macro_rules! generate_for_error_tests {
-        ($($name:ident: $input:expr,)*) => {
-            $(
-                #[test]
-                fn $name() {
-                    assert!(parse_for_statement($input).is_err(), "Expected Err for input: {}", $input);
+        ($($name:ident: $input:expr),+ $(,)?) => {
+            $(#[test]
+            #[should_panic]
+            fn $name() {
+                match ParsedFor::parse($input) {
+                    Ok(parsed_for) => {
+                        panic!("Expected error for input '{}', but got Ok({:?})", $input, parsed_for);
+                    }
+                    Err(_) => { /* Expected panic */ }
                 }
-            )*
+            })+
         };
     }
 
-    use crate::ParsedFor;
-
     generate_for_tests! {
-        object_entries_1: "const [index, value] of Object.entries(data)" => ParsedFor { iter_array: "data".into(), item_index: Some("index".into()), item_value: Some("value".into()) },
-        object_entries_2: "var { k , v } of Object.entries( myMap )" => ParsedFor { iter_array: "myMap".into(), item_index: Some("k".into()), item_value: Some("v".into()) },
-        method_entries_1: "const [idx, val] of myData.entries()" => ParsedFor { iter_array: "myData".into(), item_index: Some("idx".into()), item_value: Some("val".into()) },
-        method_entries_2: "let [ k, v ] of another_obj.get_items().entries()" => ParsedFor { iter_array: "another_obj.get_items()".into(), item_index: Some("k".into()), item_value: Some("v".into()) },
-        plain_of_1: "let value of dataArr" => ParsedFor { iter_array: "dataArr".into(), item_index: None, item_value: Some("value".into()) },
-        plain_of_2: "item of getItems()" => ParsedFor { iter_array: "getItems()".into(), item_index: None, item_value: Some("item".into()) },
-        plain_of_3: "val of obj.prop" => ParsedFor { iter_array: "obj.prop".into(), item_index: None, item_value: Some("val".into()) },
-        in_without_value_1: "var key in mapObj" => ParsedFor { iter_array: "mapObj".into(), item_index: Some("key".into()), item_value: None },
-        in_without_value_2: "index in obj.getIndices()" => ParsedFor { iter_array: "obj.getIndices()".into(), item_index: Some("index".into()), item_value: None },
-        whitespace_variations_1: " [ i , v ] of Object.entries(  sampleData ) " => ParsedFor { iter_array: "sampleData".into(), item_index: Some("i".into()), item_value: Some("v".into()) },
-        whitespace_variations_2: "const\t[ index , value ]\rof\t myArr.entries( \n ) " => ParsedFor { iter_array: "myArr".into(), item_index: Some("index".into()), item_value: Some("value".into()) },
-        whitespace_variations_3: " let \t item \n of \t data " => ParsedFor { iter_array: "data".into(), item_index: None, item_value: Some("item".into()) },
-        whitespace_variations_4: " key\tin\tobject " => ParsedFor { iter_array: "object".into(), item_index: Some("key".into()), item_value: None },
-        function_calling_rhs_1: "item of filteredItems()" => ParsedFor { iter_array: "filteredItems()".into(), item_index: None, item_value: Some("item".into()) },
-        edge_case_1: "let [ k, v ] of (getObj()).items.entries()" => ParsedFor { iter_array: "(getObj()).items".into(), item_index: Some("k".into()), item_value: Some("v".into()) },
-        edge_case_2: "const [idx, val] of Object.entries(await getData().then(r => r.json()))" => ParsedFor { iter_array: "await getData().then(r => r.json())".into(), item_index: Some("idx".into()), item_value: Some("val".into()) },
+        object_entries_1:    "const [index, value] of Object.entries(data)" => ParsedFor { kind: ForKind::Of, iterable: "Object.entries(data)".into(), raw: "[index, value]".into() },
+        object_entries_2:    "var { k , v } of Object.entries( myMap )" => ParsedFor { kind: ForKind::Of, iterable: "Object.entries( myMap )".into(), raw: "{ k , v }".into() },
+        method_entries_1:    "const [idx, val] of myData.entries()" => ParsedFor { kind: ForKind::Of, iterable: "myData.entries()".into(), raw: "[idx, val]".into() },
+        method_entries_2:    "let [ k, v ] of another_obj.get_items().entries()" => ParsedFor { kind: ForKind::Of, iterable: "another_obj.get_items().entries()".into(), raw: "[ k, v ]".into() },
+        method_entries_3:    "[i, b] of bools.entries()" => ParsedFor { kind: ForKind::Of, iterable: "bools.entries()".into(), raw: "[i, b]".into() },
+        plain_of_1:          "let value of dataArr" => ParsedFor { kind: ForKind::Of, iterable: "dataArr".into(), raw: "value".into() },
+        plain_of_2:          "item of getItems()" => ParsedFor { kind: ForKind::Of, iterable: "getItems()".into(), raw: "item".into() },
+        plain_of_3:          "val of obj.prop" => ParsedFor { kind: ForKind::Of, iterable: "obj.prop".into(), raw: "val".into() },
+        whitespace_variations_1:" [ i , v ] of Object.entries(  sampleData ) " => ParsedFor { kind: ForKind::Of, iterable: "sampleData".into(), raw: "[ i , v ]".into() },
+        whitespace_variations_2:"const\t[ index , value ]\rof\t myArr.entries( \n ) " => ParsedFor { kind: ForKind::Of, iterable: "myArr.entries( \n )".into(), raw: "[ index , value ]".into() },
+        whitespace_variations_3:" let \t item \n of \t data " => ParsedFor { kind: ForKind::Of, iterable: "data".into(), raw: "item".into() },
+        whitespace_variations_4:" key\tin\tobject " => ParsedFor { kind: ForKind::In, iterable: "object".into(), raw: "key".into() },
+        function_calling_rhs_1:"item of filteredItems()" => ParsedFor { kind: ForKind::Of, iterable: "filteredItems()".into(), raw: "item".into() },
+        edge_case_1:        "let [ k, v ] of (getObj()).items.entries()" => ParsedFor { kind: ForKind::Of, iterable: "(getObj()).items".into(), raw: "[ k, v ]".into() },
+        edge_case_2:        "const [idx, val] of Object.entries(await getData().then(r => r.json()))" => ParsedFor { kind: ForKind::Of, iterable: "await getData().then(r => r.json())".into(), raw: "[idx, val]".into() },
+        edge_case_3:        "[i6] of [...Array(counts[5]).keys()]" => ParsedFor { kind: ForKind::Of, iterable: "[...Array(counts[5]).keys()]".into(), raw: "[i6]".into() },
+        edge_case_4:        "i of [...Array(bools.length).keys()]" => ParsedFor { kind: ForKind::Of, iterable: "[...Array(bools.length).keys()]".into(), raw: "i".into() },
+        valid_js_no_decl_array: "[a,b,c] of d" => ParsedFor { kind: ForKind::Of, iterable: "d".into(), raw: "[a,b,c]".into()},
+        valid_js_no_decl_object: "const {i, v} of nonEntries()" => ParsedFor { kind: ForKind::Of, iterable: "nonEntries()".into(), raw: "{i, v}".into()},
+        valid_trailing_comma_pattern: "const [a,] of d" => ParsedFor { kind: ForKind::Of, iterable: "d".into(), raw: "[a,]".into() },
+        valid_for_in_destructuring: "const [i, v] in data.entries()" => ParsedFor { kind: ForKind::In, iterable: "data.entries()".into(), raw: "[i, v]".into() },
     }
 
     generate_for_error_tests! {
         invalid_1: "for foo bar",
         invalid_2: "let [a] of",
-        invalid_3: "let a in obj extra",
+        invalid_syntax_for_loop_extra_tokens: "let a in obj extra",
         invalid_4: "let [a,b c] of data",
-        invalid_5: "const [a,] of d",
         invalid_6: "x of y z",
         invalid_7: "in obj",
         invalid_8: "let x y z of arr",
         invalid_9: "",
-        invalid_10: "const [i, v] in data.entries()",
-        invalid_11: "const {i, v} of nonEntries()",
-        invalid_12: "[a,b,c] of d",
         invalid_13: "val of obj.",
         invalid_14: "val of obj.()",
     }

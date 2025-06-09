@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use lunas_parser::ParsedFor;
 use num_bigint::BigUint;
 
 use crate::{
@@ -14,6 +15,7 @@ pub enum TransformInfo {
     AddStringToPosition(AddStringToPosition),
     RemoveStatement(RemoveStatement),
     ReplaceText(ReplaceText),
+    MoveToTheEnd(MoveToTheEnd),
 }
 
 #[derive(Debug, Clone)]
@@ -36,10 +38,17 @@ pub struct ReplaceText {
     pub string: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct MoveToTheEnd {
+    pub start_position: u32,
+    pub end_position: u32,
+}
+
 #[derive(Debug)]
 pub struct VariableNameAndAssignedNumber {
     pub name: String,
     pub assignment: BigUint,
+    pub to_add_value_accessor: bool,
 }
 
 #[derive(Debug)]
@@ -116,14 +125,24 @@ impl ToString for EventTarget {
 }
 
 impl EventTarget {
-    pub fn new(content: String, variables: &Vec<String>, func_deps: &Vec<JsFunctionDeps>) -> Self {
+    pub fn new(
+        content: String,
+        variables: &Vec<String>,
+        variables_to_add_value_accessor: &Vec<String>,
+        func_deps: &Vec<JsFunctionDeps>,
+    ) -> Result<Self, String> {
         // FIXME: (P1) This is a hacky way to check if the content is a statement or a function
         if word_is_one_word(content.as_str()) {
-            EventTarget::RefToFunction(content)
+            Ok(EventTarget::RefToFunction(content))
         } else {
-            EventTarget::Statement(
-                append_v_to_vars_in_html(content.as_str(), &variables, func_deps).0,
-            )
+            let content = append_v_to_vars_in_html(
+                content.as_str(),
+                variables,
+                variables_to_add_value_accessor,
+                func_deps,
+                true,
+            )?;
+            Ok(EventTarget::Statement(content.0))
         }
     }
 }
@@ -187,9 +206,7 @@ pub struct ForBlockInfo {
     pub target_anchor_id: Option<String>,
     pub node: Node,
     pub ref_text_node_id: Option<String>,
-    pub item_name: String,
-    pub item_index: String,
-    pub item_collection: String,
+    pub for_info: ParsedFor,
     pub dep_vars: Vec<String>,
     pub ctx_under_for: Vec<String>,
     pub ctx_over_for: Vec<String>,
@@ -265,18 +282,18 @@ pub struct ComponentArg {
 }
 
 impl ComponentArg {
-    fn to_string(&self, variable_names: &Vec<String>) -> String {
+    fn to_string(&self, variable_names: &Vec<String>) -> Result<String, String> {
         if self.bind {
             // TODO: delete unwrap and add support for boolean attributes
             let value_converted_to_obj =
-                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names);
-            format!("\"{}\": {}", self.name, value_converted_to_obj)
+                convert_non_reactive_to_obj(&self.value.clone().unwrap().as_str(), variable_names)?;
+            Ok(format!("\"{}\": {}", self.name, value_converted_to_obj))
         } else {
-            format!(
+            Ok(format!(
                 "\"{}\": $$lunasCreateNonReactive(\"{}\")",
                 self.name,
                 self.value.clone().unwrap()
-            )
+            ))
         }
     }
 }
@@ -304,16 +321,16 @@ impl ComponentArgs {
         ComponentArgs { args }
     }
 
-    pub fn to_object(&self, variable_names: &Vec<String>) -> String {
+    pub fn to_object(&self, variable_names: &Vec<String>) -> Result<String, String> {
         let obj_value = {
             let mut args_str: Vec<String> = vec![];
             for arg in &self.args {
-                args_str.push(arg.to_string(variable_names));
+                args_str.push(arg.to_string(variable_names)?);
             }
 
             args_str.join(", ")
         };
-        format!("{{{}}}", obj_value)
+        Ok(format!("{{{}}}", obj_value))
     }
 }
 

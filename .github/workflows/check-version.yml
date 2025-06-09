@@ -2,13 +2,14 @@ name: Check package.json version
 
 on:
   pull_request:
-    types: [closed]
+    types: [synchronize, opened, reopened]
     branches:
       - beta
 
 jobs:
   check-version:
-    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.title, 'version')
+    # Only run when the PR's head branch name (github.head_ref) starts with "version/"
+    if: startsWith(github.head_ref, 'version/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -27,20 +28,19 @@ jobs:
           else
             echo "Version format is incorrect" && exit 1
           fi
+
       - name: Create PR review on failure
         if: ${{ failure() }}
         run: |
-          NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to beta version format.
-          Please correct it."
+          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$VERSION' does not adhere to beta version format. Please correct it."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create PR review on success
         if: ${{ success() }}
         run: |
           CURRENT_VERSION=$(npm show lunas@beta version)
           NEW_VERSION=$(cat ./npm-pkgs/lunas/package.json | jq -r '.version')
-          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format.
-          Current version in npm is '$CURRENT_VERSION'."
+          gh pr comment ${{ github.event.pull_request.number }} --body "The version in package.json '$NEW_VERSION' adheres to the beta version format. Current version in npm is '$CURRENT_VERSION'."
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
