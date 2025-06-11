@@ -6,9 +6,9 @@ mod js_utils;
 mod orig_html_struct;
 mod structs;
 mod transformers;
+mod utils;
 use generate_js::generate_js_from_blocks;
 use lunas_parser::DetailedBlock;
-#[macro_use]
 extern crate lazy_static;
 
 pub fn lunas_compile_from_block(

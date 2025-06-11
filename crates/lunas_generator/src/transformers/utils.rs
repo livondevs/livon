@@ -5,9 +5,7 @@ use crate::{
     },
     transformers::utils_swc::transform_ts_to_js,
 };
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use serde_json::{to_value, Value};
-use std::{env, sync::Mutex};
 
 /// Applies a sequence of TransformInfo operations to the given script.
 /// Resolves overlapping and ensures valid UTF-8 boundaries by adjusting non-boundary indices.
@@ -138,55 +136,6 @@ use super::{
     js_utils::search_json,
     utils_swc::{parse_expr_with_swc, parse_module_with_swc},
 };
-
-lazy_static! {
-    pub static ref UUID_GENERATOR: Mutex<UuidGenerator> = Mutex::new(UuidGenerator::new());
-}
-
-pub struct UuidGenerator {
-    seed: u8,
-}
-
-impl UuidGenerator {
-    fn new() -> UuidGenerator {
-        UuidGenerator { seed: 0 }
-    }
-
-    pub fn gen(&mut self) -> String {
-        if is_testgen() {
-            let seed = [self.seed; 32]; // ここに適当なシード値を設定します。
-            let mut rng: StdRng = SeedableRng::from_seed(seed);
-
-            let alphabet: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_$";
-            let size = 21;
-
-            let id: String = (0..size)
-                .map(|_| {
-                    let random_char = alphabet.choose(&mut rng).unwrap();
-                    *random_char as char
-                })
-                .collect();
-            self.seed = self.seed + 1;
-            id
-        } else {
-            let alphabet: [char; 53] = [
-                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p',
-                'q', 'r', 's', 't', 'v', 'u', 'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F',
-                'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'V', 'U',
-                'W', 'X', 'Y', 'Z', '$',
-            ];
-            nanoid::nanoid!(10, &alphabet)
-        }
-    }
-}
-
-// FIXME: test env is no longer needed
-fn is_testgen() -> bool {
-    match env::var("LUNAS_TEST") {
-        Ok(_) => true,
-        Err(_) => false,
-    }
-}
 
 pub fn append_v_to_vars_in_html(
     input_ts: &str,
