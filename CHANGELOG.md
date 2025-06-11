@@ -26,6 +26,7 @@
 - **Added a new code review style guide for Gemini** [#111] @s19514tt
 - **Reviewed and updated the export structure of the npm package** [#113] @s19514tt
 - **Updated license from ISC to MIT in package.json files** [#117] @s19514tt
+- **Added original random id generator** [#120] @s19514tt
 
 
 ## [0.0.1-beta.8](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.7...0.0.1-beta.8) (2025-4-11)
