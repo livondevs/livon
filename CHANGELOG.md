@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.0.1-beta.10](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.8...0.0.1-beta.10) (2025-6-11)
+
+### Features
+- **Added support for external scripts** [#102] @s19514tt
+- **Introduced watch functionality for reactive variables** [#105] @s19514tt
+- **Implemented arrow function support in reactive functions** [#109] @s19514tt
+- **Supported combining class binding with default class values** [#110] @s19514tt
+
+### Bug Fixes
+- **Fixed an error that occurred when rendering an empty list** [#104] @s19514tt
+- **Fixed a bug where comments were unintentionally rendered** [#104] @s19514tt
+- **Added support for parsing expressions binded to HTML and transpiling TypeScript to JavaScript using SWC** [#104] @s19514tt
+- **Fixed an issue where code was being unnecessarily transformed** [#104] @s19514tt
+- **Ensured proper transformation of TypeScript code** [#104] @s19514tt
+- **Fixed a bug where components using the Router were not correctly specified** [#104] @s19514tt
+- **Fixed an issue where IF blocks inside FOR blocks were not rendered** [#106] @s19514tt
+- **Fixed a bug in the FOR block parser** [#107] @s19514tt
+- **Fixed an issue where variable accessors were not appended to object keys** [#108] @s19514tt
+- **Fixed a bug where parser errors were not handled correctly** [#112] @s19514tt
+- **Fixed a bug where FOR blocks failed to render after the initial render if they were initially skipped** [#115] @s19514tt
+
+### Other Changes
+
+- **Added a new code review style guide for Gemini** [#111] @s19514tt
+- **Reviewed and updated the export structure of the npm package** [#113] @s19514tt
+- **Updated license from ISC to MIT in package.json files** [#117] @s19514tt
+- **Added original random id generator** [#120] @s19514tt
+
+
 ## [0.0.1-beta.8](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.7...0.0.1-beta.8) (2025-4-11)
 
 ### Features

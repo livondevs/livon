@@ -646,10 +646,7 @@ export const $$lunasInitComponent = function (
       ] = config;
       const forBlockId = typeof getName === "function" ? getName() : getName;
       const blkName = indices ? `${prevIfCtx}-${indices}` : prevIfCtx;
-      if (
-        prevIfCtx &&
-        this.ifBlocks[blkName!]
-      ) {
+      if (prevIfCtx && this.ifBlocks[blkName!]) {
         this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
@@ -669,6 +666,8 @@ export const $$lunasInitComponent = function (
           this.ifBlocks[ctx] && this.ifBlocks[ctx].childs.push(forBlockId);
         });
       });
+
+      let oldItems = deepCopy(getDataArray());
 
       const renderForBlock = ((items: unknown[]) => {
         const containerElm = getNestedArrayValue(
@@ -694,6 +693,7 @@ export const $$lunasInitComponent = function (
             createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
           }
         });
+        oldItems = deepCopy(getDataArray());
       }).bind(this);
 
       const toBeRendered = () => {
@@ -710,11 +710,6 @@ export const $$lunasInitComponent = function (
         childs: [],
         renderer: () => renderForBlock(getDataArray()),
       };
-      if (!toBeRendered()) {
-        return;
-      }
-
-      let oldItems = deepCopy(getDataArray());
 
       const updateFunc = (() => {
         if (!toBeRendered()) {
@@ -749,7 +744,6 @@ export const $$lunasInitComponent = function (
             }
             renderForBlock(newItems);
           }
-          oldItems = deepCopy(newItems);
         }
       }).bind(this);
 
@@ -796,6 +790,10 @@ export const $$lunasInitComponent = function (
             ? `${latestForName}-${popedIndices}`
             : latestForName;
         this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+      }
+
+      if (!toBeRendered()) {
+        return;
       }
 
       renderForBlock(getDataArray());
