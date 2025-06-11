@@ -22,9 +22,7 @@ doc-comment = "0.3.3"
 [dev-dependencies]
 indoc = "2.0.6"
 insta = { version = "1.43.0", features = ["json"] }
-tempfile = "3.19.1"
 criterion = "0.5.1"
-reqwest = { version = "0.12.15", features = ["blocking", "rustls-tls"] }
 clap = { version = "4.5.37", features = ["derive"] }
 
 [[example]]

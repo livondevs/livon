@@ -1,7 +1,7 @@
 use lunas_html_parser::{Dom as RawDom, Element as RawElm, Node as RawNode};
 use std::collections::HashMap;
 
-use crate::transformers::utils::UUID_GENERATOR;
+use crate::utils::rand_id::RAND_ID_GENERATOR;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
@@ -104,14 +104,14 @@ impl Element {
 impl Node {
     fn new_comment(comment: &String) -> Node {
         Node {
-            uuid: UUID_GENERATOR.lock().unwrap().gen(),
+            uuid: RAND_ID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::Comment(comment.clone()),
         }
     }
 
     fn new_text(text: &String) -> Node {
         Node {
-            uuid: UUID_GENERATOR.lock().unwrap().gen(),
+            uuid: RAND_ID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::TextNode(text.clone()),
         }
     }
@@ -122,7 +122,7 @@ impl Node {
             children.push(Node::new_from_node(child));
         }
         Node {
-            uuid: UUID_GENERATOR.lock().unwrap().gen(),
+            uuid: RAND_ID_GENERATOR.lock().unwrap().gen(),
             content: NodeContent::Element(Element::new_from_raw(elm.clone(), children)),
         }
     }
