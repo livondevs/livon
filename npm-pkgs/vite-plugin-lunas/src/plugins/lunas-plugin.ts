@@ -1,7 +1,5 @@
 import { compile } from "lunas/compiler";
 import { Plugin } from "vite";
-import { dirname, resolve as resolvePath } from "path";
-import { fileURLToPath } from "url";
 
 /**
  * Vite plugin for handling `.lun` files with custom compilation and CSS extraction.
