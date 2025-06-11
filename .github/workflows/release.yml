@@ -36,6 +36,8 @@ jobs:
           npm publish --tag beta
         working-directory: ./npm-pkgs/lunas
   generate-tag:
+    needs: publish-package
+    if: needs.publish-package.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
