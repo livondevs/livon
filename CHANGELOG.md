@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.1-beta.10](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.8...0.0.1-beta.10) (2025-6-09)
+## [0.0.1-beta.10](https://github.com/lunas-dev/lunas/compare/0.0.1-beta.8...0.0.1-beta.10) (2025-6-11)
 
 ### Features
 - **Added support for external scripts** [#102] @s19514tt
