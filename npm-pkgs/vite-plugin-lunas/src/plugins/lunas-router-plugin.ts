@@ -1,19 +1,73 @@
 import { glob } from "glob";
 import path from "path";
 import type { Plugin } from "vite";
+import slugify from "slugify";
 
 /**
- * Vite plugin for automatic routing based on .lun files in the specified pages directory.
+ * Throw an error if the slug already exists.
+ * @param base - The slug candidate.
+ * @param existing - A set of slugs already used.
  */
+function uniqueSlug(base: string, existing: Set<string>): string {
+  if (existing.has(base)) {
+    throw new Error(`Route collision detected: "${base}"`);
+  }
+  existing.add(base);
+  return base;
+}
+
 /**
- * Vite plugin for automatic route generation based on the file structure within a specified pages directory.
- * 
- * This plugin scans the provided `pagesDir` directory, generates route definitions,
- * and exposes them as a virtual module (`virtual:generated-routes`) for use in the application.
- * 
- * @param options - Plugin options.
+ * Scan for .lun files and produce an array of route definitions.
+ * @param absDir - Absolute path to the pages directory.
+ * @param projectRoot - Absolute path to project root.
+ * @returns A stringified array of route objects.
+ */
+function generateRoutes(absDir: string, projectRoot: string): string {
+  // Build glob pattern for .lun files
+  const pattern = path.posix.join(absDir.replace(/\\/g, "/"), "**/*.lun");
+  const files = glob.sync(pattern, { nodir: true });
+  const seen = new Set<string>();
+
+  const routes = files.map((file) => {
+    // Compute path relative to pagesDir and remove extension
+    const relToPages = path
+      .relative(absDir, file)
+      .slice(0, -4)
+      .split(path.sep)
+      .join("-");
+
+    // Slugify the path segment
+    const rawSlug = (slugify as unknown as typeof slugify.default)(relToPages, {
+      lower: true,
+      strict: true,
+    });
+
+    // Only exact "index" maps to root; other "-index" remain unchanged
+    const slug = rawSlug === "index" ? "" : rawSlug;
+
+    // Ensure uniqueness (will throw on collision)
+    const safeName = uniqueSlug(slug, seen);
+
+    // Build the route path
+    const routePath = safeName === "" ? `/` : `/${safeName}`;
+
+    // Build import path relative to project root
+    const relImportPath = path
+      .relative(projectRoot, file)
+      .split(path.sep)
+      .join("/");
+
+    return `{ path: ${JSON.stringify(
+      routePath
+    )}, component: () => import(${JSON.stringify(`./${relImportPath}`)}) }`;
+  });
+
+  return `[${routes.join(",")}]`;
+}
+
+/**
+ * Vite plugin for automatic routing based on .lun files.
  * @param options.pagesDir - Relative path to the directory containing page components.
- * @returns A Vite plugin object that handles automatic route generation.
  */
 export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
   let projectRoot: string;
@@ -23,7 +77,7 @@ export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
     enforce: "pre",
 
     /**
-     * Store the resolved project root directory.
+     * Capture the resolved project root.
      */
     configResolved(config) {
       projectRoot = config.root;
@@ -40,7 +94,7 @@ export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
     },
 
     /**
-     * Load and generate the virtual module for routes.
+     * Load and return the virtual module content.
      */
     load(id) {
       if (id === "virtual:generated-routes") {
@@ -50,38 +104,10 @@ export function lunasAutoRoutingPlugin(options: { pagesDir: string }): Plugin {
             `Security error: pagesDir must be inside the project root: ${absPagesDir}`
           );
         }
-
         const routesArray = generateRoutes(absPagesDir, projectRoot);
         return `export const routes = ${routesArray};`;
       }
       return null;
     },
   };
-}
-/**
- * Scan .lun files under absDir and produce a JSON array string of route objects.
- * @param absDir Absolute path to the pages directory
- */
-function generateRoutes(absDir: string, projectRoot: string): string {
-  const pattern = path.posix.join(absDir.replace(/\\/g, "/"), "**/*.lun");
-  const files = glob.sync(pattern, { nodir: true });
-
-  const routes = files.map((file) => {
-    // Create a relative path from the project root for imports
-    const relPath = path.relative(projectRoot, file).split(path.sep).join("/");
-    const baseName = path.basename(file, ".lun");
-
-    // Determine route path
-    const routeName = baseName.toLowerCase() === "index" ? "" : baseName;
-    const safeName = routeName.toLowerCase().replace(/[^a-z0-9_-]/g, "");
-    const routePath = `/${safeName}`;
-
-    // Dynamic import for the component
-    const importLiteral = JSON.stringify(`./${relPath}`);
-    return `{ path: ${JSON.stringify(
-      routePath
-    )}, component: () => import(${importLiteral}) }`;
-  });
-
-  return `[${routes.join(",")}]`;
 }

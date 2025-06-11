@@ -24,7 +24,8 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "glob": "^11.0.2"
+    "glob": "^11.0.2",
+    "slugify": "^1.6.6"
   },
   "peerDependencies": {
     "lunas": "^0.0.1-beta.10",
