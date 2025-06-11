@@ -1,5 +1,4 @@
 use lunas_parser::ParsedFor;
-use nanoid::nanoid;
 
 use crate::{
     consts::ROUTER_COMPONENTS,
@@ -24,9 +23,10 @@ use crate::{
             ReactiveAttr, TextAndVariableContentRelation,
         },
     },
+    utils::rand_id::RAND_ID_GENERATOR,
 };
 
-use super::utils::{append_v_to_vars_in_html, UUID_GENERATOR};
+use super::utils::append_v_to_vars_in_html;
 
 // TODO:この関数の責務が多すぎるので、可能な限り分離させる
 // TODO:dep_vars の使い方を再考する
@@ -62,7 +62,7 @@ pub fn check_html_elms(
                 for (key, action_value) in &x {
                     if key == ":if" || key == ":elseif" || key == ":else" {
                         let (condition, cascade_block_id) = if key == ":if" {
-                            let cascade_id = nanoid!();
+                            let cascade_id = RAND_ID_GENERATOR.lock().unwrap().gen_random();
                             (action_value.clone().unwrap(), cascade_id.clone())
                         } else {
                             let element_location_of_parent = {
@@ -460,7 +460,7 @@ pub fn check_html_elms(
                                 None
                             };
                             let ref_text_node_id = match distance != 1 {
-                                true => Some(nanoid!()),
+                                true => Some(RAND_ID_GENERATOR.lock().unwrap().gen_random()),
                                 false => None,
                             };
                             let (cond, dep_vars) = append_v_to_vars_in_html(
@@ -531,7 +531,7 @@ pub fn check_html_elms(
                                 None
                             };
                             let ref_text_node_id = match distance != 1 {
-                                true => Some(nanoid!()),
+                                true => Some(RAND_ID_GENERATOR.lock().unwrap().gen_random()),
                                 false => None,
                             };
                             let (item_collection, dep_vars) = append_v_to_vars_in_html(
@@ -600,7 +600,7 @@ pub fn check_html_elms(
                                 component_name: remove_statement.component_name.clone(),
                                 args: ComponentArgs::new(&remove_statement.attributes),
                                 ctx: remove_statement.ctx.clone(),
-                                custom_component_block_id: UUID_GENERATOR.lock().unwrap().gen(),
+                                custom_component_block_id: RAND_ID_GENERATOR.lock().unwrap().gen(),
                                 element_location: remove_statement.elm_loc.clone(),
                                 is_routing_component: ROUTER_COMPONENTS
                                     .into_iter()
@@ -759,7 +759,7 @@ fn set_id_for_needed_elm(
         };
         id
     } else {
-        let new_id = UUID_GENERATOR.lock().unwrap().gen();
+        let new_id = RAND_ID_GENERATOR.lock().unwrap().gen();
         element
             .attributes
             .insert("id".to_string(), Some(new_id.clone()));
