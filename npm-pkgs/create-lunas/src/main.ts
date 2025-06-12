@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import degit from "degit";
-import { existsSync, access } from "fs";
+import { existsSync } from "fs";
 import { mkdir, writeFile, readFile } from "fs/promises";
 import { prompt } from "enquirer";
 import path from "path";
@@ -30,37 +30,31 @@ import path from "path";
     await mkdir(targetDir, { recursive: true });
     await emitter.clone(targetDir);
 
-    await renameFiles(targetDir, project);
+    await renameFiles(targetDir);
 
     console.log("✅ Project initialized.");
     console.log("👉 Next steps:");
     console.log(`   cd ${targetDir}`);
     console.log("   npm install");
     console.log("   npm run dev");
-    // process.exit(1);
   } catch (err) {
     console.error("❌ Failed to initialize project:", err);
     process.exit(1);
   }
 })();
 
-async function renameFiles(dir: string, projectName: string) {
-  try {
-    const filesToRename = ["README.md", "index.html", "package.json"];
-    for (const file of filesToRename) {
-      const filePath = path.join(dir, file);
-      let content: string;
-      try {
-        content = await readFile(filePath, "utf8");
-      } catch (err: any) {
-        if (err.code === "ENOENT") continue; // ファイルがなければ無視
-        throw err;
-      }
-      const updatedContent = content.replace(/__PROJECT_NAME__/g, projectName);
-      await writeFile(filePath, updatedContent, "utf8");
+async function renameFiles(projectName: string) {
+  const filesToRename = ["README.md", "index.html", "package.json"];
+  for (const file of filesToRename) {
+    const filePath = path.join(projectName, file);
+    let content: string;
+    try {
+      content = await readFile(filePath, "utf8");
+    } catch (err: any) {
+      if (err.code === "ENOENT") continue; // ファイルがなければ無視
+      throw err;
     }
-  } catch (err) {
-    console.error(`❌ Error renaming files in ${dir}:`, err);
-    process.exit(1);
+    const updatedContent = content.replace(/__PROJECT_NAME__/g, projectName);
+    await writeFile(filePath, updatedContent, "utf8");
   }
 }
