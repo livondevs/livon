@@ -26,7 +26,7 @@ import path from "path";
     }
 
     console.log(`📦 Initializing project in "${targetDir}"...`);
-    const emitter = degit(repo, { cache: false, force: true, verbose: true });
+    const emitter = degit(repo);
     await mkdir(targetDir, { recursive: true });
     await emitter.clone(targetDir);
 
