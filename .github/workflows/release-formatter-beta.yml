@@ -1,10 +1,10 @@
-name: Publish formatter npm package
+name: Publish formatter npm package (BETA)
 
 on:
   workflow_dispatch:
 
 jobs:
-  publish-package:
+  publish-formatter-package-beta:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo

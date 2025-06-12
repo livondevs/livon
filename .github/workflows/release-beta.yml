@@ -1,4 +1,4 @@
-name: Publish npm package
+name: Publish npm package (BETA)
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish-package:
+  publish-package-beta:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -36,8 +36,8 @@ jobs:
           npm publish --tag beta
         working-directory: ./npm-pkgs/lunas
   generate-tag:
-    needs: publish-package
-    if: needs.publish-package.result == 'success'
+    needs: publish-package-beta
+    if: needs.publish-package-beta.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
