@@ -50,9 +50,14 @@ async function renameFiles(projectName: string) {
     let content: string;
     try {
       content = await readFile(filePath, "utf8");
-    } catch (err: any) {
-      if (err.code === "ENOENT") continue; // ファイルがなければ無視
-      throw err;
+    } catch (error: unknown) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        (error as { code?: string }).code === "ENOENT"
+      )
+        continue; // If the file does not exist, ignore it
+      throw error;
     }
     const updatedContent = content.replace(/__PROJECT_NAME__/g, projectName);
     await writeFile(filePath, updatedContent, "utf8");
