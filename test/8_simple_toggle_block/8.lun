@@ -1,0 +1,11 @@
+@input showBlock:bool
+html:
+  <div>
+    <div>showBlock value: ${showBlock}</div>
+    <button @click="toggle">${ showBlock ? "Show" : "Hide" }</button>
+    <div :if="showBlock">THIS IS IF BLOCK</div>
+  </div>
+script:
+  function toggle() {
+    showBlock = !showBlock;
+  }

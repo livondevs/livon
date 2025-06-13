@@ -1,0 +1,21 @@
+{
+  "name": "test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "tomu_1576 <s19514tt@sfc.keio.ac.jp> (https://github.com/s19514tt)",
+  "description": "",
+  "dependencies": {
+    "lunas": "^0.0.1-beta.10",
+    "vite-plugin-lunas": "^0.0.1-beta.1",
+    "vitest": "^3.2.3"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

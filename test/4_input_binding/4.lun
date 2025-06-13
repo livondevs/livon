@@ -1,0 +1,14 @@
+html:
+  <div>
+    <input @input="onInput" :value="balue" />
+    <div>${balue}</div>
+    <button @click="xxx">xxx</button>
+  </div>
+script:
+  const balue = ""
+  function onInput(e) {
+    balue = e.target.value
+  }
+  function xxx() {
+    balue += "xxx"
+  }

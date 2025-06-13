@@ -1,0 +1,28 @@
+html:
+  <div>
+    <div>
+      <div :if="boolVal1">AAA</div>
+      <div :if="boolVal2">BBB</div>
+      <div :if="boolVal3">CCC</div>
+      <div>Static</div>
+      <div :if="boolVal4">DDD</div>
+      <div :if="boolVal5">EEE</div>
+      <div :if="boolVal6">FFF</div>
+    </div>
+    <button @click="toggle">toggle</button>
+  </div>
+script:
+  let boolVal1 = Math.random() > 0.5
+  let boolVal2 = Math.random() > 0.5
+  let boolVal3 = Math.random() > 0.5
+  let boolVal4 = Math.random() > 0.5
+  let boolVal5 = Math.random() > 0.5
+  let boolVal6 = Math.random() > 0.5
+  function toggle(){
+    boolVal1 = !boolVal1
+    boolVal2 = !boolVal2
+    boolVal3 = !boolVal3
+    boolVal4 = !boolVal4
+    boolVal5 = !boolVal5
+    boolVal6 = !boolVal6
+  }

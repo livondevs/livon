@@ -1,0 +1,10 @@
+html:
+  <div>
+    <div>${count}</div>
+    <button @click="increment">+1</button>
+  </div>
+script:
+  let count = 0;
+  function increment() {
+    count++;
+  }

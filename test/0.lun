@@ -1,0 +1,18 @@
+html:
+  <div>
+    <div >${count}</div>
+    <button @click="increment">+1</button>
+  </div>
+script:
+  let count = 0
+  function increment(){
+    count++
+    console.log(count)
+  }
+style:
+  h1 {
+    color: blue;
+  }
+  * {
+    font-family: 'Noto Sans', sans-serif;
+  }

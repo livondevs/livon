@@ -1,0 +1,36 @@
+html:
+  <div>
+    <div>
+    Hello1
+      <div :if="boolVal1">AAA</div>
+      Hello2
+      <div :if="boolVal2">BBB</div>
+      Hello3
+      <div :if="boolVal3">CCC</div>
+      Hello4
+      <div>Static</div>
+      Hello5
+      <div :if="boolVal4">DDD</div>
+      Hello6
+      <div :if="boolVal5">EEE</div>
+      Hello7
+      <div :if="boolVal6">FFF</div>
+      Hello8
+    </div>
+    <button @click="toggle">toggle</button>
+  </div>
+script:
+  let boolVal1 = true
+  let boolVal2 = true
+  let boolVal3 = true
+  let boolVal4 = true
+  let boolVal5 = true
+  let boolVal6 = true
+  function toggle(){
+    boolVal1 = !boolVal1
+    boolVal2 = !boolVal2
+    boolVal3 = !boolVal3
+    boolVal4 = !boolVal4
+    boolVal5 = !boolVal5
+    boolVal6 = !boolVal6
+  }

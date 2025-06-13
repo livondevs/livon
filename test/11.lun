@@ -1,0 +1,26 @@
+html:
+  <div id="wrapper">
+    <div id="d1">
+      ${hw}
+    </div>
+    <button id="d2" @click="toggle">SB1 ${ showBlock ? "Hide" : "Show" }</button>
+    <button id="d3" @click="toggle2">SB2 ${ showBlock2 ? "Hide" : "Show" }</button>
+    <div id="d4" :if="showBlock">
+      <div>THIS IS IF BLOCK1 ${hw}</div>
+      <div id="d5" :if="showBlock2">
+        THIS IS IF BLOCK2 ${hw}
+      </div>
+    </div>
+  </div>
+script:
+  let showBlock = false
+  let showBlock2 = true
+  let hw = "hello world"
+  function toggle() {
+    showBlock = !showBlock
+    hw+="!"
+  }
+  function toggle2() {
+    showBlock2 = !showBlock2
+    hw+="!"
+  }
