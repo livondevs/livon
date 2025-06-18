@@ -95,7 +95,6 @@ describe("NestedToggleBlocks", () => {
     // btn1トグル
     btn1.click();
     await Promise.resolve();
-    console.log(container.outerHTML);
     expect(container.querySelector("#message")?.textContent).toBe(
       "Current message: hello world!"
     );

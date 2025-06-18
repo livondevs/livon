@@ -4,5 +4,6 @@ export default defineConfig({
   plugins: [lunas()],
   test: {
     environment: "jsdom",
+    setupFiles: ["./vitest.setup.ts"],
   },
 });
