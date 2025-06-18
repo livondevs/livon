@@ -3,21 +3,21 @@ import ToggleBlock from "./8.lun";
 import { valueObj } from "lunas/engine";
 
 describe("ToggleBlock", () => {
-  it("初期状態で表示される", async () => {
+  it("should be visible initially", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     ToggleBlock({ showBlock: new valueObj(true) }).mount(container);
     expect(container.textContent).toContain("THIS IS IF BLOCK");
   });
 
-  it("初期状態で非表示の場合、ブロックが表示されない", async () => {
+  it("should not display the block if initially hidden", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     ToggleBlock({ showBlock: new valueObj(false) }).mount(container);
     expect(container.textContent).not.toContain("THIS IS IF BLOCK");
   });
 
-  it("ボタンクリックでブロックが非表示になる", async () => {
+  it("should hide the block when the button is clicked", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const component = ToggleBlock({ showBlock: new valueObj(true) });
@@ -30,7 +30,7 @@ describe("ToggleBlock", () => {
     expect(container.textContent).not.toContain("THIS IS IF BLOCK");
   });
 
-  it("ボタンを2回クリックすると再び表示される", async () => {
+  it("should show the block again after clicking the button twice", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const component = ToggleBlock({ showBlock: new valueObj(true) });
@@ -45,7 +45,7 @@ describe("ToggleBlock", () => {
     expect(container.textContent).toContain("THIS IS IF BLOCK");
   });
 
-  it("showBlockの値表示が状態と一致する", async () => {
+  it("should display the showBlock value according to the state", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const component = ToggleBlock({ showBlock: new valueObj(true) });
@@ -60,7 +60,7 @@ describe("ToggleBlock", () => {
     expect(container.textContent).toContain("showBlock value: false");
   });
 
-  it("unmountするとDOMが消える", async () => {
+  it("should clear the DOM after unmount", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const component = ToggleBlock({ showBlock: new valueObj(true) });

@@ -8,7 +8,7 @@
     "test": "vitest"
   },
   "keywords": [],
-  "author": "tomu_1576 <s19514tt@sfc.keio.ac.jp> (https://github.com/s19514tt)",
+  "author": "tomu_1576 (https://github.com/s19514tt)",
   "description": "",
   "dependencies": {
     "lunas": "^0.0.1-beta.10",

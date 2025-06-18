@@ -1,14 +1,14 @@
 html:
   <div>
-    <input @input="onInput" :value="balue" />
-    <div>${balue}</div>
+    <input @input="onInput" :value="value" />
+    <div>${value}</div>
     <button @click="xxx">xxx</button>
   </div>
 script:
-  const balue = ""
+  let value = "";
   function onInput(e) {
-    balue = e.target.value
+    value = e.target.value;
   }
   function xxx() {
-    balue += "xxx"
+    value += "xxx";
   }
