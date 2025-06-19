@@ -1,33 +1,24 @@
 html:
   <div>
-    <h1 id='abc'>Stopwatch by Lunas</h1>
-    <div >${count}</div>
+    <h1>Stopwatch by Lunas</h1>
+    <div>${count}</div>
     <button @click="toggle">${interval==null?"Start":"Stop"}</button>
     <button @click="clear">Clear</button>
   </div>
 script:
-  let count = 0
-  function clear(){
-    count = 0
+  let count = 0;
+  function clear() {
+    count = 0;
   }
-  function increment(){
-    count++
-    console.log(count)
+  function increment() {
+    count++;
   }
-  function toggle(){
-    if(interval){
-      clearInterval(interval)
-      interval = null
-    }else{
-      interval = setInterval(increment, 2000)
+  function toggle() {
+    if (interval) {
+      clearInterval(interval);
+      interval = null;
+    } else {
+      interval = setInterval(increment, 2000);
     }
   }
-  let interval = setInterval(increment, 2000)
-style:
-  h1 {
-    color: blue;
-  }
-  * {
-    font-family: 'Noto Sans', sans-serif;
-  }
-
+  let interval: number | null = setInterval(increment, 2000);

@@ -896,6 +896,7 @@ export const $$lunasInitComponent = function (
           popedIndices.length > 0
             ? `${latestForName}-${popedIndices}`
             : latestForName;
+        console.log("latestForNameWithIndices", latestForNameWithIndices);
         this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
       }
     }

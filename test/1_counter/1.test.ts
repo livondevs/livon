@@ -1,4 +1,3 @@
-// 02/2.test.ts
 import { describe, it, expect } from "vitest";
 import Counter from "./1.lun";
 
@@ -7,7 +6,13 @@ describe("Counter", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     Counter().mount(container);
-    expect(container.textContent).toContain("0");
+
+    const countDiv = container.querySelector("#count")!;
+    expect(countDiv.textContent).toBe("0");
+
+    expect(container.innerHTML).toBe(
+      '<div><div id="count">0</div><button id="increment-btn">+1</button></div>'
+    );
   });
 
   it("should display 1 after one click", async () => {
@@ -16,11 +21,17 @@ describe("Counter", () => {
     const component = Counter();
     component.mount(container);
 
-    const button = container.querySelector("button")!;
+    const button = container.querySelector(
+      "#increment-btn"
+    ) as HTMLButtonElement;
     button.click();
     await Promise.resolve();
 
-    expect(container.textContent).toContain("1");
+    const countDiv = container.querySelector("#count")!;
+    expect(countDiv.textContent).toBe("1");
+    expect(container.innerHTML).toBe(
+      '<div><div id="count">1</div><button id="increment-btn">+1</button></div>'
+    );
   });
 
   it("should display 3 after three clicks", async () => {
@@ -29,13 +40,19 @@ describe("Counter", () => {
     const component = Counter();
     component.mount(container);
 
-    const button = container.querySelector("button")!;
+    const button = container.querySelector(
+      "#increment-btn"
+    ) as HTMLButtonElement;
     button.click();
     button.click();
     button.click();
     await Promise.resolve();
 
-    expect(container.textContent).toContain("3");
+    const countDiv = container.querySelector("#count")!;
+    expect(countDiv.textContent).toBe("3");
+    expect(container.innerHTML).toBe(
+      '<div><div id="count">3</div><button id="increment-btn">+1</button></div>'
+    );
   });
 
   it("should clear DOM after unmount", async () => {

@@ -1,0 +1,61 @@
+html:
+  <div id="root" style="display: flex; gap: 2rem;">
+    <div id="controls">
+      <h2 id="controls-title">Controls</h2>
+      <div :for="[i, b] of bools.entries()">
+        <button @click="bools[i] = !bools[i]" :id="`toggle-if-${i}`">
+          Toggle If${i + 1}: ${bools[i] ? "ON" : "OFF"}
+        </button>
+      </div>
+      <div :for="[i, c] of counts.entries()">
+        <button @click="counts[i] = Math.max(0, counts[i] - 1)" :id="`dec-for-${i}`">- For${i + 1}</button>
+        <span :id="`count-for-${i}`"> Count: ${counts[i]} </span>
+        <button @click="counts[i]++" :id="`inc-for-${i}`">+ For${i + 1}</button>
+      </div>
+    </div>
+
+    <div id="nested">
+      <h2 id="nested-title">Nested Blocks</h2>
+      <div :for="i1 of [...Array(counts[0]).keys()]" :id="`for-1-${i1}`">
+        <div :id="`label-for-1-${i1}`">FOR 1 (i1=${i1})</div>
+        <div :if="bools[0]" :id="`if-1-${i1}`">
+          <div :id="`label-if-1-${i1}`">IF 1 (bools[0] == true)</div>
+          <div :for="i2 of [...Array(counts[1]).keys()]" :id="`for-2-${i1}-${i2}`">
+            <div :id="`label-for-2-${i1}-${i2}`">FOR 2 (i2=${i2})</div>
+            <div :if="bools[1]" :id="`if-2-${i1}-${i2}`">
+              <div :id="`label-if-2-${i1}-${i2}`">IF 2 (bools[1] == true)</div>
+              <div :for="i3 of [...Array(counts[2]).keys()]" :id="`for-3-${i1}-${i2}-${i3}`">
+                <div :id="`label-for-3-${i1}-${i2}-${i3}`">FOR 3 (i3=${i3})</div>
+                <div :if="bools[2]" :id="`if-3-${i1}-${i2}-${i3}`">
+                  <div :id="`label-if-3-${i1}-${i2}-${i3}`">IF 3 (bools[2] == true)</div>
+                  <div :for="i4 of [...Array(counts[3]).keys()]" :id="`for-4-${i1}-${i2}-${i3}-${i4}`">
+                    <div :id="`label-for-4-${i1}-${i2}-${i3}-${i4}`">FOR 4 (i4=${i4})</div>
+                    <div :if="bools[3]" :id="`if-4-${i1}-${i2}-${i3}-${i4}`">
+                      <div :id="`label-if-4-${i1}-${i2}-${i3}-${i4}`">IF 4 (bools[3] == true)</div>
+                      <div :for="i5 of [...Array(counts[4]).keys()]" :id="`for-5-${i1}-${i2}-${i3}-${i4}-${i5}`">
+                        <div :id="`label-for-5-${i1}-${i2}-${i3}-${i4}-${i5}`">FOR 5 (i5=${i5})</div>
+                        <div :if="bools[4]" :id="`if-5-${i1}-${i2}-${i3}-${i4}-${i5}`">
+                          <div :id="`label-if-5-${i1}-${i2}-${i3}-${i4}-${i5}`">IF 5 (bools[4] == true)</div>
+                          <div :for="i6 of [...Array(counts[5]).keys()]" :id="`for-6-${i1}-${i2}-${i3}-${i4}-${i5}-${i6}`">
+                            <div :id="`label-for-6-${i1}-${i2}-${i3}-${i4}-${i5}-${i6}`">FOR 6 (i6=${i6})</div>
+                            <div :if="bools[5]" :id="`if-6-${i1}-${i2}-${i3}-${i4}-${i5}-${i6}`">
+                              <div :id="`label-if-6-${i1}-${i2}-${i3}-${i4}-${i5}-${i6}`">IF 6 (bools[5] == true)</div>
+                              <div :id="`block-${i1}-${i2}-${i3}-${i4}-${i5}-${i6}`">Block: ${i1}-${i2}-${i3}-${i4}-${i5}-${i6}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+script:
+  let bools = [true, true, true, true, true, true];
+  let counts = [1, 1, 1, 1, 1, 1];
