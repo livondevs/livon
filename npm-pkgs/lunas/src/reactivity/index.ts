@@ -1,4 +1,4 @@
-import { LunasComponentState, valueObj } from "../engine";
+import { type LunasComponentState, valueObj } from "../engine";
 
 export function isReactive<T>(
   value: T | ReactiveWrapper<T>

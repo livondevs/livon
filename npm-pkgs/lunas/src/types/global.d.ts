@@ -1,4 +1,4 @@
-import { Router } from "../router";
+import type { Router } from "../router";
 
 declare global {
   interface Lunas {
