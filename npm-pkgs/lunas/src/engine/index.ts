@@ -444,12 +444,7 @@ export const $$lunasInitComponent = function (
           setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
           if (fragments) {
-            createFragments(
-              fragments,
-              indices,
-              [...ifCtxUnderFor, ifBlockId],
-              forCtx[forCtx.length - 1]
-            );
+            createFragments(fragments, [...ifCtxUnderFor, ifBlockId]);
           }
           this.ifBlockStates[ifBlockId] = true;
           this.blkUpdateMap[ifBlockId] = true;
@@ -688,7 +683,7 @@ export const $$lunasInitComponent = function (
           afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
             const fragments = fragmentFunc(item, fullIndices);
-            createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
+            createFragments(fragments, ifCtxUnderFor, forBlockId);
           }
         });
         oldItems = deepCopy(getDataArray());
@@ -833,7 +828,6 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
-    indices: number[] | undefined,
     ifCtx?: string[],
     latestForName?: string
   ) {
@@ -889,12 +883,7 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        const popedIndices = indices ? copyAndPopArray(indices) : [];
-        const latestForNameWithIndices =
-          popedIndices.length > 0
-            ? `${latestForName}-${popedIndices}`
-            : latestForName;
-        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
       }
     }
   }.bind(this);
