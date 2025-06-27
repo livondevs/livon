@@ -9,6 +9,7 @@ mod transformers;
 mod utils;
 use generate_js::generate_js_from_blocks;
 use lunas_parser::DetailedBlock;
+use utils::rand_id::RAND_ID_GENERATOR;
 extern crate lazy_static;
 
 pub fn lunas_compile_from_block(
@@ -16,5 +17,6 @@ pub fn lunas_compile_from_block(
     engine_path: Option<String>,
 ) -> Result<(String, Option<String>), String> {
     let compiled_code = generate_js_from_blocks(b, engine_path);
+    RAND_ID_GENERATOR.lock().unwrap().reset();
     compiled_code
 }
