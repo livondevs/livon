@@ -22,5 +22,8 @@
     "./router": "./dist/router/index.js",
     "./compiler": "./dist/compiler/index.js",
     "./reactivity": "./dist/reactivity/index.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.1"
   }
 }
