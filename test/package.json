@@ -11,7 +11,9 @@
   "author": "tomu_1576 (https://github.com/s19514tt)",
   "description": "",
   "dependencies": {
-    "lunas": "^0.0.1-beta.10",
+    "diff": "^8.0.2",
+    "lunas": "../npm-pkgs/lunas",
+    "prettier": "^3.6.2",
     "vite-plugin-lunas": "^0.0.1-beta.1",
     "vitest": "^3.2.3"
   },

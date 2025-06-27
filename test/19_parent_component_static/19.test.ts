@@ -7,7 +7,7 @@ describe("ParentComponentStatic", () => {
     document.body.appendChild(container);
     ParentComponentStatic().mount(container);
     expect(container.innerHTML).toEqualNormalizedHtml(
-      '<div class="parent">This is the parent component<div id="child">This is child component</div> Hello Lunas</div>'
+      '<div class="parent">This is the parent component<div id="child">This is child component</div> Hello Lunas</div>',
     );
   });
 });
