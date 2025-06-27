@@ -643,9 +643,10 @@ export const $$lunasInitComponent = function (
         this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
+      // TODO: Review the necessity of this block
       forCtx.forEach((ctx) => {
         const allCtxPatterns = [];
-        const copiedIndices = indices ? indices.slice() : [];
+        consst copiedIndices = indices ? indices.slice() : [];
         while (true) {
           allCtxPatterns.push(
             copiedIndices.length > 0 ? `${ctx}-${copiedIndices}` : ctx
@@ -684,6 +685,13 @@ export const $$lunasInitComponent = function (
           if (fragmentFunc) {
             const fragments = fragmentFunc(item, fullIndices);
             createFragments(fragments, ifCtxUnderFor, forBlockId);
+          }
+          if (forCtx.length > 0) {
+            const lastFor = forCtx[forCtx.length - 1]!;
+            const lastForWithIndices = indices!.slice(0, -1).length
+              ? `${lastFor}-${indices!.slice(0, -1)}`
+              : lastFor;
+            this.forBlocks[lastForWithIndices]!.childs.push(forBlockId);
           }
         });
         oldItems = deepCopy(getDataArray());
