@@ -444,12 +444,7 @@ export const $$lunasInitComponent = function (
           setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
           if (fragments) {
-            createFragments(
-              fragments,
-              indices,
-              [...ifCtxUnderFor, ifBlockId],
-              forCtx[forCtx.length - 1]
-            );
+            createFragments(fragments, [...ifCtxUnderFor, ifBlockId]);
           }
           this.ifBlockStates[ifBlockId] = true;
           this.blkUpdateMap[ifBlockId] = true;
@@ -648,6 +643,7 @@ export const $$lunasInitComponent = function (
         this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
+      // TODO: Review the necessity of this block
       forCtx.forEach((ctx) => {
         const allCtxPatterns = [];
         const copiedIndices = indices ? indices.slice() : [];
@@ -688,7 +684,14 @@ export const $$lunasInitComponent = function (
           afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
             const fragments = fragmentFunc(item, fullIndices);
-            createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
+            createFragments(fragments, ifCtxUnderFor, forBlockId);
+          }
+          if (forCtx.length > 0) {
+            const lastFor = forCtx[forCtx.length - 1]!;
+            const lastForWithIndices = indices!.slice(0, -1).length
+              ? `${lastFor}-${indices!.slice(0, -1)}`
+              : lastFor;
+            this.forBlocks[lastForWithIndices]!.childs.push(forBlockId);
           }
         });
         oldItems = deepCopy(getDataArray());
@@ -833,7 +836,6 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
-    indices: number[] | undefined,
     ifCtx?: string[],
     latestForName?: string
   ) {
@@ -889,12 +891,7 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        const popedIndices = indices ? copyAndPopArray(indices) : [];
-        const latestForNameWithIndices =
-          popedIndices.length > 0
-            ? `${latestForName}-${popedIndices}`
-            : latestForName;
-        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
       }
     }
   }.bind(this);

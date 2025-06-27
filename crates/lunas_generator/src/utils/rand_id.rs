@@ -45,6 +45,10 @@ impl RandIdGenerator {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.seed = 0;
+    }
+
     /// Internal helper: fill a string of given length using the provided RNG.
     fn fill_id_with<R: RngCore>(rng: &mut R, len: usize) -> String {
         // Allowed characters for the ID.
