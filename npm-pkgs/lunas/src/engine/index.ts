@@ -646,7 +646,7 @@ export const $$lunasInitComponent = function (
       // TODO: Review the necessity of this block
       forCtx.forEach((ctx) => {
         const allCtxPatterns = [];
-        consst copiedIndices = indices ? indices.slice() : [];
+        const copiedIndices = indices ? indices.slice() : [];
         while (true) {
           allCtxPatterns.push(
             copiedIndices.length > 0 ? `${ctx}-${copiedIndices}` : ctx
