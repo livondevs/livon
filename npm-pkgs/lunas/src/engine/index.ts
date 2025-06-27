@@ -1,6 +1,7 @@
-/** biome-ignore-all lint/suspicious/noExplicitAny: <reason> */
-/** biome-ignore-all lint/suspicious/noPrototypeBuiltins: <reason> */
-/** biome-ignore-all lint/style/noNonNullAssertion: <reason> */
+/** biome-ignore-all lint/suspicious/noExplicitAny: user inputs are unpredictable, so accepting `any` is necessary to handle arbitrary data. */
+/** biome-ignore-all lint/suspicious/noPrototypeBuiltins: ensures compatibility with environments where Object.prototype methods may be shadowed or customized. */
+/** biome-ignore-all lint/style/noNonNullAssertion: earlier validation guarantees non-null values, but TypeScript cannot infer this fact. */
+
 import { isReactive } from "../reactivity";
 
 export type ComponentDeclaration = (args?: {
