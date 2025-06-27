@@ -13,20 +13,20 @@ doctype = { WSP* ~ chevron_left_bang ~ ^"doctype" ~ WSP* ~ attr* ~ WSP* ~ chevro
 //
 node         = _{ node_comment | node_element | node_text }
 node_comment = _{ WSP* ~ (comment_if | comment_normal) ~ WSP* }
-node_text    = @{ (!"<" ~ ANY)+ }              // ★高速化ポイント
+node_text    = @{ (!"<" ~ ANY)+ }
 node_element = { el_void | el_void_xml | el_process_instruct | el_raw_text | el_normal | el_dangling }
 
 //
 // COMMENTS
 //
 comment_normal    = _{ comment_tag_start ~ comment_body ~ comment_tag_end }
-comment_body      = @{ (!comment_tag_end ~ ANY)* }        // ★atomic
+comment_body      = @{ (!comment_tag_end ~ ANY)* }
 comment_tag_start = _{ chevron_left_bang ~ "--" ~ WSP* }
 comment_tag_end   = _{ WSP* ~ "--" ~ chevron_right_normal }
 
 // Conditional comments (legacy IE)
 comment_if       = _{ comment_if_start ~ comment_if_body ~ comment_if_end }
-comment_if_body  = @{ (!comment_if_end ~ ANY)* }          // ★atomic
+comment_if_body  = @{ (!comment_if_end ~ ANY)* }
 comment_if_start = _{ comment_tag_start ~ "[" ~ ^"if" }
 comment_if_end   = _{ chevron_left_bang ~ "[" ~ ^"endif" ~ "]" ~ comment_tag_end }
 
@@ -62,7 +62,7 @@ el_normal_end    = { chevron_left_closed ~ WSP* ~ POP ~ WSP* ~ chevron_right_nor
 
 // --- Raw-text elements -----------------------------------------------------
 el_raw_text_name    = { ^"style" | ^"script" | ^"title" | ^"textarea" }
-el_raw_text_content = @{ (!el_raw_text_end ~ ANY)* }      // ★atomic
+el_raw_text_content = @{ (!el_raw_text_end ~ ANY)* }
 el_raw_text         = _{ el_raw_text_start ~ el_raw_text_content ~ el_raw_text_end }
 el_raw_text_start   = _{ chevron_left_normal ~ WSP* ~ PUSH(el_raw_text_name) ~ WSP* ~ attr* ~ WSP* ~ chevron_right_normal ~ WSP* }
 el_raw_text_end     = { WSP* ~ chevron_left_closed ~ WSP* ~ POP ~ WSP* ~ chevron_right_normal }
