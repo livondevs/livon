@@ -2,8 +2,6 @@
 /** biome-ignore-all lint/suspicious/noPrototypeBuiltins: ensures compatibility with environments where Object.prototype methods may be shadowed or customized. */
 /** biome-ignore-all lint/style/noNonNullAssertion: earlier validation guarantees non-null values, but TypeScript cannot infer this fact. */
 
-import { isReactive } from "../reactivity";
-
 export type ComponentDeclaration = (args?: {
   [key: string]: any;
 }) => LunasModuleExports;
@@ -450,12 +448,7 @@ export const $$lunasInitComponent = function (
           setNestedArrayValue(this.refMap, mapOffset, componentElm);
           postRender();
           if (fragments) {
-            createFragments(
-              fragments,
-              indices,
-              [...ifCtxUnderFor, ifBlockId],
-              forCtx[forCtx.length - 1]
-            );
+            createFragments(fragments, [...ifCtxUnderFor, ifBlockId]);
           }
           this.ifBlockStates[ifBlockId] = true;
           this.blkUpdateMap[ifBlockId] = true;
@@ -654,6 +647,7 @@ export const $$lunasInitComponent = function (
         this.ifBlocks[blkName!].nextForBlocks.push(forBlockId);
       }
 
+      // TODO: Review the necessity of this block
       forCtx.forEach((ctx) => {
         const allCtxPatterns = [];
         const copiedIndices = indices ? indices.slice() : [];
@@ -694,7 +688,14 @@ export const $$lunasInitComponent = function (
           afterRenderHook?.(item, fullIndices);
           if (fragmentFunc) {
             const fragments = fragmentFunc(item, fullIndices);
-            createFragments(fragments, indices, ifCtxUnderFor, forBlockId);
+            createFragments(fragments, ifCtxUnderFor, forBlockId);
+          }
+          if (forCtx.length > 0) {
+            const lastFor = forCtx[forCtx.length - 1]!;
+            const lastForWithIndices = indices!.slice(0, -1).length
+              ? `${lastFor}-${indices!.slice(0, -1)}`
+              : lastFor;
+            this.forBlocks[lastForWithIndices]!.childs.push(forBlockId);
           }
         });
         oldItems = deepCopy(getDataArray());
@@ -839,7 +840,6 @@ export const $$lunasInitComponent = function (
   const createFragments = function (
     this: LunasComponentState,
     fragments: Fragment[],
-    indices: number[] | undefined,
     ifCtx?: string[],
     latestForName?: string
   ) {
@@ -895,12 +895,7 @@ export const $$lunasInitComponent = function (
           const idx = this.updateComponentFuncs[1].indexOf(fragmentUpdateFunc);
           this.updateComponentFuncs[1].splice(idx, 1);
         }).bind(this);
-        const popedIndices = indices ? copyAndPopArray(indices) : [];
-        const latestForNameWithIndices =
-          popedIndices.length > 0
-            ? `${latestForName}-${popedIndices}`
-            : latestForName;
-        this.forBlocks[latestForNameWithIndices]!.cleanUp.push(cleanUpFunc);
+        this.forBlocks[latestForName]!.cleanUp.push(cleanUpFunc);
       }
     }
   }.bind(this);
@@ -1336,4 +1331,67 @@ function copyAndPopArray(arr: number[]): number[] {
   const copy = arr.slice();
   copy.pop();
   return copy;
+}
+
+function isReactive<T>(
+  value: T | ReactiveWrapper<T>
+): value is ReactiveWrapper<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "addDependency" in value &&
+    typeof value.addDependency === "function" &&
+    "addToCurrentDependency" in value &&
+    typeof value.addToCurrentDependency === "function"
+  );
+}
+
+export type ReactiveWrapper<T> = T & {
+  addDependency: (
+    componentObj: LunasComponentState,
+    symbolIndex: number[]
+  ) => { removeDependency: () => void };
+  addToCurrentDependency: (
+    componentObj: LunasComponentState,
+    symbolIndex: number[]
+  ) => void;
+};
+
+export function reactive<T extends object>(
+  initial: T,
+  componentObj?: LunasComponentState,
+  componentSymbol?: symbol,
+  symbolIndex: number[] = [0]
+): T {
+  // 1) Create a valueObj instance that wraps the initial value.
+  const wrapper = new valueObj<T>(
+    initial,
+    componentObj,
+    componentSymbol,
+    symbolIndex
+  );
+  // 2) Get the generated Proxy (or primitive) reference.
+  const proxy = wrapper.v as T;
+
+  // 3) Directly attach the addDependency method to the Proxy object.
+  Object.defineProperty(proxy, "addDependency", {
+    value: (cObj: LunasComponentState, sIndex: number[]) => {
+      return wrapper.addDependency(cObj, sIndex);
+    },
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+
+  // 4) Likewise, add addToCurrentDependency if needed.
+  Object.defineProperty(proxy, "addToCurrentDependency", {
+    value: (cObj: LunasComponentState, sIndex: number[]) => {
+      wrapper.addToCurrentDependency(cObj, sIndex);
+    },
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+
+  return proxy as T;
 }
