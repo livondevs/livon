@@ -15,7 +15,7 @@ tasks:
       - chokidar ./npm-pkgs/lunas/src/engine/index.ts -c "cp ./npm-pkgs/lunas/src/engine/index.ts $PLAYGROUND_PATH/src/engine/index.ts" --initial
   dev-server:
     cmds:
-      - RUST_BACKTRACE=1 cargo watch -x run --features playground
+      - LUNAS_TEST=1 RUST_BACKTRACE=1 cargo watch -x run --features playground
     dir: crates/lunas_dev_server
   build:
     cmds:

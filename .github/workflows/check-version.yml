@@ -8,8 +8,8 @@ on:
 
 jobs:
   check-version:
-    # Only run when the PR's head branch name (github.head_ref) starts with "version/"
-    if: startsWith(github.head_ref, 'version/')
+    # Only run when the PR's head branch name (github.head_ref) contains 'version/'
+    if: ${{ contains(github.head_ref, 'version/') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
