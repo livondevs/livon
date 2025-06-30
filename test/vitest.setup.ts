@@ -1,43 +1,28 @@
-import { beforeEach, describe, it, expect } from "vitest";
-import prettier from "prettier/standalone";
-import parserHtml from "prettier/parser-html";
-import { diffLines } from "diff"; // tiny diff util bundled with vitest deps
-import pc from "picocolors"; // for nice CLI colors (already in vitest)
+import { beforeAll, beforeEach, expect } from "vitest";
+import { Biome, Distribution } from "@biomejs/js-api"; //  [oai_citation:0‡classic.yarnpkg.com](https://classic.yarnpkg.com/en/package/%40biomejs/js-api?utm_source=chatgpt.com)
+import { diffLines } from "diff";
+import pc from "picocolors";
+import { minify as htmlMinify } from "html-minifier-terser";
+
+let biome: Biome;
+
+// テスト開始前に Biome インスタンスを初期化
+beforeAll(async () => {
+  biome = await Biome.create({
+    distribution: Distribution.NODE,
+  });
+});
 
 beforeEach(() => {
   document.body.innerHTML = "";
 });
 
-/* ------------------------------------------------------------ *
- * helpers
- * ------------------------------------------------------------ */
-
-/** Format HTML through Prettier so that diff is line-by-line & human-readable */
-function prettyHtml(html: string): string {
-  try {
-    return prettier
-      .format(html, {
-        parser: "html",
-        plugins: [parserHtml],
-        htmlWhitespaceSensitivity: "ignore",
-      })
-      .trim();
-  } catch {
-    // fallback: at least trim + collapse
-    return html.replace(/\s+/g, " ").trim();
-  }
+/** Biome で HTML をフォーマットし、trim して返す */
+function formatHtmlWithBiome(html: string): string {
+  return biome.formatContent(1, html, { filePath: "file.html" }).content.trim();
 }
 
-/** Collapse redundant whitespace so that Prettier’s spacing around inline tags is normalized away */
-function normalizeWhitespace(html: string): string {
-  return html
-    .replace(/>\s+/g, ">") // remove space after tag open
-    .replace(/\s+</g, "<") // remove space before tag close/open
-    .replace(/\s{2,}/g, " ") // collapse multiple spaces
-    .trim();
-}
-
-/** create a unified diff with +/- lines and basic color */
+/** diffLines を使ってカラフルな差分を作成 */
 function formatDiff(expected: string, received: string): string {
   return diffLines(expected, received)
     .map((part) => {
@@ -48,40 +33,21 @@ function formatDiff(expected: string, received: string): string {
     .join("");
 }
 
-/* ------------------------------------------------------------ *
- * custom matcher
- * ------------------------------------------------------------ */
-
+// カスタムマッチャーを同期関数で定義
 expect.extend({
   toEqualNormalizedHtml(received: string, expected: string) {
-    // 1) Prettier-format both strings
-    const prettyExp = prettyHtml(expected);
-    const prettyRec = prettyHtml(received);
+    const expFmt = formatHtmlWithBiome(expected);
+    const recFmt = formatHtmlWithBiome(received);
 
-    // 2) Normalize redundant whitespace introduced by Prettier
-    const normExp = normalizeWhitespace(prettyExp);
-    const normRec = normalizeWhitespace(prettyRec);
-
-    const pass = normExp === normRec;
+    const pass = expFmt === recFmt;
+    const diff = formatDiff(expFmt, recFmt);
 
     return {
       pass,
       message: () =>
         pass
           ? pc.green("✅ HTML matched")
-          : pc.red("❌ HTML mismatch:\n\n") + formatDiff(normExp, normRec),
+          : pc.red("❌ HTML mismatch:\n\n") + diff,
     };
   },
 });
-
-/* ------------------------------------------------------------ *
- * typings (optional, for TS IntelliSense)
- * ------------------------------------------------------------ */
-
-declare module "vitest" {
-  // biome-ignore lint/suspicious/noExplicitAny: Vitest matcher typing shim
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  interface Assertion<T = any> {
-    toEqualNormalizedHtml(expected: string): void;
-  }
-}
