@@ -36,8 +36,7 @@ tasks:
       - npm run test
     dir: ./test
   test-ci:
-    pre:
-      - build
+    deps: [build]
     cmds:
       - npm install
       - npm run test
