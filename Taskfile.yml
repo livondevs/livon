@@ -19,7 +19,7 @@ tasks:
     dir: crates/lunas_dev_server
   build:
     cmds:
-      - cd ./crates/lunas_compiler/ && wasm-pack build --target nodejs
+      - cd ./crates/lunas_compiler/ && wasm-pack build --target nodejs --debug
       - cp ./crates/lunas_compiler/pkg/*.js ./npm-pkgs/lunas/src/wasm-compiler/
       - cp ./crates/lunas_compiler/pkg/*.ts ./npm-pkgs/lunas/src/wasm-compiler/
       - cp ./crates/lunas_compiler/pkg/*.wasm ./npm-pkgs/lunas/src/wasm-compiler/
