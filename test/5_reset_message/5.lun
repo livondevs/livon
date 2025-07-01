@@ -5,7 +5,7 @@ html:
     <button @click="reset">Reset Message</button>
   </div>
 script:
-  const msg = ""
+  let msg = ""
   function reset() {
     msg = ""
   }

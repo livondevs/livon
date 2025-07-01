@@ -29,7 +29,7 @@ describe("Counter", () => {
 
     const countDiv = container.querySelector("#count")!;
     expect(countDiv.textContent).toBe("1");
-    expect(container.innerHTML).toBe(
+    expect(container.innerHTML).toEqualNormalizedHtml(
       '<div><div id="count">1</div><button id="increment-btn">+1</button></div>'
     );
   });

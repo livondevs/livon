@@ -24,6 +24,7 @@
     "./reactivity": "./dist/reactivity/index.js"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.1"
+    "@biomejs/biome": "^2.0.1",
+    "@types/node": "^24.0.8"
   }
 }

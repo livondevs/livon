@@ -6,8 +6,8 @@ html:
   </div>
 script:
   let value = "";
-  function onInput(e) {
-    value = e.target.value;
+  function onInput(e: InputEvent) {
+    value = (e.target as HTMLInputElement)?.value;
   }
   function xxx() {
     value += "xxx";
