@@ -1,0 +1,11 @@
+html:
+  <div>
+    <input ::value="msg" />
+    <div>The entered message: ${ msg }</div>
+    <button @click="reset">Reset Message</button>
+  </div>
+script:
+  let msg = ""
+  function reset() {
+    msg = ""
+  }

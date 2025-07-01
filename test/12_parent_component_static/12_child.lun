@@ -1,0 +1,4 @@
+html:
+  <div id="child">
+    This is child component
+  </div>

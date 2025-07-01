@@ -1,0 +1,10 @@
+html:
+  <div class="child">
+    ${ message }
+  </div>
+script:
+  const message = "This is the child component";
+style:
+  .child {
+    border: dashed blue;
+  }

@@ -1,0 +1,12 @@
+html:
+  <div>
+    <input ::value="inputValue" />
+    <div>inputValue: ${ inputValue }</div>
+    <button @click="inputValue += 'foo'">setFoo</button>
+    <button @click="addHoge">addFoo1</button>
+  </div>
+script:
+  let inputValue = ""
+  function addHoge() {
+    inputValue += "hoge"
+  }

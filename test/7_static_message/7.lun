@@ -1,0 +1,8 @@
+html:
+  <div class="msg">${ message }</div>
+script:
+  const message = "Hello Lunas"
+style:
+  .msg {
+    color: red;
+  }

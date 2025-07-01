@@ -1,0 +1,42 @@
+html:
+  <div id="wrapper">
+    <h1>State Toggle Test</h1>
+    <p id="message">Current message: ${hw}</p>
+
+    <button id="btn1" @click="toggle">
+      Toggle SB1 (${ showBlock ? "Visible" : "Hidden" })
+    </button>
+
+    <button id="btn2" @click="toggle2">
+      Toggle SB2 (${ showBlock2 ? "Visible" : "Hidden" })
+    </button>
+
+    <div id="block1" :if="showBlock">
+      <p>This is Block 1: ${hw}</p>
+      <div id="block2" :if="showBlock2">
+        <p>This is Block 2: ${hw}</p>
+      </div>
+    </div>
+  </div>
+
+script:
+  // Controls the visibility of Block 1
+  let showBlock = false
+
+  // Controls the visibility of Block 2
+  let showBlock2 = true
+
+  // Shared message string
+  let hw = "hello world"
+
+  // Toggles Block 1 and appends '!' to the message
+  function toggle() {
+    showBlock = !showBlock
+    hw += "!"
+  }
+
+  // Toggles Block 2 and appends '!' to the message
+  function toggle2() {
+    showBlock2 = !showBlock2
+    hw += "!"
+  }

@@ -31,3 +31,13 @@ tasks:
   build-web:
     cmds:
       - cd ./crates/lunas_compiler/ && wasm-pack build --target web --features playground
+  test:
+    cmds:
+      - npm run test
+    dir: ./test
+  test-ci:
+    deps: [build]
+    cmds:
+      - npm install
+      - npm run test:ci
+    dir: ./test
